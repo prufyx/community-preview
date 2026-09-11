@@ -49,8 +49,9 @@ CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off \
 Run relevant race tests on a native supported host with a C toolchain using
 `CGO_ENABLED=1 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off GOFLAGS='-mod=vendor -buildvcs=false' go test -race ./...`.
 Published binaries use `CGO_ENABLED=0`.
-Collector tests also need Python 3, Bash and jq; they use synthetic local input
-and do not require a cluster. Follow the exact staged-source instructions in
+Collector tests use synthetic local input and the native Go implementation; they
+do not require a cluster or separate Python or jq runtimes. Follow the exact
+staged-source instructions in
 [the source gate](cli/release/COMMUNITY-SOURCE-GATE.md).
 
 Keep changes focused. Add a regression test when behavior changes, and include
