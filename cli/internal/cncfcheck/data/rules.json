@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-11.1",
+  "revision": "cncf-2026-09-11.2",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:3d247ca36a43f5d524c96ed8402518fd434f199e8600f6a984df8d476a1f543f",
+  "registryDigest": "sha256:2ba4cfcbbf6f120526d4a734a7051741b80d0ce8f8dcb1dd60adf0780b2fbda3",
   "entries": [
 {
       "project": "argo-cd",
@@ -3711,6 +3711,93 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Convert the selected legacy ConfigMap with MetalLB's documented conversion path, apply the resulting CR resources, and recheck the submitted resource; this check does not convert or inspect the cluster."
+      }
+    },
+{
+      "project": "nats",
+      "description": "NATS 2.11.0 rejects ASCII spaces in directly declared server, cluster, and gateway names that 2.10.0 accepted. This checks only submitted literal names and does not resolve includes, variables, defaults, startup behavior, connectivity, or whole-upgrade compatibility.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.nats.selected_name_has_ascii_space",
+          "component": "pkg:github/nats-io/nats-server",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether any explicitly selected literal server_name, cluster.name, or gateway.name contains an ASCII space. Missing, duplicate, dynamic, or unsupported configuration leaves the fact unavailable."
+        }
+      ],
+      "rule": {
+        "id": "nats.names-with-ascii-spaces-rejected.2-10-0-to-2-11-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/nats-io/nats-server",
+          "from": "2.10.0",
+          "to": "2.11.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/nats-io/nats-server",
+          "factId": "component.nats.selected_name_has_ascii_space",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T20:22:53Z",
+          "validUntil": "2026-12-10T20:22:53Z",
+          "sources": [
+            {
+              "id": "nats-00-v2-10-server-name-accepted",
+              "url": "https://github.com/nats-io/nats-server/blob/77e198333fb2b25029b620fae3574b328de37f89/server/opts.go",
+              "revision": "77e198333fb2b25029b620fae3574b328de37f89",
+              "contentDigest": "sha256:2d2b9d9fc2aa732382d11f4d1b1d938381b0f41fd7f9fda102af31568d1189f3",
+              "startLine": 840,
+              "endLine": 846
+            },
+            {
+              "id": "nats-01-v2-10-cluster-name-accepted",
+              "url": "https://github.com/nats-io/nats-server/blob/77e198333fb2b25029b620fae3574b328de37f89/server/opts.go",
+              "revision": "77e198333fb2b25029b620fae3574b328de37f89",
+              "contentDigest": "sha256:2d2b9d9fc2aa732382d11f4d1b1d938381b0f41fd7f9fda102af31568d1189f3",
+              "startLine": 1599,
+              "endLine": 1620
+            },
+            {
+              "id": "nats-02-v2-10-gateway-name-accepted",
+              "url": "https://github.com/nats-io/nats-server/blob/77e198333fb2b25029b620fae3574b328de37f89/server/opts.go",
+              "revision": "77e198333fb2b25029b620fae3574b328de37f89",
+              "contentDigest": "sha256:2d2b9d9fc2aa732382d11f4d1b1d938381b0f41fd7f9fda102af31568d1189f3",
+              "startLine": 1823,
+              "endLine": 1842
+            },
+            {
+              "id": "nats-03-v2-11-server-name-rejected",
+              "url": "https://github.com/nats-io/nats-server/blob/99e836e9afca6fce007094c44af434dd7afde02d/server/opts.go",
+              "revision": "99e836e9afca6fce007094c44af434dd7afde02d",
+              "contentDigest": "sha256:23c448091f6adc24c646523feefb0cb60aae2da8ba735cc9a61ace37a368f1e9",
+              "startLine": 980,
+              "endLine": 993
+            },
+            {
+              "id": "nats-04-v2-11-cluster-name-rejected",
+              "url": "https://github.com/nats-io/nats-server/blob/99e836e9afca6fce007094c44af434dd7afde02d/server/opts.go",
+              "revision": "99e836e9afca6fce007094c44af434dd7afde02d",
+              "contentDigest": "sha256:23c448091f6adc24c646523feefb0cb60aae2da8ba735cc9a61ace37a368f1e9",
+              "startLine": 1768,
+              "endLine": 1792
+            },
+            {
+              "id": "nats-05-v2-11-gateway-name-rejected",
+              "url": "https://github.com/nats-io/nats-server/blob/99e836e9afca6fce007094c44af434dd7afde02d/server/opts.go",
+              "revision": "99e836e9afca6fce007094c44af434dd7afde02d",
+              "contentDigest": "sha256:23c448091f6adc24c646523feefb0cb60aae2da8ba735cc9a61ace37a368f1e9",
+              "startLine": 2006,
+              "endLine": 2027
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove ASCII spaces from every explicitly supplied server, cluster, or gateway name, then recheck the same literal configuration. This does not validate includes, default names, connectivity, or the whole upgrade."
       }
     },
 {

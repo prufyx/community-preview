@@ -2,8 +2,10 @@ package supportinventory
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -19,8 +21,125 @@ func repositoryConfig(t *testing.T) (Config, string) {
 		CertContract: filepath.Join(root, "internal/certmanagervalues/source-contract-v1.json"), PrometheusContract: filepath.Join(root, "internal/prometheusmode/source-contract-v1.json"),
 		SPIFFEProfile: filepath.Join(root, "internal/spiffex509svid/data/profile.json"), CloudEventsProfile: filepath.Join(root, "internal/cloudeventsstructuredjson/data/profile.json"),
 		TiKVProfile: filepath.Join(root, "internal/tikvgcpv2/data/profile.json"), CNCFPrepareSource: filepath.Join(root, "internal/communityapp/cncf_prepare.go"),
+		ProjectRules: filepath.Join(root, "internal/projectcheck/data/rules.json"), ProjectRegistry: filepath.Join(root, "internal/projectcheck/data/projects.json"),
 		SelectedSourceManifest: filepath.Join(root, "docs/data/selected-source-records-v1.json"),
 	}, root
+}
+
+func TestSupportInventory_ArgoWorkflowsUsesWorkloadPreparerMetadata(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				Command []string `json:"command"`
+				Rules   []struct {
+					Limit string `json:"limit"`
+				} `json:"rules"`
+				LocalPreparer struct {
+					MetadataState string `json:"metadataState"`
+					Limit         string `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "argo-workflows" {
+			continue
+		}
+		if len(project.Capabilities) != 1 || len(project.Capabilities[0].Rules) != 1 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_kubernetes_workload_minimizer" || strings.Contains(project.Capabilities[0].LocalPreparer.Limit, "precedence") || !strings.Contains(project.Capabilities[0].Rules[0].Limit, "workload") {
+			t.Fatalf("incorrect Argo Workflows inventory metadata: %#v", project.Capabilities)
+		}
+		return
+	}
+	t.Fatal("Argo Workflows inventory entry missing")
+}
+
+func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]struct {
+		flag  string
+		state string
+	}{
+		"thanos": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
+		"cortex": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
+		"nats":   {"--nats-config", "implemented_native_json_configuration_minimizer"},
+	}
+	for _, project := range document.Projects {
+		expected, ok := want[project.ProjectID]
+		if !ok {
+			continue
+		}
+		if len(project.Capabilities) != 1 || project.Capabilities[0].LocalPreparer.MetadataState != expected.state || !slices.Contains(project.Capabilities[0].LocalPreparer.Command, expected.flag) || strings.Contains(strings.Join(project.Capabilities[0].LocalPreparer.Command, " "), "prepare") {
+			t.Fatalf("incorrect native route metadata for %s: %#v", project.ProjectID, project.Capabilities)
+		}
+		delete(want, project.ProjectID)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing native route metadata: %#v", want)
+	}
+}
+
+func TestSupportInventory_CephUsesSelectedCurrentMetadata(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				Rules []struct {
+					Limit string `json:"limit"`
+				} `json:"rules"`
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "ceph" {
+			continue
+		}
+		if len(project.Capabilities) != 1 || len(project.Capabilities[0].Rules) != 1 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_selected_current_osd_metadata_minimizer" || !slices.Contains(project.Capabilities[0].LocalPreparer.Command, "prepare") || !strings.Contains(project.Capabilities[0].Rules[0].Limit, "current-backend") || !strings.Contains(project.Capabilities[0].LocalPreparer.Limit, "selected current OSD") {
+			t.Fatalf("incorrect Ceph inventory metadata: %#v", project.Capabilities)
+		}
+		return
+	}
+	t.Fatal("Ceph inventory entry missing")
 }
 
 func TestSupportInventory_Generate_MatchesAcceptedInventory(t *testing.T) {

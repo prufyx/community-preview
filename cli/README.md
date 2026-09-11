@@ -31,6 +31,7 @@ no hosted account requirement or model invocation. See the [quickstart](../READM
 [CloudEvents structured JSON core-envelope subset](docs/cloudevents-structured-json.md),
 [TiKV 8.5.8 GCS WIF full-backup planned-operation preflight](docs/tikv-gcp-v2-wif-backup.md),
 [Distribution and CNI native format preflights](docs/native-format-preflights.md),
+[community-project native configuration and workload checks](docs/community-project-checks.md),
 [product contract](docs/product-contract.md) and
 [data handling](docs/data-handling.md).
 

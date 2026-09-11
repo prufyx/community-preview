@@ -4,16 +4,32 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:cef89cb3efb5b86d457b24270043e38a72e07ef4cf6c9d82adaa5fea65365290",
+    "inventorySha256": "sha256:2590c24a76385a95ac8b0b931eb51050bf48482551107bc35170be4b1d714770",
     "counts": {
-      "executableProjects": 55,
+      "executableProjects": 60,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 8
+      "newExecutableScenarios": 13
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
   "scenarios": [
+    {
+      "project": "argo-workflows",
+      "repository": "https://github.com/argoproj/argo-workflows",
+      "from": "3.5.0",
+      "to": "3.6.0",
+      "rule": "argo server --basehref is renamed to --base-href",
+      "input": "caller-supplied native Kubernetes Deployment JSON"
+    },
+    {
+      "project": "ceph",
+      "repository": "https://github.com/ceph/ceph",
+      "from": "17.2.7",
+      "to": "18.2.0",
+      "rule": "selected current FileStore OSD metadata is incompatible with Reef",
+      "input": "caller-supplied selected current per-OSD metadata JSON object"
+    },
     {
       "project": "cloudnativepg",
       "repository": "https://github.com/cloudnative-pg/cloudnative-pg",
@@ -29,6 +45,14 @@
       "to": "0.13.2",
       "rule": "selected legacy ConfigMap configuration is removed",
       "input": "caller-selected ConfigMap or reviewed CR JSON"
+    },
+    {
+      "project": "nats",
+      "repository": "https://github.com/nats-io/nats-server",
+      "from": "2.10.0",
+      "to": "2.11.0",
+      "rule": "ASCII spaces in supplied server, cluster, or gateway names are rejected",
+      "input": "caller-supplied native JSON NATS configuration subset"
     },
     {
       "project": "contour",
@@ -62,6 +86,22 @@
       "to": "4.0.1",
       "rule": "diagd --metrics-endpoint is removed",
       "input": "caller-selected argv JSON"
+    },
+    {
+      "project": "grafana",
+      "repository": "https://github.com/grafana/grafana",
+      "from": "10.4.0",
+      "to": "11.0.0",
+      "rule": "legacy alerting cannot be explicitly enabled",
+      "input": "caller-declared complete native effective grafana.ini"
+    },
+    {
+      "project": "kibana",
+      "repository": "https://github.com/elastic/kibana",
+      "from": "8.18.0",
+      "to": "9.0.0",
+      "rule": "xpack.reporting.roles.allow is removed",
+      "input": "caller-declared complete native effective kibana.yml"
     },
     {
       "project": "kubevirt",

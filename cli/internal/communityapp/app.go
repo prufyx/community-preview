@@ -57,7 +57,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		if len(args) >= 2 && args[1] == "cncf" {
 			return r.prepareCNCF(args[2:])
 		}
-		return r.usage("Usage: prufyx prepare cncf --help")
+		if len(args) >= 2 && args[1] == "project" {
+			return r.prepareProject(args[2:])
+		}
+		return r.usage("Usage: prufyx prepare <cncf|project> --help")
 	case "catalog":
 		if len(args) >= 2 && args[1] == "cncf" {
 			return r.cncfCatalog(args[2:])
@@ -71,7 +74,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		return r.writeEnvelope(envelope{SchemaVersion: legacyEnvelopeAPIVersion, Command: "version", Result: envelopeResult{Status: "OK", Scope: "local build identity", Reason: "build_identity_reported"}, Data: identity}, ExitOK)
 	case "check":
 		if len(args) == 2 && help(args[1]) {
-			fmt.Fprintln(stdout, "Usage: prufyx check <cert-manager-values|prometheus-mode|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
+			fmt.Fprintln(stdout, "Usage: prufyx check <cert-manager-values|prometheus-mode|cncf|project|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
 			return ExitOK
 		}
 		if len(args) < 2 {
@@ -80,6 +83,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		switch args[1] {
 		case "cncf":
 			return r.cncf(args[2:])
+		case "project":
+			return r.project(args[2:])
 		case "cert-manager-values":
 			return r.certManager(args[2:])
 		case "prometheus-mode":
@@ -115,6 +120,8 @@ func (r runtime) rootHelp() int {
 	fmt.Fprintln(r.stdout, `prufyx Community
 
 Usage:
+  prufyx prepare project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]
+  prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]
   prufyx prepare cncf --project kyverno --input FILE --container NAME --from VERSION --to VERSION [--distribution official_upstream|custom_build] [--format human|json|input]
   prufyx prepare cncf --project linkerd --input FILE --from 2.13.7 --to 2.14.0 [--distribution official_upstream|custom_build] [--schema-validation required|disabled] [--format human|json|input]
   prufyx prepare cncf --project karmada --input FILE --from 1.18.3 --to 1.19.0 [--distribution official_upstream|custom_build] [--target-policy-crd-admission required|disabled] [--input-digest SHA256] [--format human|json|input]
@@ -127,6 +134,8 @@ Usage:
   prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --now RFC3339 [--input-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --knowledge-db DIR [--input-digest SHA256] [--format human|json]
+  prufyx check project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
+  prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]
   prufyx db verify FILE --profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup --bootstrap-root FILE --bootstrap-root-digest SHA256 [--expected-package-digest SHA256]
   prufyx db import FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256]
   prufyx db update --source HTTPS_URL --package-out FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256]

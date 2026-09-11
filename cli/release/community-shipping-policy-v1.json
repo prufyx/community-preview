@@ -41,6 +41,8 @@
     {"path": "cli/cmd/prufyx-maintainer", "recursive": true, "role": "maintainer-tool"},
     {"path": "cli/internal/maintainer", "recursive": true, "role": "maintainer-tool"},
     {"path": "cli/docs/community-checks.md", "role": "documentation"},
+    {"path": "cli/docs/community-project-checks.md", "role": "documentation"},
+    {"path": "cli/examples/projects", "recursive": true, "role": "example"},
     {"path": "cli/docs/data-handling.md", "role": "documentation"},
     {"path": "cli/docs/local-collection.md", "role": "documentation"},
     {"path": "cli/docs/offline-boundary.md", "role": "documentation"},

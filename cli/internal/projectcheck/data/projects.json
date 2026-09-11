@@ -1,0 +1,38 @@
+{
+  "schema": "prufyx.io/community-project-registry/v1alpha1",
+  "revision": "community-projects-2026-09-11.3",
+  "projects": [
+    {
+      "slug": "argo-workflows",
+      "name": "Argo Workflows",
+      "repositoryURL": "https://github.com/argoproj/argo-workflows",
+      "component": "pkg:github/argoproj/argo-workflows",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    },
+    {
+      "slug": "ceph",
+      "name": "Ceph",
+      "repositoryURL": "https://github.com/ceph/ceph",
+      "component": "pkg:github/ceph/ceph",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    },
+    {
+      "slug": "grafana",
+      "name": "Grafana",
+      "repositoryURL": "https://github.com/grafana/grafana",
+      "component": "pkg:github/grafana/grafana",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    },
+    {
+      "slug": "kibana",
+      "name": "Kibana",
+      "repositoryURL": "https://github.com/elastic/kibana",
+      "component": "pkg:github/elastic/kibana",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    }
+  ]
+}

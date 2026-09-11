@@ -19,6 +19,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	allowed := []string{"native-resource", "native-resource-digest"}
 	if project == "cloudnativepg" {
 		allowed = []string{"current-resource", "current-resource-digest", "resource", "resource-digest"}
+	} else if project == "nats" {
+		allowed = []string{"nats-config", "nats-config-digest"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -28,7 +30,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var expectedSourceDigest string
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -42,6 +44,12 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		}
 		if project == "kubevirt" {
 			prepared, err = cncfprepare.PrepareKubeVirt(raw, from, to)
+		} else if project == "thanos" {
+			prepared, err = cncfprepare.PrepareThanos(raw, from, to)
+		} else if project == "cortex" {
+			prepared, err = cncfprepare.PrepareCortex(raw, from, to)
+		} else if project == "nats" {
+			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
 		} else {
 			prepared, err = cncfprepare.PrepareNativeMigration(raw, project, from, to)
 		}
@@ -105,7 +113,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			return ExitIntegrity
 		}
 	} else {
-		if _, err := fmt.Fprintf(r.stdout, "%s native resource review\nraw resource digests: %s\nprepared input digest: %s\naggregate: UNKNOWN\nnetwork used: false\nwhole-upgrade compatibility: UNKNOWN\n", project, joinNativeDigests(rawDigests), prepared.InputDigest); err != nil {
+		if _, err := fmt.Fprintf(r.stdout, "%s native input review\nraw input digests: %s\nprepared input digest: %s\naggregate: UNKNOWN\nnetwork used: false\nwhole-upgrade compatibility: UNKNOWN\n", project, joinNativeDigests(rawDigests), prepared.InputDigest); err != nil {
 			return ExitIntegrity
 		}
 		for _, claim := range report.Check.Claims {
