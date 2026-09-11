@@ -1,0 +1,4116 @@
+{
+  "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
+  "revision": "cncf-2026-09-11.1",
+  "policyId": "cncf-source-preview-v1",
+  "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
+  "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
+  "registryDigest": "sha256:a429231f2d30c95184c173dde733af797447bbe5584225ee797c911dedefbfe9",
+  "entries": [
+    {
+      "project": "argo-cd",
+      "description": "Argo CD inheritance setting versus explicitly declared v2 access intent; this does not authorize users or validate the whole RBAC policy.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.argo_cd.disable_fine_grained_inheritance",
+          "component": "pkg:github/argoproj/argo-cd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Effective proposed server.rbac.disableApplicationFineGrainedRBACInheritance value after defaults. True disables application update/delete inheritance; false restores v2 behavior."
+        },
+        {
+          "side": "proposed",
+          "id": "component.argo_cd.requires_inherited_application_permissions",
+          "component": "pkg:github/argoproj/argo-cd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether declared intended access specifically requires application-level update/delete grants to be inherited by managed resources. Explicit resource grants or intentionally changed access are outside this rule."
+        }
+      ],
+      "rule": {
+        "id": "argo-cd.required-rbac-inheritance.3-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/argoproj/argo-cd",
+          "from": "2.14.0",
+          "to": "3.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/argoproj/argo-cd",
+          "factId": "component.argo_cd.disable_fine_grained_inheritance",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/argoproj/argo-cd",
+            "factId": "component.argo_cd.requires_inherited_application_permissions",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-e98f483bfd57-12",
+              "url": "https://github.com/argoproj/argo-cd/blob/e98f483bfd5781df2592fef1aeed1148f150d9c9/docs/operator-manual/upgrading/2.14-3.0.md",
+              "revision": "e98f483bfd5781df2592fef1aeed1148f150d9c9",
+              "contentDigest": "sha256:dd7d03fd482596a3b110535bed1d0d1c975e1f013cd7cac90ad99d9fe8684b2f",
+              "startLine": 12,
+              "endLine": 24
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For required v2 inheritance set the documented option to false, or review explicit resource grants and the intended access model."
+      }
+    },
+    {
+      "project": "buildpacks",
+      "description": "Lifecycle 0.17.7 checks a requested CNB_PLATFORM_API against its declared supported Platform API set; this evaluates only a 0.16.5 to 0.17.7 plan whose current 0.11 request is declared supported.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.buildpacks.selected_platform_api",
+          "component": "pkg:oci/buildpacksio/lifecycle",
+          "type": "enum",
+          "enumTokens": [
+            "0.11",
+            "0.12",
+            "0.13"
+          ],
+          "description": "The explicit current CNB_PLATFORM_API selected by the operator; the bounded raw route admits 0.11 for this source plan."
+        },
+        {
+          "side": "current",
+          "id": "component.buildpacks.lifecycle_supports_selected_platform_api",
+          "component": "pkg:oci/buildpacksio/lifecycle",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the supplied current Lifecycle API label set declares the selected Platform API in platform.supported."
+        },
+        {
+          "side": "proposed",
+          "id": "component.buildpacks.lifecycle_supports_selected_platform_api",
+          "component": "pkg:oci/buildpacksio/lifecycle",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the supplied proposed Lifecycle API label set declares the selected Platform API in platform.supported."
+        }
+      ],
+      "rule": {
+        "id": "buildpacks.lifecycle-platform-api-support.0-16-5-to-0-17-7",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:oci/buildpacksio/lifecycle",
+          "from": "0.16.5",
+          "to": "0.17.7"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:oci/buildpacksio/lifecycle",
+          "factId": "component.buildpacks.lifecycle_supports_selected_platform_api",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "current",
+            "component": "pkg:oci/buildpacksio/lifecycle",
+            "factId": "component.buildpacks.selected_platform_api",
+            "enumValue": "0.11"
+          },
+          {
+            "side": "current",
+            "component": "pkg:oci/buildpacksio/lifecycle",
+            "factId": "component.buildpacks.lifecycle_supports_selected_platform_api",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T16:59:15Z",
+          "validUntil": "2026-12-09T16:59:15Z",
+          "sources": [
+            {
+              "id": "buildpacks-lifecycle-0-17-7-platform-verification",
+              "url": "https://github.com/buildpacks/lifecycle/blob/54767cc833f84066226cb87ae8e23e69cec8668f/cmd/apis.go",
+              "revision": "54767cc833f84066226cb87ae8e23e69cec8668f",
+              "contentDigest": "sha256:2cbf89c3b1f5971083968117837deaf07123840fdc8d59e3e3fc88a904ebd43a",
+              "startLine": 66,
+              "endLine": 100
+            },
+            {
+              "id": "buildpacks-lifecycle-0-17-7-supported-apis",
+              "url": "https://github.com/buildpacks/lifecycle/blob/54767cc833f84066226cb87ae8e23e69cec8668f/api/apis.go",
+              "revision": "54767cc833f84066226cb87ae8e23e69cec8668f",
+              "contentDigest": "sha256:2a8214334fc2170e1ad21c45c92397ff9279d13b0e629cdd350b2e6236eff5da",
+              "startLine": 10,
+              "endLine": 12
+            },
+            {
+              "id": "buildpacks-lifecycle-0-19-6-api-0-13-identity",
+              "url": "https://github.com/buildpacks/lifecycle/blob/73f6927abc2079c365971cb3c23b012e1a860902/api/apis.go",
+              "revision": "73f6927abc2079c365971cb3c23b012e1a860902",
+              "contentDigest": "sha256:3e6f36830134cf630f078852c9f654183dc6e1a413604c4eb625443ac7ffc222",
+              "startLine": 10,
+              "endLine": 18
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use Platform API 0.12 only if the platform implementation supports it, or choose a Lifecycle whose independently reviewed metadata declares support for the required API; then recheck the exact plan."
+      }
+    },
+    {
+      "project": "cilium",
+      "description": "Cilium v1.19.7 CNP and CCNP CRD schemas require fromRequires/toRequires arrays to be empty (maxItems: 0). This narrow check evaluates only an operator-declared complete relevant set; it does not claim support-removal history, API-server/runtime behavior, or whole-upgrade safety.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cilium.nonempty_requires_fields",
+          "component": "pkg:github/cilium/cilium",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the operator inspected the complete relevant CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy set and found any nonempty fromRequires or toRequires list. False is only a definitive absence declaration across that complete set; missing, partial, empty, or ambiguous input is insufficient."
+        }
+      ],
+      "rule": {
+        "id": "cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cilium/cilium",
+          "from": "1.18.13",
+          "to": "1.19.7"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cilium/cilium",
+          "factId": "component.cilium.nonempty_requires_fields",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T03:30:00Z",
+          "validUntil": "2026-12-08T03:30:00Z",
+          "sources": [
+            {
+              "id": "source-cilium-1-19-7-ccnp-bound-01",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwidenetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:ae742b7ad66ddb4af752b6ae9787f2d3bc4597e3f29df80417967767f9bf2a79",
+              "startLine": 1069,
+              "endLine": 2192
+            },
+            {
+              "id": "source-cilium-1-19-7-ccnp-bound-02",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwidenetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:ae742b7ad66ddb4af752b6ae9787f2d3bc4597e3f29df80417967767f9bf2a79",
+              "startLine": 3109,
+              "endLine": 4362
+            },
+            {
+              "id": "source-cilium-1-19-7-ccnp-bound-03",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwidenetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:ae742b7ad66ddb4af752b6ae9787f2d3bc4597e3f29df80417967767f9bf2a79",
+              "startLine": 4924,
+              "endLine": 5481
+            },
+            {
+              "id": "source-cilium-1-19-7-ccnp-bound-04",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwidenetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:ae742b7ad66ddb4af752b6ae9787f2d3bc4597e3f29df80417967767f9bf2a79",
+              "startLine": 6399,
+              "endLine": 6404
+            },
+            {
+              "id": "source-cilium-1-19-7-cnp-bound-01",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:1b1738a904de1152c43078e6a873440aea100f30f10ce5ed4e8622524c13fa43",
+              "startLine": 1072,
+              "endLine": 2195
+            },
+            {
+              "id": "source-cilium-1-19-7-cnp-bound-02",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:1b1738a904de1152c43078e6a873440aea100f30f10ce5ed4e8622524c13fa43",
+              "startLine": 3112,
+              "endLine": 4365
+            },
+            {
+              "id": "source-cilium-1-19-7-cnp-bound-03",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:1b1738a904de1152c43078e6a873440aea100f30f10ce5ed4e8622524c13fa43",
+              "startLine": 4927,
+              "endLine": 5484
+            },
+            {
+              "id": "source-cilium-1-19-7-cnp-bound-04",
+              "url": "https://github.com/cilium/cilium/blob/704b537b83f456fc199f48c2f1781beb0d679c87/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumnetworkpolicies.yaml",
+              "revision": "704b537b83f456fc199f48c2f1781beb0d679c87",
+              "contentDigest": "sha256:1b1738a904de1152c43078e6a873440aea100f30f10ce5ed4e8622524c13fa43",
+              "startLine": 6402,
+              "endLine": 6407
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For the target Cilium v1.19.7 CRDs, remove or rewrite every operator-declared nonempty fromRequires/toRequires array across the complete CNP and CCNP set; recheck the target schema constraint separately."
+      }
+    },
+    {
+      "project": "cilium",
+      "description": "Cilium rejects nonempty fromRequires/toRequires lists; empty lists satisfy this narrow requirement. Policy behavior and traffic are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cilium.nonempty_requires_fields",
+          "component": "pkg:github/cilium/cilium",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether any proposed CiliumNetworkPolicy or CiliumClusterwideNetworkPolicy contains a nonempty fromRequires or toRequires list. Empty lists are allowed by this cited check; mere field presence is not a blocker."
+        }
+      ],
+      "rule": {
+        "id": "cilium.nonempty-requires-rejected.1-19",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cilium/cilium",
+          "from": "1.18.6",
+          "to": "1.19.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cilium/cilium",
+          "factId": "component.cilium.nonempty_requires_fields",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-7c6667e1e707-300",
+              "url": "https://github.com/cilium/cilium/blob/7c6667e1e707d7f39a4af3409c2a9ebea2917d32/Documentation/operations/upgrade.rst",
+              "revision": "7c6667e1e707d7f39a4af3409c2a9ebea2917d32",
+              "contentDigest": "sha256:81df65eda398345ebb2e14b5a63587a991d87e4d1c9a2c459ce6370b9007b497",
+              "startLine": 300,
+              "endLine": 303
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate nonempty fromRequires/toRequires constraints using the upstream guide and validate intended traffic policy separately."
+      }
+    },
+    {
+      "project": "containerd",
+      "description": "containerd CRI v1alpha2 removal; PASS concerns only the declared API major.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.containerd.cri_api",
+          "component": "pkg:github/containerd/containerd",
+          "type": "enum",
+          "enumTokens": [
+            "v1",
+            "v1alpha2"
+          ],
+          "description": "CRI API required by the proposed kubelet/client connection; record the effective API contract locally. This does not validate the socket, runtime configuration or client health."
+        }
+      ],
+      "rule": {
+        "id": "containerd.cri-v1alpha2-removed.2-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/containerd/containerd",
+          "from": "1.7.28",
+          "to": "2.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/containerd/containerd",
+          "factId": "component.containerd.cri_api",
+          "enumValue": "v1alpha2"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T01:45:37Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:45961feeb1ea6f9140991c4c99a2ca9f9c98c1c449721fb2735a58deec36d729",
+              "endLine": 133,
+              "id": "source-207ad711eabd-131",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "startLine": 131,
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/docs/containerd-2.0.md"
+            },
+            {
+              "contentDigest": "sha256:8a99acbbfb2c12de5df87656f1e314a4d1566a8dfb008493bb706d56fd57f805",
+              "endLine": 200,
+              "id": "source-207ad711eabd-190",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "startLine": 190,
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/plugins/cri/cri.go"
+            },
+            {
+              "contentDigest": "sha256:9b19b7d7ea84201700c626b14dc82965b9c58a97494df2d0edb41691cbccf544",
+              "endLine": 350,
+              "id": "source-b98a3aace656-342",
+              "revision": "b98a3aace656320842a23f4a392a33f46af97866",
+              "startLine": 342,
+              "url": "https://github.com/containerd/containerd/blob/b98a3aace656320842a23f4a392a33f46af97866/pkg/cri/server/service.go"
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use a CRI v1 client with containerd 2.0 and validate the actual CRI endpoint separately."
+      }
+    },
+    {
+      "project": "coredns",
+      "description": "Federation plugin removal from the official CoreDNS distribution; custom builds are UNKNOWN.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.coredns.distribution",
+          "component": "pkg:github/coredns/coredns",
+          "type": "enum",
+          "enumTokens": [
+            "custom",
+            "official"
+          ],
+          "description": "Whether the proposed artifact is the official CoreDNS distribution or a custom build. Custom plugin builds are outside this rule."
+        },
+        {
+          "side": "proposed",
+          "id": "component.coredns.federation_directive_present",
+          "component": "pkg:github/coredns/coredns",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether any proposed effective Corefile uses the federation directive. Do not infer absence when imports or generated configuration are unresolved."
+        }
+      ],
+      "rule": {
+        "id": "coredns.federation-removed.1-7",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/coredns/coredns",
+          "from": "1.6.9",
+          "to": "1.7.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/coredns/coredns",
+          "factId": "component.coredns.federation_directive_present",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/coredns/coredns",
+            "factId": "component.coredns.distribution",
+            "enumValue": "official"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-f59c03d09c3a-13",
+              "url": "https://github.com/coredns/coredns/blob/f59c03d09c3a3a12f571ad1087b979325f3dae30/notes/coredns-1.7.0.md",
+              "revision": "f59c03d09c3a3a12f571ad1087b979325f3dae30",
+              "contentDigest": "sha256:849d946734a92268c94b3053c76b632b3a3e654c36f6f15b37e766e3aaf86e8a",
+              "startLine": 13,
+              "endLine": 18
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove federation usage or obtain separately reviewed custom-plugin evidence; validate DNS behavior separately."
+      }
+    },
+    {
+      "description": "Removal of the exact Cortex querier.at-modifier-enabled option; this checks declared input compatibility only and does not claim a query-behavior change.",
+      "project": "cortex",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/cortexproject/cortex",
+          "description": "Declared proposed Cortex distribution. Only official_upstream is covered; custom builds remain UNKNOWN.",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "id": "component.cortex.distribution",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/cortexproject/cortex",
+          "description": "Declared proposed executable surface. Only the upstream cortex command is covered.",
+          "enumTokens": [
+            "cortex",
+            "other"
+          ],
+          "id": "component.cortex.execution_surface",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/cortexproject/cortex",
+          "description": "Whether proposed effective Cortex arguments contain the removed querier.at-modifier-enabled option. False means only that the exact option is definitely absent; unresolved argument sources must be missing.",
+          "enumTokens": null,
+          "id": "component.cortex.removed_at_modifier_flag_present",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "appliesWhen": [
+          {
+            "component": "pkg:github/cortexproject/cortex",
+            "enumValue": "official_upstream",
+            "factId": "component.cortex.distribution",
+            "side": "proposed"
+          },
+          {
+            "component": "pkg:github/cortexproject/cortex",
+            "enumValue": "cortex",
+            "factId": "component.cortex.execution_surface",
+            "side": "proposed"
+          }
+        ],
+        "condition": {
+          "boolValue": true,
+          "component": "pkg:github/cortexproject/cortex",
+          "factId": "component.cortex.removed_at_modifier_flag_present",
+          "side": "proposed"
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-09T01:59:12Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:a10ffeccf14e3bbfa1ccac29aa9a46075ef8b194a5b2a0213e6ba8e8f353b846",
+              "endLine": 105,
+              "id": "source-312b610d4a03-96",
+              "revision": "312b610d4a03e9837bdf6c4e66b4fccc5e3a24d6",
+              "startLine": 96,
+              "url": "https://github.com/cortexproject/cortex/blob/312b610d4a03e9837bdf6c4e66b4fccc5e3a24d6/pkg/querier/querier.go"
+            },
+            {
+              "contentDigest": "sha256:4f5c600cbbff9e5a291f83a888e46b4bb50942ebd9379000563b6ac4d139e37c",
+              "endLine": 18,
+              "id": "source-85511746c086-6",
+              "revision": "85511746c08640eb3e9e1ceb0fadaef860973958",
+              "startLine": 6,
+              "url": "https://github.com/cortexproject/cortex/blob/85511746c08640eb3e9e1ceb0fadaef860973958/CHANGELOG.md"
+            },
+            {
+              "contentDigest": "sha256:69f4b331c3c259ec9ccd3700889a8290fdb137f7199f90aba56744fe41c20d4f",
+              "endLine": 105,
+              "id": "source-85511746c086-94",
+              "revision": "85511746c08640eb3e9e1ceb0fadaef860973958",
+              "startLine": 94,
+              "url": "https://github.com/cortexproject/cortex/blob/85511746c08640eb3e9e1ceb0fadaef860973958/pkg/querier/querier.go"
+            },
+            {
+              "contentDigest": "sha256:e176716a23e7c70bd15243f5239ec53c6735e14e4b86a200e148aed21b1272b8",
+              "endLine": 132,
+              "id": "source-a149007ab28d-119",
+              "revision": "a149007ab28df6f7a6b638d2f1466269bf1f2cec",
+              "startLine": 119,
+              "url": "https://github.com/cortexproject/cortex/blob/a149007ab28df6f7a6b638d2f1466269bf1f2cec/pkg/querier/querier.go"
+            },
+            {
+              "contentDigest": "sha256:a84038477143d57de46c9f00817b7a6839252380105ed13a83948cebb66dd7fa",
+              "endLine": 79,
+              "id": "source-a149007ab28d-61",
+              "revision": "a149007ab28df6f7a6b638d2f1466269bf1f2cec",
+              "startLine": 61,
+              "url": "https://github.com/cortexproject/cortex/blob/a149007ab28df6f7a6b638d2f1466269bf1f2cec/cmd/cortex/main.go"
+            },
+            {
+              "contentDigest": "sha256:a84038477143d57de46c9f00817b7a6839252380105ed13a83948cebb66dd7fa",
+              "endLine": 114,
+              "id": "source-a149007ab28d-94",
+              "revision": "a149007ab28df6f7a6b638d2f1466269bf1f2cec",
+              "startLine": 94,
+              "url": "https://github.com/cortexproject/cortex/blob/a149007ab28df6f7a6b638d2f1466269bf1f2cec/cmd/cortex/main.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-08T01:36:41Z"
+        },
+        "id": "cortex.querier-at-modifier-flag-removed.1-21",
+        "nextAction": "Remove querier.at-modifier-enabled from proposed effective upstream Cortex arguments; validate query behavior separately.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/cortexproject/cortex",
+          "from": "1.17.2",
+          "to": "1.21.1"
+        }
+      }
+    },
+    {
+      "project": "cri-o",
+      "description": "CRI-O target ArtifactStore named-reference short-name guard for an explicitly declared resolution plan only; store contents, caller branch, ordinary images and runtime remain unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.crio.artifact_named_reference_is_short",
+          "component": "pkg:github/cri-o/cri-o",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller-supplied CRI ImageStatusRequest image.image is in the reviewed strict short-reference subset. Unavailable shapes and other reference forms remain unsupported."
+        },
+        {
+          "side": "proposed",
+          "id": "component.crio.artifact_named_reference_resolution_planned",
+          "component": "pkg:github/cri-o/cri-o",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly declares the target ArtifactStore named-reference-resolution operation. This is plan intent, not server branch or request execution evidence."
+        }
+      ],
+      "rule": {
+        "id": "cri-o.artifact-short-name-rejected.1-35",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cri-o/cri-o",
+          "from": "1.34.0",
+          "to": "1.35.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cri-o/cri-o",
+          "factId": "component.crio.artifact_named_reference_is_short",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/cri-o/cri-o",
+            "factId": "component.crio.artifact_named_reference_resolution_planned",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:25:14Z",
+          "validUntil": "2026-12-10T00:25:14Z",
+          "sources": [
+            {
+              "id": "crio-v134-artifact-resolver",
+              "url": "https://github.com/cri-o/cri-o/blob/d91a449706dbbd6c285e4d365bbd3b65fd8de43c/internal/ociartifact/impl.go",
+              "revision": "d91a449706dbbd6c285e4d365bbd3b65fd8de43c",
+              "contentDigest": "sha256:4c95e4b18bac0425da7695b0560318f4b65ed905ef33d8a29c88bded63c613a3",
+              "startLine": 144,
+              "endLine": 163
+            },
+            {
+              "id": "crio-v135-artifact-resolver",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/internal/ociartifact/impl.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:017d6c13ee7e1bb7e27329713bbbf6e680fc77b4f96a1834db4b22782768c8e5",
+              "startLine": 74,
+              "endLine": 87
+            },
+            {
+              "id": "crio-v135-artifact-store-caller",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/internal/ociartifact/store.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:0d81111f128b9922c7fd580f6f72b53801a09ee97108a91784f923ddec5147dc",
+              "startLine": 315,
+              "endLine": 350
+            },
+            {
+              "id": "crio-v135-normalization-prefix",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/vendor/github.com/distribution/reference/normalize.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:76ba6f446732a836657b36ca19a2f940497da0ded41dff566f545a30626c46c5",
+              "startLine": 10,
+              "endLine": 15
+            },
+            {
+              "id": "crio-v135-reference-name-limit",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/vendor/github.com/distribution/reference/reference.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:09eee8efc0533bd052af03373ae65fcdb052d1828ccbca7a4af02684a94e660c",
+              "startLine": 32,
+              "endLine": 38
+            },
+            {
+              "id": "crio-v135-reference-parse",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/vendor/github.com/distribution/reference/reference.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:09eee8efc0533bd052af03373ae65fcdb052d1828ccbca7a4af02684a94e660c",
+              "startLine": 189,
+              "endLine": 218
+            },
+            {
+              "id": "crio-v135-reference-regex",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/vendor/github.com/distribution/reference/regexp.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:2b28300779c30ddd8dd4c8ee3b5f1544f746e4f3c4ceefd3f90266186ee3cf4d",
+              "startLine": 16,
+              "endLine": 105
+            },
+            {
+              "id": "crio-v135-short-name-definition",
+              "url": "https://github.com/cri-o/cri-o/blob/92c18a2e2673764cd10f89b1a5061e2b26f44209/vendor/go.podman.io/image/v5/pkg/shortnames/shortnames.go",
+              "revision": "92c18a2e2673764cd10f89b1a5061e2b26f44209",
+              "contentDigest": "sha256:9b43a49ec53b0288760aab6fb0ede0feff73f148d24563e16a9c32bd5f4f08b1",
+              "startLine": 19,
+              "endLine": 31
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace the planned artifact reference with a fully-qualified explicit-tag reference and recheck; separately validate ArtifactStore contents, target request routing, registry access and runtime behavior."
+      }
+    },
+    {
+      "project": "crossplane",
+      "description": "Crossplane 2.0 Composition CRD removes the Resources mode; this rule covers declared validation against the official target CRD schema only.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.crossplane.composition_mode",
+          "component": "pkg:github/crossplane/crossplane",
+          "type": "enum",
+          "enumTokens": [
+            "pipeline",
+            "resources"
+          ],
+          "description": "Proposed Composition mode declared against the selected Crossplane target CRD schema. Only Pipeline and Resources are recognized here."
+        },
+        {
+          "side": "proposed",
+          "id": "component.crossplane.distribution",
+          "component": "pkg:github/crossplane/crossplane",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Distribution identity for the proposed Crossplane artifact; this schema rule applies only to the official upstream distribution."
+        },
+        {
+          "side": "proposed",
+          "id": "component.crossplane.schema_validation_required",
+          "component": "pkg:github/crossplane/crossplane",
+          "type": "bool",
+          "description": "Whether the operator requires the proposed Composition to validate against the official target CRD schema. This is an intent guard, not an observation of an installed cluster schema."
+        }
+      ],
+      "rule": {
+        "id": "crossplane.composition-resources-mode-removed.1-20-2-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/crossplane/crossplane",
+          "from": "1.20.0",
+          "to": "2.0.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/crossplane/crossplane",
+            "factId": "component.crossplane.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/crossplane/crossplane",
+            "factId": "component.crossplane.schema_validation_required",
+            "boolValue": true
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/crossplane/crossplane",
+          "factId": "component.crossplane.composition_mode",
+          "enumValue": "resources"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T19:38:03Z",
+          "validUntil": "2026-12-07T19:38:03Z",
+          "sources": [
+            {
+              "id": "source-2efdb03ae80f-79",
+              "url": "https://github.com/crossplane/crossplane/blob/2efdb03ae80fc27f4b6b9b0cebc96a462233cf17/cluster/crds/apiextensions.crossplane.io_compositions.yaml",
+              "revision": "2efdb03ae80fc27f4b6b9b0cebc96a462233cf17",
+              "contentDigest": "sha256:bf05e4ba6b676d95ade3b122ed9d2004f3d681b62b306874ad743cdc0fac0d6f",
+              "startLine": 79,
+              "endLine": 99
+            },
+            {
+              "id": "source-b639502e2f93-79",
+              "url": "https://github.com/crossplane/crossplane/blob/b639502e2f93680ff83417a0f517ec459ce079cc/cluster/crds/apiextensions.crossplane.io_compositions.yaml",
+              "revision": "b639502e2f93680ff83417a0f517ec459ce079cc",
+              "contentDigest": "sha256:708142bfb2151acb1aaa28555d4b759d5003262e9065bd0ac15587efb58c6829",
+              "startLine": 79,
+              "endLine": 89
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use Composition Pipeline mode for the official Crossplane 2.0 target schema, or review a separate migration for Resources-mode Compositions."
+      }
+    },
+    {
+      "project": "cubefs",
+      "description": "CubeFS 3.3.2 prescribes raftSyncSnapFormatVersion=0 in a MetaNode configuration during the exact 3.2.1 to 3.3.2 MetaNode upgrade phase; this checks only that caller-supplied planned-phase guard.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cubefs.metanode_upgrade_phase",
+          "component": "pkg:github/cubefs/cubefs",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly selected the metanode-upgrade phase for this proposed MetaNode config. This is planned intent, not an observation of peers, rollout state, or completion."
+        },
+        {
+          "side": "proposed",
+          "id": "component.cubefs.raft_sync_snapshot_format_zero",
+          "component": "pkg:github/cubefs/cubefs",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the supplied native MetaNode JSON declares numeric raftSyncSnapFormatVersion 0. Numeric 1 and absence are false for this scoped guard; other types and values remain unsupported."
+        }
+      ],
+      "rule": {
+        "id": "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cubefs/cubefs",
+          "from": "3.2.1",
+          "to": "3.3.2"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cubefs/cubefs",
+          "factId": "component.cubefs.raft_sync_snapshot_format_zero",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/cubefs/cubefs",
+            "factId": "component.cubefs.metanode_upgrade_phase",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T20:25:55Z",
+          "validUntil": "2026-12-09T20:25:55Z",
+          "sources": [
+            {
+              "id": "cubefs-v3-3-2-json-config-loader",
+              "url": "https://github.com/cubeFS/cubefs/blob/3bed539b361bc02e3eea47cc28d71d91f2b82a59/util/config/config.go",
+              "revision": "3bed539b361bc02e3eea47cc28d71d91f2b82a59",
+              "contentDigest": "sha256:7730b2eb21f9a4cd7afe585bb90c7125ff86db50e70f49e02b814c5a003e26e4",
+              "startLine": 33,
+              "endLine": 74
+            },
+            {
+              "id": "cubefs-v3-3-2-metanode-json-example",
+              "url": "https://github.com/cubeFS/cubefs/blob/3bed539b361bc02e3eea47cc28d71d91f2b82a59/docs/source/maintenance/configs/metanode.md",
+              "revision": "3bed539b361bc02e3eea47cc28d71d91f2b82a59",
+              "contentDigest": "sha256:cddb93ffc7ee318131d6c4a30a99027b416659205d4a5ba91362d9c9a8a9b27a",
+              "startLine": 29,
+              "endLine": 52
+            },
+            {
+              "id": "cubefs-v3-3-2-metanode-setting",
+              "url": "https://github.com/cubeFS/cubefs/blob/3bed539b361bc02e3eea47cc28d71d91f2b82a59/metanode/metanode.go",
+              "revision": "3bed539b361bc02e3eea47cc28d71d91f2b82a59",
+              "contentDigest": "sha256:40702b70ed7ba35f4c9a92324cd77072aab29d84e67cf8c0527b24c1810350d5",
+              "startLine": 271,
+              "endLine": 283
+            },
+            {
+              "id": "cubefs-v3-3-2-upgrade-notice",
+              "url": "https://github.com/cubeFS/cubefs/blob/3bed539b361bc02e3eea47cc28d71d91f2b82a59/CHANGELOG.md",
+              "revision": "3bed539b361bc02e3eea47cc28d71d91f2b82a59",
+              "contentDigest": "sha256:a86b70896c0a77f59b85d4f7d959c787fd821c9fae35b0d016c67068a7abcd78",
+              "startLine": 3,
+              "endLine": 10
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For the declared MetaNode upgrade phase, set raftSyncSnapFormatVersion to numeric 0 and recheck. Upstream then says remove it after all MetaNodes upgrade, restart all MetaNodes, and upgrade the client last; those steps remain unchecked."
+      }
+    },
+    {
+      "project": "dapr",
+      "description": "Dapr Scheduler-owned embedded-etcd persisted-data loss during the exact 1.14.0 to 1.15.0 upgrade only; external or unexamined storage, snapshot restoration and runtime behavior are unverified.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.dapr.scheduler_embedded_etcd_inventory_complete",
+          "component": "pkg:github/dapr/dapr",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the operator has a complete current inventory of the applicable Dapr Scheduler-owned embedded-etcd data directory, covering scheduled jobs and Scheduler-backed actor reminders. External, custom, partial or unexamined storage must not be declared complete."
+        },
+        {
+          "side": "current",
+          "id": "component.dapr.scheduler_persisted_data_present",
+          "component": "pkg:github/dapr/dapr",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether that complete applicable inventory contains at least one persisted Scheduler job or Scheduler-backed actor reminder. Scheduler enablement or a backup file alone does not establish this fact."
+        }
+      ],
+      "rule": {
+        "id": "dapr.scheduler-persisted-data-loss.1-14-to-1-15",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/dapr/dapr",
+          "from": "1.14.0",
+          "to": "1.15.0"
+        },
+        "condition": {
+          "side": "current",
+          "component": "pkg:github/dapr/dapr",
+          "factId": "component.dapr.scheduler_persisted_data_present",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "current",
+            "component": "pkg:github/dapr/dapr",
+            "factId": "component.dapr.scheduler_embedded_etcd_inventory_complete",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T13:34:13Z",
+          "validUntil": "2026-12-09T13:34:13Z",
+          "sources": [
+            {
+              "id": "source-6e0d7ba5c039-476",
+              "url": "https://github.com/dapr/dapr/blob/6e0d7ba5c0399c49811ffe6f93b71a2782273963/docs/release_notes/v1.15.0.md",
+              "revision": "6e0d7ba5c0399c49811ffe6f93b71a2782273963",
+              "contentDigest": "sha256:f9f8b1cfc9f962eeed131b5117d8ece76984cdd4760b42620c00a0dcc8fee3c6",
+              "startLine": 476,
+              "endLine": 484
+            },
+            {
+              "id": "source-c1559e3ff969-19",
+              "url": "https://github.com/dapr/dapr/blob/c1559e3ff9697578d0528ff115a8d49cbc0828a5/docs/release_notes/v1.14.0.md",
+              "revision": "c1559e3ff9697578d0528ff115a8d49cbc0828a5",
+              "contentDigest": "sha256:c7e437047488d45a7ccee4bc601e30a40616b3a25d77d3c50a44411419e096f5",
+              "startLine": 19,
+              "endLine": 44
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Preserve the applicable Dapr Scheduler embedded-etcd data before this exact upgrade and plan restoration separately; a snapshot alone does not establish a safe migration."
+      }
+    },
+    {
+      "project": "dragonfly",
+      "description": "Dragonfly manager debug-retention intent for the 2.2.3 to 2.2.4 transition; only the declared manager configuration surface is covered, without parser, default-resolution, or runtime evidence.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.dragonfly.legacy_verbose_debug_intent",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared current 2.2.3 verbose=true debug intent for the selected Dragonfly sibling; this never infers proposed intent."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.retain_debug_logging_required",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared proposed intent that the selected Dragonfly sibling retain debug logging; this is not runtime or default-resolution evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.distribution",
+          "type": "enum",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Operator-declared proposed distribution; only official_upstream is covered by this rule and custom builds remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.execution_surface",
+          "type": "enum",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": [
+            "manager_config",
+            "other",
+            "scheduler_config"
+          ],
+          "description": "Operator-declared proposed Dragonfly configuration surface; each sibling rule covers only its named manager_config or scheduler_config surface."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.debug_logging_enabled",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared proposed effective debug logger state for the selected sibling; wrappers, custom overrides, parser inference, and unresolved behavior remain UNKNOWN."
+        }
+      ],
+      "rule": {
+        "id": "dragonfly.manager-retained-debug.2-2-3-2-2-4",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "from": "2.2.3",
+          "to": "2.2.4"
+        },
+        "condition": {
+          "boolValue": false,
+          "factId": "component.dragonfly.debug_logging_enabled",
+          "side": "proposed",
+          "component": "pkg:github/dragonflyoss/dragonfly"
+        },
+        "appliesWhen": [
+          {
+            "boolValue": true,
+            "factId": "component.dragonfly.legacy_verbose_debug_intent",
+            "side": "current",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "boolValue": true,
+            "factId": "component.dragonfly.retain_debug_logging_required",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "enumValue": "official_upstream",
+            "factId": "component.dragonfly.distribution",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "enumValue": "manager_config",
+            "factId": "component.dragonfly.execution_surface",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T22:06:45Z",
+          "validUntil": "2026-12-07T22:06:45Z",
+          "sources": [
+            {
+              "id": "old-base-options",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/cmd/dependency/base/option.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:15b55336c9fe809a65f2c63213eb19450edc9fe00f248adaa638f0c1fd6f10e4",
+              "startLine": 19,
+              "endLine": 24
+            },
+            {
+              "id": "old-logcore",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/internal/dflog/logcore.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:9fbc46cdcc23ef07a5c111efdf9027b439c6b4935dd5784c3ef60e243a3cb368",
+              "startLine": 55,
+              "endLine": 77
+            },
+            {
+              "id": "old-loginit",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/internal/dflog/loginit.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:aa86b24c0b010dc3d4a5b4d546265eb951a49b221552595bfff3af59be7eb73c",
+              "startLine": 36,
+              "endLine": 65
+            },
+            {
+              "id": "old-manager-root",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/cmd/manager/cmd/root.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:c0c0a6a3ab55c14a0508d4a85ba79bce813e616205c370fec9cc5bfe7bc5bc6a",
+              "startLine": 65,
+              "endLine": 74
+            },
+            {
+              "id": "target-logcore",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/internal/dflog/logcore.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:e67a054db7298ff96c1fc0b9098e0165dae54ef16773c1120ff40f37d5835b25",
+              "startLine": 56,
+              "endLine": 89
+            },
+            {
+              "id": "target-loginit",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/internal/dflog/loginit.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:1d3ac5601fed4229eca293796d4e8cd10b163d9f6b6db413f8c370243b2309f5",
+              "startLine": 38,
+              "endLine": 67
+            },
+            {
+              "id": "target-manager-config",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/manager/config/config.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:b2810c62875efc0c01962cd5dece550fdcf2ca08bbf9e7745dc364d8e78c3dd7",
+              "startLine": 32,
+              "endLine": 37
+            },
+            {
+              "id": "target-manager-root",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/cmd/manager/cmd/root.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:f01be7d34c77b7fedbd59a95703ae7ff0cd834ef1a639217d37b2131a65cf1d5",
+              "startLine": 69,
+              "endLine": 78
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Review the proposed manager configuration and retain an effective debug logger when the declared current verbose intent and proposed retention intent apply; custom overrides and unresolved effective settings remain UNKNOWN."
+      }
+    },
+    {
+      "project": "dragonfly",
+      "description": "Dragonfly scheduler debug-retention intent for the 2.2.3 to 2.2.4 transition; only the declared scheduler configuration surface is covered, without parser, default-resolution, or runtime evidence.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.dragonfly.legacy_verbose_debug_intent",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared current 2.2.3 verbose=true debug intent for the selected Dragonfly sibling; this never infers proposed intent."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.retain_debug_logging_required",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared proposed intent that the selected Dragonfly sibling retain debug logging; this is not runtime or default-resolution evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.distribution",
+          "type": "enum",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Operator-declared proposed distribution; only official_upstream is covered by this rule and custom builds remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.execution_surface",
+          "type": "enum",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": [
+            "manager_config",
+            "other",
+            "scheduler_config"
+          ],
+          "description": "Operator-declared proposed Dragonfly configuration surface; each sibling rule covers only its named manager_config or scheduler_config surface."
+        },
+        {
+          "side": "proposed",
+          "id": "component.dragonfly.debug_logging_enabled",
+          "type": "bool",
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "enumTokens": null,
+          "description": "Operator-declared proposed effective debug logger state for the selected sibling; wrappers, custom overrides, parser inference, and unresolved behavior remain UNKNOWN."
+        }
+      ],
+      "rule": {
+        "id": "dragonfly.scheduler-retained-debug.2-2-3-2-2-4",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/dragonflyoss/dragonfly",
+          "from": "2.2.3",
+          "to": "2.2.4"
+        },
+        "condition": {
+          "boolValue": false,
+          "factId": "component.dragonfly.debug_logging_enabled",
+          "side": "proposed",
+          "component": "pkg:github/dragonflyoss/dragonfly"
+        },
+        "appliesWhen": [
+          {
+            "boolValue": true,
+            "factId": "component.dragonfly.legacy_verbose_debug_intent",
+            "side": "current",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "boolValue": true,
+            "factId": "component.dragonfly.retain_debug_logging_required",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "enumValue": "official_upstream",
+            "factId": "component.dragonfly.distribution",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          },
+          {
+            "enumValue": "scheduler_config",
+            "factId": "component.dragonfly.execution_surface",
+            "side": "proposed",
+            "component": "pkg:github/dragonflyoss/dragonfly"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T22:06:45Z",
+          "validUntil": "2026-12-07T22:06:45Z",
+          "sources": [
+            {
+              "id": "old-base-options",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/cmd/dependency/base/option.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:15b55336c9fe809a65f2c63213eb19450edc9fe00f248adaa638f0c1fd6f10e4",
+              "startLine": 19,
+              "endLine": 24
+            },
+            {
+              "id": "old-logcore",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/internal/dflog/logcore.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:9fbc46cdcc23ef07a5c111efdf9027b439c6b4935dd5784c3ef60e243a3cb368",
+              "startLine": 55,
+              "endLine": 77
+            },
+            {
+              "id": "old-loginit",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/internal/dflog/loginit.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:aa86b24c0b010dc3d4a5b4d546265eb951a49b221552595bfff3af59be7eb73c",
+              "startLine": 36,
+              "endLine": 65
+            },
+            {
+              "id": "old-scheduler-root",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/9a2cc1113fb389004da3af3480e6568effb7494f/cmd/scheduler/cmd/root.go",
+              "revision": "9a2cc1113fb389004da3af3480e6568effb7494f",
+              "contentDigest": "sha256:b97e1cebc7d81b13ad6538806cdd2d0ecc2f8429cb9fe23d2cd4c4bb40246037",
+              "startLine": 69,
+              "endLine": 78
+            },
+            {
+              "id": "target-logcore",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/internal/dflog/logcore.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:e67a054db7298ff96c1fc0b9098e0165dae54ef16773c1120ff40f37d5835b25",
+              "startLine": 56,
+              "endLine": 89
+            },
+            {
+              "id": "target-loginit",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/internal/dflog/loginit.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:1d3ac5601fed4229eca293796d4e8cd10b163d9f6b6db413f8c370243b2309f5",
+              "startLine": 38,
+              "endLine": 67
+            },
+            {
+              "id": "target-scheduler-config",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/scheduler/config/config.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:f11c795cf70d5eff1c7658ab9c4457aa7ae9385974983fd07e2cc0bdf98c73bb",
+              "startLine": 31,
+              "endLine": 36
+            },
+            {
+              "id": "target-scheduler-root",
+              "url": "https://raw.githubusercontent.com/dragonflyoss/dragonfly/d3d22e24d8adfd59131a72eb1e93934d740e527a/cmd/scheduler/cmd/root.go",
+              "revision": "d3d22e24d8adfd59131a72eb1e93934d740e527a",
+              "contentDigest": "sha256:0a59acb37032c12e1a464c115e1bb5ab65a61e0fda0c8010610f29914ea6e63b",
+              "startLine": 69,
+              "endLine": 78
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Review the proposed scheduler configuration and retain an effective debug logger when the declared current verbose intent and proposed retention intent apply; custom overrides and unresolved effective settings remain UNKNOWN."
+      }
+    },
+    {
+      "project": "envoy",
+      "description": "Historical Envoy v2 xDS support removal only; v3 schema validity and control-plane rollout are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.envoy.xds_api_major",
+          "component": "pkg:github/envoyproxy/envoy",
+          "type": "enum",
+          "enumTokens": [
+            "v2",
+            "v3"
+          ],
+          "description": "The xDS API major required by the proposed bootstrap/control-plane contract. This declaration does not scan all configuration references or validate xDS schemas."
+        }
+      ],
+      "rule": {
+        "id": "envoy.xds-v2-removed.1-18",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/envoyproxy/envoy",
+          "from": "1.17.2",
+          "to": "1.18.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/envoyproxy/envoy",
+          "factId": "component.envoy.xds_api_major",
+          "enumValue": "v2"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-4a0dfd5df93d-4",
+              "url": "https://github.com/envoyproxy/envoy/blob/4a0dfd5df93d6aac5c04e869c3cb3b3587767b41/docs/root/version_history/v1.18.0.rst",
+              "revision": "4a0dfd5df93d6aac5c04e869c3cb3b3587767b41",
+              "contentDigest": "sha256:54a53c99285b9b2ad6955783563b29d5b4d4843859afcb5a96e3cc967c9a41c5",
+              "startLine": 4,
+              "endLine": 9
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate xDS/bootstrap references to v3 and verify schema compatibility and control-plane rollout separately."
+      }
+    },
+    {
+      "project": "etcd",
+      "description": "Removal of the eight named etcd v2/proxy options only; data migration and quorum health are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.etcd.removed_v2_proxy_flags_present",
+          "component": "pkg:github/etcd-io/etcd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "True if effective proposed etcd arguments include enable-v2, experimental-enable-v2v3, proxy, proxy-failure-wait, proxy-refresh-interval, proxy-dial-timeout, proxy-write-timeout or proxy-read-timeout. Declare missing if wrappers or argument sources are unresolved."
+        }
+      ],
+      "rule": {
+        "id": "etcd.v2-proxy-flags-removed.3-6",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/etcd-io/etcd",
+          "from": "3.5.17",
+          "to": "3.6.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/etcd-io/etcd",
+          "factId": "component.etcd.removed_v2_proxy_flags_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T01:45:37Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:be26b5ae5bdc89450da840ca42621f0dac915be749b0c63932f353ac112b05ed",
+              "endLine": 220,
+              "id": "source-507c0de87bd5-210",
+              "revision": "507c0de87bd5034e3de4ab76ebf96b54dae0cd52",
+              "startLine": 210,
+              "url": "https://github.com/etcd-io/etcd/blob/507c0de87bd5034e3de4ab76ebf96b54dae0cd52/server/etcdmain/config.go"
+            },
+            {
+              "contentDigest": "sha256:4010a2e5527a3b73400491daa318137e3d8748166114c6d0a50b1aa7671337e0",
+              "endLine": 139,
+              "id": "source-f5d605a93abe-104",
+              "revision": "f5d605a93abe2fdfa13880aab0f1f3a4203628dd",
+              "startLine": 104,
+              "url": "https://github.com/etcd-io/etcd/blob/f5d605a93abe2fdfa13880aab0f1f3a4203628dd/server/etcdmain/config.go"
+            },
+            {
+              "contentDigest": "sha256:3932ca3ca9af55afe4f3e2574003c676909abea4a5cf778887943f276c2964a8",
+              "endLine": 965,
+              "id": "source-f5d605a93abe-752",
+              "revision": "f5d605a93abe2fdfa13880aab0f1f3a4203628dd",
+              "startLine": 752,
+              "url": "https://github.com/etcd-io/etcd/blob/f5d605a93abe2fdfa13880aab0f1f3a4203628dd/server/embed/config.go"
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove the documented v2/proxy flags from the proposed effective arguments; plan storage and quorum migration separately."
+      }
+    },
+    {
+      "project": "falco",
+      "description": "Falco 0.41 removes five deprecated 0.40 CLI spellings for the official Falco executable; this rule covers only an operator-declared proposed argv presence predicate.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.falco.distribution",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared distribution identity for the proposed Falco executable. This source rule applies only to the reviewed official upstream distribution and does not prove image provenance or runtime identity."
+        },
+        {
+          "side": "proposed",
+          "id": "component.falco.execution_surface",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "enum",
+          "enumTokens": [
+            "falco",
+            "other"
+          ],
+          "description": "Declared proposed executable surface. This rule applies only to the Falco executable itself; other command surfaces remain outside the reviewed parser evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.falco.removed_040_cli_flags_present",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether an operator-declared explicit effective proposed Falco argv contains any of -A, -b, --print-base64, -S, or --snaplen. Declare false only when this bounded set is definitely absent. Wrappers, expansion, implicit entrypoints, images, defaults, and runtime behavior are not inferred."
+        }
+      ],
+      "rule": {
+        "id": "falco.deprecated-cli-flags-removed.0-40-to-0-41",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/falcosecurity/falco",
+          "from": "0.40.0",
+          "to": "0.41.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/falcosecurity/falco",
+            "factId": "component.falco.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/falcosecurity/falco",
+            "factId": "component.falco.execution_surface",
+            "enumValue": "falco"
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/falcosecurity/falco",
+          "factId": "component.falco.removed_040_cli_flags_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T20:58:21Z",
+          "validUntil": "2026-12-07T20:58:21Z",
+          "sources": [
+            {
+              "id": "source-b94cda0b12e5-1",
+              "url": "https://github.com/falcosecurity/falco/blob/b94cda0b12e555051693214d88cf4f24a94e19b1/CHANGELOG.md",
+              "revision": "b94cda0b12e555051693214d88cf4f24a94e19b1",
+              "contentDigest": "sha256:f2e6c51c17aca2d72cfae39a5513084a663d8bc0365d1535ad3b29ff07bb6d3b",
+              "startLine": 1,
+              "endLine": 11
+            },
+            {
+              "id": "source-b94cda0b12e5-32",
+              "url": "https://github.com/falcosecurity/falco/blob/b94cda0b12e555051693214d88cf4f24a94e19b1/userspace/falco/app/options.cpp",
+              "revision": "b94cda0b12e555051693214d88cf4f24a94e19b1",
+              "contentDigest": "sha256:657bae3d86a80c2e5e9b074898e04a5aacf15bbe29bc27b2aa58b8a6768e9b30",
+              "startLine": 32,
+              "endLine": 43
+            },
+            {
+              "id": "source-ce4b4408988d-107",
+              "url": "https://github.com/falcosecurity/falco/blob/ce4b4408988dc0be4aaff4bb06aa184ee1f14da3/userspace/falco/app/options.cpp",
+              "revision": "ce4b4408988dc0be4aaff4bb06aa184ee1f14da3",
+              "contentDigest": "sha256:c7635544ceb9dfac140a56934390234ee0f8377eb67c912aedc10eae3bb54c82",
+              "startLine": 107,
+              "endLine": 108
+            },
+            {
+              "id": "source-ce4b4408988d-129",
+              "url": "https://github.com/falcosecurity/falco/blob/ce4b4408988dc0be4aaff4bb06aa184ee1f14da3/userspace/falco/app/options.cpp",
+              "revision": "ce4b4408988dc0be4aaff4bb06aa184ee1f14da3",
+              "contentDigest": "sha256:c7635544ceb9dfac140a56934390234ee0f8377eb67c912aedc10eae3bb54c82",
+              "startLine": 129,
+              "endLine": 129
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace any declared removed Falco 0.40 CLI spelling with a target-supported configuration mechanism, then review the explicit proposed argv separately. Supply an explicit declaration when the argv is unknown."
+      }
+    },
+    {
+      "project": "falco",
+      "description": "Falco 0.42.0 retains the documented removal of five deprecated 0.40 CLI spellings for the official Falco executable; this exact transition covers only an operator-declared proposed argv presence predicate.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.falco.distribution",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared distribution identity for the proposed Falco executable. This source rule applies only to the reviewed official upstream distribution and does not prove image provenance or runtime identity."
+        },
+        {
+          "side": "proposed",
+          "id": "component.falco.execution_surface",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "enum",
+          "enumTokens": [
+            "falco",
+            "other"
+          ],
+          "description": "Declared proposed executable surface. This rule applies only to the Falco executable itself; other command surfaces remain outside the reviewed parser evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.falco.removed_040_cli_flags_present",
+          "component": "pkg:github/falcosecurity/falco",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether an operator-declared explicit effective proposed Falco argv contains any of -A, -b, --print-base64, -S, or --snaplen. Declare false only when this bounded set is definitely absent. Wrappers, expansion, implicit entrypoints, images, defaults, and runtime behavior are not inferred."
+        }
+      ],
+      "rule": {
+        "id": "falco.deprecated-cli-flags-removed.0-40-to-0-42",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/falcosecurity/falco",
+          "from": "0.40.0",
+          "to": "0.42.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/falcosecurity/falco",
+            "factId": "component.falco.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/falcosecurity/falco",
+            "factId": "component.falco.execution_surface",
+            "enumValue": "falco"
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/falcosecurity/falco",
+          "factId": "component.falco.removed_040_cli_flags_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T00:46:26Z",
+          "validUntil": "2026-12-08T00:46:26Z",
+          "sources": [
+            {
+              "id": "source-ce4b4408988d-107",
+              "url": "https://github.com/falcosecurity/falco/blob/ce4b4408988dc0be4aaff4bb06aa184ee1f14da3/userspace/falco/app/options.cpp",
+              "revision": "ce4b4408988dc0be4aaff4bb06aa184ee1f14da3",
+              "contentDigest": "sha256:c7635544ceb9dfac140a56934390234ee0f8377eb67c912aedc10eae3bb54c82",
+              "startLine": 107,
+              "endLine": 108
+            },
+            {
+              "id": "source-ce4b4408988d-129",
+              "url": "https://github.com/falcosecurity/falco/blob/ce4b4408988dc0be4aaff4bb06aa184ee1f14da3/userspace/falco/app/options.cpp",
+              "revision": "ce4b4408988dc0be4aaff4bb06aa184ee1f14da3",
+              "contentDigest": "sha256:c7635544ceb9dfac140a56934390234ee0f8377eb67c912aedc10eae3bb54c82",
+              "startLine": 129,
+              "endLine": 129
+            },
+            {
+              "id": "source-d8e430e35239-32",
+              "url": "https://github.com/falcosecurity/falco/blob/d8e430e352396abde7b4309c76039f08042e2512/userspace/falco/app/options.cpp",
+              "revision": "d8e430e352396abde7b4309c76039f08042e2512",
+              "contentDigest": "sha256:657bae3d86a80c2e5e9b074898e04a5aacf15bbe29bc27b2aa58b8a6768e9b30",
+              "startLine": 32,
+              "endLine": 43
+            },
+            {
+              "id": "source-d8e430e35239-65",
+              "url": "https://github.com/falcosecurity/falco/blob/d8e430e352396abde7b4309c76039f08042e2512/CHANGELOG.md",
+              "revision": "d8e430e352396abde7b4309c76039f08042e2512",
+              "contentDigest": "sha256:553c47d6ab2d64237a9d04fbd0f2a9ea7d885e8f86cea669949701d04ec058af",
+              "startLine": 65,
+              "endLine": 73
+            },
+            {
+              "id": "source-d8e430e35239-92",
+              "url": "https://github.com/falcosecurity/falco/blob/d8e430e352396abde7b4309c76039f08042e2512/userspace/falco/app/options.cpp",
+              "revision": "d8e430e352396abde7b4309c76039f08042e2512",
+              "contentDigest": "sha256:657bae3d86a80c2e5e9b074898e04a5aacf15bbe29bc27b2aa58b8a6768e9b30",
+              "startLine": 92,
+              "endLine": 130
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For the exact 0.40.0 to 0.42.0 transition, replace any declared removed Falco 0.40 CLI spelling with a target-supported configuration mechanism, then review the explicit proposed argv separately. Supply an explicit declaration when that argv is unknown."
+      }
+    },
+    {
+      "project": "fluentd",
+      "description": "Fluentd 1.17.0 raises the official upstream package minimum Ruby version to 2.7; custom builds and plugin compatibility are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.fluentd.distribution",
+          "component": "pkg:github/fluent/fluentd",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Distribution identity for the proposed Fluentd artifact. This rule applies only to the official upstream package; custom builds remain outside its evidence."
+        }
+      ],
+      "rule": {
+        "id": "fluentd.ruby-minimum.1-16-to-1-17",
+        "operator": "require_component_version",
+        "subject": {
+          "component": "pkg:github/fluent/fluentd",
+          "from": "1.16.0",
+          "to": "1.17.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/fluent/fluentd",
+            "factId": "component.fluentd.distribution",
+            "enumValue": "official_upstream"
+          }
+        ],
+        "dependency": {
+          "side": "proposed",
+          "component": "pkg:generic/ruby",
+          "comparison": "gte",
+          "version": "2.7.0"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T19:38:03Z",
+          "validUntil": "2026-12-07T19:38:03Z",
+          "sources": [
+            {
+              "id": "source-206b46b91560-19",
+              "url": "https://github.com/fluent/fluentd/blob/206b46b91560177366371c1f05bbcf09ac006d86/fluentd.gemspec",
+              "revision": "206b46b91560177366371c1f05bbcf09ac006d86",
+              "contentDigest": "sha256:29f75e9a6125b24ef5be127f754e262edd1e6bcee7b8fcaaea202149d2a2d1ef",
+              "startLine": 17,
+              "endLine": 22
+            },
+            {
+              "id": "source-e763c0761c44-19",
+              "url": "https://github.com/fluent/fluentd/blob/e763c0761c44d9734b6aa374371387a2e8406522/fluentd.gemspec",
+              "revision": "e763c0761c44d9734b6aa374371387a2e8406522",
+              "contentDigest": "sha256:67727273b7d4f1ecf26d206bfd41192bc8c76d5c1774ba4ab969d644e13ce37f",
+              "startLine": 17,
+              "endLine": 22
+            },
+            {
+              "id": "source-e763c0761c44-26",
+              "url": "https://github.com/fluent/fluentd/blob/e763c0761c44d9734b6aa374371387a2e8406522/CHANGELOG.md",
+              "revision": "e763c0761c44d9734b6aa374371387a2e8406522",
+              "contentDigest": "sha256:094fbb051407334786b4032ebab804db5e4625dbdf87005b80acfc151ba8570d",
+              "startLine": 1,
+              "endLine": 30
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use a proposed Ruby version at least 2.7.0 for the official Fluentd 1.17.0 package; review custom packaging and plugins separately."
+      }
+    },
+    {
+      "project": "flux",
+      "description": "Flux removal of five beta APIs from CRDs; absence in proposed manifests does not prove stored-version migration or reconciliation.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.flux.removed_beta_api_present",
+          "component": "pkg:github/fluxcd/flux2",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether proposed rendered resources use any of source.toolkit.fluxcd.io/v1beta1, kustomize.toolkit.fluxcd.io/v1beta1, helm.toolkit.fluxcd.io/v2beta1, image.toolkit.fluxcd.io/v1beta1 or notification.toolkit.fluxcd.io/v1beta1. Stored CRD versions require separate migration evidence."
+        }
+      ],
+      "rule": {
+        "id": "flux.beta-api-removal.2-7",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/fluxcd/flux2",
+          "from": "2.6.4",
+          "to": "2.7.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/fluxcd/flux2",
+          "factId": "component.flux.removed_beta_api_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-325038fc31e0-316",
+              "url": "https://github.com/fluxcd/website/blob/325038fc31e0e42af2b289d7add4f7c9ab71900f/content/en/blog/2025-09-29-announcing-flux-v2.7.0/index.md",
+              "revision": "325038fc31e0e42af2b289d7add4f7c9ab71900f",
+              "contentDigest": "sha256:7e8f77f9dd597ab400b96f0c6bbd9be665972988f161f8975899869b3e2ce949",
+              "startLine": 316,
+              "endLine": 327
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named resource APIs with the upstream Flux migration procedure; separately verify stored CRD versions and reconciliation."
+      }
+    },
+    {
+      "project": "harbor",
+      "description": "Historical Harbor docker-compose installer format change; YAML field correctness and database migration are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.harbor.deployment_mode",
+          "component": "pkg:github/goharbor/harbor",
+          "type": "enum",
+          "enumTokens": [
+            "custom",
+            "docker-compose",
+            "helm"
+          ],
+          "description": "Installation mechanism for the proposed Harbor deployment; this rule covers the docker-compose installer only."
+        },
+        {
+          "side": "proposed",
+          "id": "component.harbor.installer_config_format",
+          "component": "pkg:github/goharbor/harbor",
+          "type": "enum",
+          "enumTokens": [
+            "cfg",
+            "yml"
+          ],
+          "description": "Effective installer configuration format: cfg means legacy harbor.cfg, yml means harbor.yml. This fixed token carries no local file path or configuration data."
+        }
+      ],
+      "rule": {
+        "id": "harbor.installer-config-format.1-8",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/goharbor/harbor",
+          "from": "1.7.5",
+          "to": "1.8.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/goharbor/harbor",
+          "factId": "component.harbor.installer_config_format",
+          "enumValue": "cfg"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/goharbor/harbor",
+            "factId": "component.harbor.deployment_mode",
+            "enumValue": "docker-compose"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-31789d8a65d3-3",
+              "url": "https://github.com/goharbor/harbor/blob/31789d8a65d3516a5118756129c1a99214db6e76/CHANGELOG.md",
+              "revision": "31789d8a65d3516a5118756129c1a99214db6e76",
+              "contentDigest": "sha256:fe86be04425184502ae1dade2cc039e9ae4fab0e0821a681caf23be9096be863",
+              "startLine": 3,
+              "endLine": 14
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Convert the legacy installer configuration to the documented harbor.yml format and separately review its settings."
+      }
+    },
+    {
+      "project": "helm",
+      "description": "Helm 4 post-renderer argument form only; PASS does not prove plugin installation, execution or rendered manifests.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.helm.post_renderer_mode",
+          "component": "pkg:github/helm/helm",
+          "type": "enum",
+          "enumTokens": [
+            "executable_path",
+            "plugin_name",
+            "unset"
+          ],
+          "description": "Effective proposed --post-renderer argument form: unset, executable_path (Helm 3 form), or plugin_name (Helm 4 form). Plugin installation and output remain unverified."
+        }
+      ],
+      "rule": {
+        "id": "helm.post-renderer-argument-form.4-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/helm/helm",
+          "from": "3.14.4",
+          "to": "4.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/helm/helm",
+          "factId": "component.helm.post_renderer_mode",
+          "enumValue": "executable_path"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-81c902a12346-118",
+              "url": "https://github.com/helm/helm/blob/81c902a123462fd4052bc5e9aa9c513c4c8fc142/cmd/helm/flags.go",
+              "revision": "81c902a123462fd4052bc5e9aa9c513c4c8fc142",
+              "contentDigest": "sha256:76533e296ddf74e165f3a4f4841bfb47c0089573dc9204af3808eb648868d4e4",
+              "startLine": 118,
+              "endLine": 121
+            },
+            {
+              "id": "source-99cd1964357c-168",
+              "url": "https://github.com/helm/helm/blob/99cd1964357c793351be481d55abbe21c6b2f4ec/pkg/cmd/flags.go",
+              "revision": "99cd1964357c793351be481d55abbe21c6b2f4ec",
+              "contentDigest": "sha256:d09cdc6320b5bc9a33316094f8e847dd7d9a066f9a0ab87be57155a5c4e2c9bf",
+              "startLine": 168,
+              "endLine": 172
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use an installed Helm 4 post-renderer plugin name instead of an executable path; validate the plugin and output separately."
+      }
+    },
+    {
+      "project": "in-toto",
+      "description": "in-toto Python CLI 3.0.0 removes the legacy pre-boundary -k/--key option from in-toto-run; this checks only that option spelling in one conservatively parsed planned argv.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.in_toto.in_toto_run_key_argument",
+          "component": "pkg:github/in-toto/in-toto",
+          "type": "enum",
+          "enumTokens": [
+            "legacy_key",
+            "signing_key"
+          ],
+          "description": "The one recognized signing-key option family before the first valid -- delimiter in a supplied planned in-toto-run argv. Wrapped-command tokens are opaque."
+        }
+      ],
+      "rule": {
+        "id": "in-toto.run-legacy-key-argument-removed.2-2-to-3-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/in-toto/in-toto",
+          "from": "2.2.0",
+          "to": "3.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/in-toto/in-toto",
+          "factId": "component.in_toto.in_toto_run_key_argument",
+          "enumValue": "legacy_key"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T20:17:00Z",
+          "validUntil": "2026-12-09T20:17:00Z",
+          "sources": [
+            {
+              "id": "in-toto-v2-2-key-argument-arity",
+              "url": "https://github.com/in-toto/in-toto/blob/0c1a97f0632659dc27a930d2dc31b69b58dd1437/in_toto/common_args.py",
+              "revision": "0c1a97f0632659dc27a930d2dc31b69b58dd1437",
+              "contentDigest": "sha256:b8bf868b86f39174490b4d72641ddd2bb2981709a1215697b9e3decd081f639c",
+              "startLine": 83,
+              "endLine": 93
+            },
+            {
+              "id": "in-toto-v2-2-legacy-key-deprecated",
+              "url": "https://github.com/in-toto/in-toto/blob/0c1a97f0632659dc27a930d2dc31b69b58dd1437/in_toto/in_toto_run.py",
+              "revision": "0c1a97f0632659dc27a930d2dc31b69b58dd1437",
+              "contentDigest": "sha256:ac8c75b880694464258263e49abe158fe1d965f075f6d35757ba5583a2dcf11e",
+              "startLine": 298,
+              "endLine": 305
+            },
+            {
+              "id": "in-toto-v2-2-run-boundary",
+              "url": "https://github.com/in-toto/in-toto/blob/0c1a97f0632659dc27a930d2dc31b69b58dd1437/in_toto/in_toto_run.py",
+              "revision": "0c1a97f0632659dc27a930d2dc31b69b58dd1437",
+              "contentDigest": "sha256:ac8c75b880694464258263e49abe158fe1d965f075f6d35757ba5583a2dcf11e",
+              "startLine": 233,
+              "endLine": 243
+            },
+            {
+              "id": "in-toto-v2-2-run-key-options",
+              "url": "https://github.com/in-toto/in-toto/blob/0c1a97f0632659dc27a930d2dc31b69b58dd1437/in_toto/in_toto_run.py",
+              "revision": "0c1a97f0632659dc27a930d2dc31b69b58dd1437",
+              "contentDigest": "sha256:ac8c75b880694464258263e49abe158fe1d965f075f6d35757ba5583a2dcf11e",
+              "startLine": 213,
+              "endLine": 220
+            },
+            {
+              "id": "in-toto-v3-removes-deprecated-arguments",
+              "url": "https://github.com/in-toto/in-toto/blob/659942bde1cd732b0b9449445f9769b2def6aeb1/CHANGELOG.md",
+              "revision": "659942bde1cd732b0b9449445f9769b2def6aeb1",
+              "contentDigest": "sha256:709f602815dea14b834116b325b24450739799400d9b42d53f9c08d89f0e0113",
+              "startLine": 3,
+              "endLine": 12
+            },
+            {
+              "id": "in-toto-v3-run-boundary",
+              "url": "https://github.com/in-toto/in-toto/blob/659942bde1cd732b0b9449445f9769b2def6aeb1/in_toto/in_toto_run.py",
+              "revision": "659942bde1cd732b0b9449445f9769b2def6aeb1",
+              "contentDigest": "sha256:8bb67dcf23e842ae22232bce4697835e87844c8bfc52e02d3a7acb1f2ba778b7",
+              "startLine": 225,
+              "endLine": 235
+            },
+            {
+              "id": "in-toto-v3-run-key-options",
+              "url": "https://github.com/in-toto/in-toto/blob/659942bde1cd732b0b9449445f9769b2def6aeb1/in_toto/in_toto_run.py",
+              "revision": "659942bde1cd732b0b9449445f9769b2def6aeb1",
+              "contentDigest": "sha256:8bb67dcf23e842ae22232bce4697835e87844c8bfc52e02d3a7acb1f2ba778b7",
+              "startLine": 207,
+              "endLine": 212
+            },
+            {
+              "id": "in-toto-v3-signing-key-format",
+              "url": "https://github.com/in-toto/in-toto/blob/659942bde1cd732b0b9449445f9769b2def6aeb1/in_toto/common_args.py",
+              "revision": "659942bde1cd732b0b9449445f9769b2def6aeb1",
+              "contentDigest": "sha256:828dfb3921743a66b91098bd751d217033cb904916a417274758f345fb6b4db5",
+              "startLine": 132,
+              "endLine": 142
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "If the plan uses pre-boundary -k/--key, first validate or convert the key to target-supported standard PEM/PKCS8, then use --signing-key and check password handling. A plan already using --signing-key clears only this removed-option condition."
+      }
+    },
+    {
+      "project": "istio",
+      "description": "Istio removal of the 1.20 compatibility profile only; other profiles, mesh behavior and sidecar rollout are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.istio.compatibility_profile",
+          "component": "pkg:github/istio/istio",
+          "type": "enum",
+          "enumTokens": [
+            "1.20",
+            "other",
+            "unset"
+          ],
+          "description": "Effective proposed compatibility profile: 1.20 is the removed profile; other and unset establish only absence of that specific profile, not validity of another profile."
+        }
+      ],
+      "rule": {
+        "id": "istio.compatibility-profile-1-20-removed.1-24",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/istio/istio",
+          "from": "1.23.6",
+          "to": "1.24.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/istio/istio",
+          "factId": "component.istio.compatibility_profile",
+          "enumValue": "1.20"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-8825a6b7f8c9-5",
+              "url": "https://github.com/istio/istio/blob/8825a6b7f8c9a2d66005a5f8b64e98aaee0dda99/releasenotes/notes/compatibility-version-1-20.yaml",
+              "revision": "8825a6b7f8c9a2d66005a5f8b64e98aaee0dda99",
+              "contentDigest": "sha256:92af12cdd58fadfc46bb5a6200e1f2e48ec29b21c3a3e776ec9f601f507fa96f",
+              "startLine": 5,
+              "endLine": 9
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove the 1.20 compatibility profile and review the individual behavior settings using the upstream migration note."
+      }
+    },
+    {
+      "project": "jaeger",
+      "description": "Jaeger v2 absent --config fallback only; this constraint does not validate config content, backend, credentials, or runtime.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.jaeger.explicit_config_provided",
+          "component": "pkg:github/jaegertracing/jaeger",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed official Jaeger v2 invocation has exactly one known non-empty literal --config selection. Declare false only when --config is definitely absent; empty, repeated, wrapped, expanded, or unresolved sources are missing or unknown. No path, URI, content, environment value, backend, or runtime state is supplied."
+        },
+        {
+          "side": "proposed",
+          "id": "component.jaeger.non_memory_storage_required",
+          "component": "pkg:github/jaegertracing/jaeger",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed Jaeger deployment requires storage other than the v2 command default embedded memory backend. This is declared desired state, not an inference from current storage."
+        },
+        {
+          "side": "proposed",
+          "id": "component.jaeger.official_jaeger_distribution",
+          "component": "pkg:github/jaegertracing/jaeger",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed runtime is the reviewed official Jaeger distribution. This is an operator declaration and does not establish image provenance or runtime identity."
+        }
+      ],
+      "rule": {
+        "id": "jaeger.explicit-config-required-for-non-memory.1-76-2-20",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/jaegertracing/jaeger",
+          "from": "1.76.0",
+          "to": "2.20.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/jaegertracing/jaeger",
+            "factId": "component.jaeger.non_memory_storage_required",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/jaegertracing/jaeger",
+            "factId": "component.jaeger.official_jaeger_distribution",
+            "boolValue": true
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/jaegertracing/jaeger",
+          "factId": "component.jaeger.explicit_config_provided",
+          "boolValue": false
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T14:07:57Z",
+          "validUntil": "2026-12-07T14:07:57Z",
+          "sources": [
+            {
+              "id": "source-41da2fbd7dd5-129",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/41da2fbd7dd58a5dd299587ebb159025b28521d2/confmap/resolver.go",
+              "revision": "41da2fbd7dd58a5dd299587ebb159025b28521d2",
+              "contentDigest": "sha256:461f47b74cc46c3c4c4935a105cb8d6758953a60d561e5e1fae1e6f13658f46d",
+              "startLine": 133,
+              "endLine": 150
+            },
+            {
+              "id": "source-41da2fbd7dd5-18",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/41da2fbd7dd58a5dd299587ebb159025b28521d2/otelcol/flags.go",
+              "revision": "41da2fbd7dd58a5dd299587ebb159025b28521d2",
+              "contentDigest": "sha256:f5db607dec3aab2ff29500dacd3008ba9069b1f0e84279a9dc0f986fafebc44b",
+              "startLine": 18,
+              "endLine": 25
+            },
+            {
+              "id": "source-798e4b0fcf22-35",
+              "url": "https://github.com/jaegertracing/jaeger/blob/798e4b0fcf22609e381df764a01461affd813e1e/cmd/jaeger/internal/all-in-one.yaml",
+              "revision": "798e4b0fcf22609e381df764a01461affd813e1e",
+              "contentDigest": "sha256:0b7477f1d6a10e5b9756542991ce6dc84586b3f5c2cb2c39010b575e96d2b840",
+              "startLine": 35,
+              "endLine": 39
+            },
+            {
+              "id": "source-798e4b0fcf22-61",
+              "url": "https://github.com/jaegertracing/jaeger/blob/798e4b0fcf22609e381df764a01461affd813e1e/cmd/jaeger/internal/command.go",
+              "revision": "798e4b0fcf22609e381df764a01461affd813e1e",
+              "contentDigest": "sha256:ae99db935b290c3fc95235df94fafdbcf3aa9fe1a489cf44d57f844280d0b507",
+              "startLine": 61,
+              "endLine": 99
+            },
+            {
+              "id": "source-798e4b0fcf22-go-mod-67",
+              "url": "https://github.com/jaegertracing/jaeger/blob/798e4b0fcf22609e381df764a01461affd813e1e/go.mod",
+              "revision": "798e4b0fcf22609e381df764a01461affd813e1e",
+              "contentDigest": "sha256:109430191e59d7ff68641d6aaa2e1425024001a484409f9b0825c0dc57b89cd8",
+              "startLine": 67,
+              "endLine": 90
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Provide one explicit non-empty --config selection for the proposed Jaeger v2 invocation, then review its content and backend separately."
+      }
+    },
+    {
+      "description": "Karmada 1.19.0 official policy CRDs remove the deprecated application failover purgeMode values Immediately and Graciously; this checks declared rendered input only when target-CRD admission is explicitly required.",
+      "project": "karmada",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/karmada-io/karmada",
+          "description": "Declared proposed Karmada distribution. Only the official upstream v1.19.0 policy CRDs are covered; custom builds remain UNKNOWN.",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "id": "component.karmada.distribution",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/karmada-io/karmada",
+          "description": "Declared proposed resource surface. karmada_policy_application_failover means only kind PropagationPolicy or ClusterPropagationPolicy at spec.failover.application.purgeMode; cluster failover and other resources are outside scope.",
+          "enumTokens": [
+            "karmada_policy_application_failover",
+            "other"
+          ],
+          "id": "component.karmada.execution_surface",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/karmada-io/karmada",
+          "description": "Whether any proposed rendered in-scope resource declares spec.failover.application.purgeMode as Immediately or Graciously. False means both exact legacy tokens are definitely absent; unresolved rendering must be missing.",
+          "enumTokens": null,
+          "id": "component.karmada.removed_application_purge_mode_present",
+          "side": "proposed",
+          "type": "bool"
+        },
+        {
+          "component": "pkg:github/karmada-io/karmada",
+          "description": "Whether the declared plan requires the in-scope resources to be admitted against the official Karmada 1.19.0 policy CRD schemas. This is intent, not proof that those CRDs are installed or API-server validation ran.",
+          "enumTokens": null,
+          "id": "component.karmada.target_policy_crd_admission_required",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "appliesWhen": [
+          {
+            "component": "pkg:github/karmada-io/karmada",
+            "enumValue": "official_upstream",
+            "factId": "component.karmada.distribution",
+            "side": "proposed"
+          },
+          {
+            "component": "pkg:github/karmada-io/karmada",
+            "enumValue": "karmada_policy_application_failover",
+            "factId": "component.karmada.execution_surface",
+            "side": "proposed"
+          },
+          {
+            "boolValue": true,
+            "component": "pkg:github/karmada-io/karmada",
+            "factId": "component.karmada.target_policy_crd_admission_required",
+            "side": "proposed"
+          }
+        ],
+        "condition": {
+          "boolValue": true,
+          "component": "pkg:github/karmada-io/karmada",
+          "factId": "component.karmada.removed_application_purge_mode_present",
+          "side": "proposed"
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-09T03:24:02Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:f131cd0be0c8ac145aa940588a9ce53941873bd26ad6eae3829a69cf9b52d79d",
+              "endLine": 169,
+              "id": "source-507245020dbb-crd-cluster-155",
+              "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
+              "startLine": 155,
+              "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/charts/karmada/_crds/bases/policy/policy.karmada.io_clusterpropagationpolicies.yaml"
+            },
+            {
+              "contentDigest": "sha256:f131cd0be0c8ac145aa940588a9ce53941873bd26ad6eae3829a69cf9b52d79d",
+              "endLine": 166,
+              "id": "source-507245020dbb-crd-policy-152",
+              "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
+              "startLine": 152,
+              "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/charts/karmada/_crds/bases/policy/policy.karmada.io_propagationpolicies.yaml"
+            },
+            {
+              "contentDigest": "sha256:bf8e6b197f181b4e2f81e41feb0c480f591202aa552232c5210a4fbee926fe98",
+              "endLine": 365,
+              "id": "source-507245020dbb-types-279",
+              "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
+              "startLine": 279,
+              "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/pkg/apis/policy/v1alpha1/propagation_types.go"
+            },
+            {
+              "contentDigest": "sha256:b7f0869f1f273c502eb5c9d3021af50ec3241ba0b0990197a61e662e3de6db03",
+              "endLine": 357,
+              "id": "source-507245020dbb-validation-328",
+              "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
+              "startLine": 328,
+              "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/pkg/util/validation/validation.go"
+            },
+            {
+              "contentDigest": "sha256:253912e5ed870c689c2e1c41c26c7855e496a10e1f1114860b550f8139d553fa",
+              "endLine": 167,
+              "id": "source-6d7b233a54d5-crd-cluster-156",
+              "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
+              "startLine": 156,
+              "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/charts/karmada/_crds/bases/policy/policy.karmada.io_clusterpropagationpolicies.yaml"
+            },
+            {
+              "contentDigest": "sha256:253912e5ed870c689c2e1c41c26c7855e496a10e1f1114860b550f8139d553fa",
+              "endLine": 164,
+              "id": "source-6d7b233a54d5-crd-policy-153",
+              "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
+              "startLine": 153,
+              "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/charts/karmada/_crds/bases/policy/policy.karmada.io_propagationpolicies.yaml"
+            },
+            {
+              "contentDigest": "sha256:00442b8bab95e638d41de6a48f43ab10a834e8e7d81eec4c05506685bda72944",
+              "endLine": 339,
+              "id": "source-6d7b233a54d5-types-279",
+              "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
+              "startLine": 279,
+              "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/pkg/apis/policy/v1alpha1/propagation_types.go"
+            },
+            {
+              "contentDigest": "sha256:8e0c28dd970e6a9d999ae80ab06e2dc1996134f2258a23af6d13151d94058c12",
+              "endLine": 351,
+              "id": "source-6d7b233a54d5-validation-328",
+              "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
+              "startLine": 328,
+              "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/pkg/util/validation/validation.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-08T03:24:02Z"
+        },
+        "id": "karmada.application-purge-mode-legacy-values-removed.1-19",
+        "nextAction": "Replace application failover purgeMode Immediately with Directly and Graciously with Gracefully in proposed in-scope resources; validate target CRD selection and application separately.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/karmada-io/karmada",
+          "from": "1.18.3",
+          "to": "1.19.0"
+        }
+      }
+    },
+    {
+      "project": "keda",
+      "description": "KEDA 2.16 direct External Scaler transport selected tlsCertFile as a TLS certificate file; 2.17 removes that direct client setting while forwarding trigger metadata to the external scaler. This claim covers only the declared legacy transport dependency.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.keda.external_scaler_present",
+          "component": "pkg:github/kedacore/keda",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed KEDA configuration contains an External Scaler trigger. This selects the narrow direct-transport scope and does not prove scaler reachability."
+        },
+        {
+          "side": "proposed",
+          "id": "component.keda.legacy_tls_cert_file_required_for_transport",
+          "component": "pkg:github/kedacore/keda",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed External Scaler specifically relies on the removed KEDA direct transport behavior that reads tlsCertFile. A raw metadata field can still be forwarded to the external scaler and is not sufficient for this fact."
+        }
+      ],
+      "rule": {
+        "id": "keda.external-scaler-legacy-tls-transport.2-17",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kedacore/keda",
+          "from": "2.16.0",
+          "to": "2.17.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kedacore/keda",
+          "factId": "component.keda.legacy_tls_cert_file_required_for_transport",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/kedacore/keda",
+            "factId": "component.keda.external_scaler_present",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T13:58:04Z",
+          "validUntil": "2026-12-07T13:58:04Z",
+          "sources": [
+            {
+              "id": "keda-v216-external-scaler",
+              "url": "https://github.com/kedacore/keda/blob/5c52d032931b8ecf855d0c298f8d5e48937aecd7/pkg/scalers/external_scaler.go",
+              "revision": "5c52d032931b8ecf855d0c298f8d5e48937aecd7",
+              "contentDigest": "sha256:e616e89ecab8f2b5d346e95d01d56b564e92d7d1117870b5d9142bca0003d94c",
+              "startLine": 308,
+              "endLine": 336
+            },
+            {
+              "id": "keda-v217-breaking-change",
+              "url": "https://github.com/kedacore/keda/blob/dafd9a883acc8ec2d2506e0d106b8605f2c156e9/CHANGELOG.md",
+              "revision": "dafd9a883acc8ec2d2506e0d106b8605f2c156e9",
+              "contentDigest": "sha256:c9e7fcb505516634db33bc6994ef748c91085d6db42c31a6e1f5f2b035dd789d",
+              "startLine": 150,
+              "endLine": 154
+            },
+            {
+              "id": "keda-v217-external-scaler",
+              "url": "https://github.com/kedacore/keda/blob/dafd9a883acc8ec2d2506e0d106b8605f2c156e9/pkg/scalers/external_scaler.go",
+              "revision": "dafd9a883acc8ec2d2506e0d106b8605f2c156e9",
+              "contentDigest": "sha256:5d2e97a62ac9b8080db61e28acf2e2b1a008ce0aeb2e477334f16b768765262a",
+              "startLine": 315,
+              "endLine": 334
+            },
+            {
+              "id": "keda-v217-external-scaler-metadata",
+              "url": "https://github.com/kedacore/keda/blob/dafd9a883acc8ec2d2506e0d106b8605f2c156e9/pkg/scalers/external_scaler.go",
+              "revision": "dafd9a883acc8ec2d2506e0d106b8605f2c156e9",
+              "contentDigest": "sha256:5d2e97a62ac9b8080db61e28acf2e2b1a008ce0aeb2e477334f16b768765262a",
+              "startLine": 66,
+              "endLine": 159
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "If target relies on KEDA direct TLS from tlsCertFile, migrate to reviewed replacement authentication fields and verify the external scaler separately; retain the actual declaration when unknown."
+      }
+    },
+    {
+      "project": "keycloak",
+      "description": "Keycloak 26.7.2 to 26.7.3: a restricted OIDC response parameter in the fragment of one operator-selected registered authorization redirect URI is rejected when both the server and that client leave the legacy allowance disabled. This is a scoped compatibility claim only; query behavior, logout, other clients/realms, security policy, runtime behavior, and whole-upgrade safety are outside it.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.keycloak.client_allow_oidc_params_in_redirect_uris",
+          "component": "pkg:github/keycloak/keycloak",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Effective proposed client attribute allow.oidc.params.in.redirect.uris for the one operator-selected registered authorization redirect URI. This is a compatibility declaration only; it does not inspect all clients or recommend enabling a deprecated allowance."
+        },
+        {
+          "side": "proposed",
+          "id": "component.keycloak.oidc_response_parameter_in_redirect_fragment",
+          "component": "pkg:github/keycloak/keycloak",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the one operator-selected registered authorization redirect URI contains a restricted OIDC response parameter in its URI fragment. Query parameters, post-logout URIs, and other clients are outside this rule."
+        },
+        {
+          "side": "proposed",
+          "id": "component.keycloak.server_allow_oidc_params_in_redirect_uris",
+          "component": "pkg:github/keycloak/keycloak",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Effective proposed OIDC provider option allow-oidc-params-in-redirect-uris for the selected server and realm. This is a compatibility declaration only; it does not inspect other realms or make a security judgment."
+        }
+      ],
+      "rule": {
+        "id": "keycloak.oidc-fragment-response-parameter-rejected.26-7-2-to-26-7-3",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/keycloak/keycloak",
+          "from": "26.7.2",
+          "to": "26.7.3"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/keycloak/keycloak",
+          "factId": "component.keycloak.oidc_response_parameter_in_redirect_fragment",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/keycloak/keycloak",
+            "factId": "component.keycloak.server_allow_oidc_params_in_redirect_uris",
+            "boolValue": false
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/keycloak/keycloak",
+            "factId": "component.keycloak.client_allow_oidc_params_in_redirect_uris",
+            "boolValue": false
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T20:59:01Z",
+          "validUntil": "2026-12-08T20:59:01Z",
+          "sources": [
+            {
+              "id": "keycloak-26-7-2-redirect-query-117-120",
+              "url": "https://github.com/keycloak/keycloak/blob/289376b142480b4d600aca7acb1e4651862ed2a1/services/src/main/java/org/keycloak/protocol/oidc/utils/RedirectUtils.java",
+              "revision": "289376b142480b4d600aca7acb1e4651862ed2a1",
+              "contentDigest": "sha256:ecf35cbfbb120f6e281f9561ee1df22b0d2b68e3cd57b3b9d6cefd2d48565dd2",
+              "startLine": 117,
+              "endLine": 120
+            },
+            {
+              "id": "keycloak-26-7-3-authorization-precedence-162-185",
+              "url": "https://github.com/keycloak/keycloak/blob/6d238b6558037085cc25c915893c3d301a80243e/services/src/main/java/org/keycloak/protocol/oidc/endpoints/AuthorizationEndpointChecker.java",
+              "revision": "6d238b6558037085cc25c915893c3d301a80243e",
+              "contentDigest": "sha256:27f4a87f45fff86118dbb4928870d7c45883695b94c2ccf0a06258269fe1f34a",
+              "startLine": 162,
+              "endLine": 185
+            },
+            {
+              "id": "keycloak-26-7-3-client-default-550-553",
+              "url": "https://github.com/keycloak/keycloak/blob/6d238b6558037085cc25c915893c3d301a80243e/services/src/main/java/org/keycloak/protocol/oidc/OIDCAdvancedConfigWrapper.java",
+              "revision": "6d238b6558037085cc25c915893c3d301a80243e",
+              "contentDigest": "sha256:cb8a3e46833fe5bb994628c68564252d5400c8a98775110c87bfcef6dee14551",
+              "startLine": 550,
+              "endLine": 553
+            },
+            {
+              "id": "keycloak-26-7-3-migration-15-21",
+              "url": "https://github.com/keycloak/keycloak/blob/6d238b6558037085cc25c915893c3d301a80243e/docs/documentation/upgrading/topics/changes/changes-26_7_3.adoc",
+              "revision": "6d238b6558037085cc25c915893c3d301a80243e",
+              "contentDigest": "sha256:b7bcc056960fc9ea944e58e1a776b15ae46282245c04b2c60fefd7305fe4a9c7",
+              "startLine": 15,
+              "endLine": 21
+            },
+            {
+              "id": "keycloak-26-7-3-redirect-fragment-166-194",
+              "url": "https://github.com/keycloak/keycloak/blob/6d238b6558037085cc25c915893c3d301a80243e/services/src/main/java/org/keycloak/protocol/oidc/utils/RedirectUtils.java",
+              "revision": "6d238b6558037085cc25c915893c3d301a80243e",
+              "contentDigest": "sha256:64c2d2ada30a6563e22f816d7b6172c824df304a434981dc31f23094cfb1a548",
+              "startLine": 166,
+              "endLine": 194
+            },
+            {
+              "id": "keycloak-26-7-3-server-default-117-138",
+              "url": "https://github.com/keycloak/keycloak/blob/6d238b6558037085cc25c915893c3d301a80243e/services/src/main/java/org/keycloak/protocol/oidc/OIDCProviderConfig.java",
+              "revision": "6d238b6558037085cc25c915893c3d301a80243e",
+              "contentDigest": "sha256:aedb61ce6165a72a1b73034842810c729f5e9ac8f03c4042a3b79e02dc5167b5",
+              "startLine": 117,
+              "endLine": 138
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Inspect the same selected authorization redirect URI, server option, and client attribute locally; do not infer other clients, logout behavior, security posture, runtime behavior, or whole-upgrade safety."
+      }
+    },
+    {
+      "project": "knative",
+      "description": "Knative Serving v1.23.0 target admission validates a user container startup HTTP probe; this checks only whether one explicit named probe port matches one explicit supported named container port in a proposed Service.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.knative.serving_startup_http_named_port_mismatch",
+          "component": "pkg:github/knative/serving",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether exactly one proposed Knative Serving user container has one HTTP startup probe whose explicit supported named port differs from its one explicit supported named container port. Missing, numeric, non-HTTP, multi-container, multi-port, or otherwise ambiguous shapes remain unavailable."
+        }
+      ],
+      "rule": {
+        "id": "knative.serving-startup-http-named-port.1-22-to-1-23",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/knative/serving",
+          "from": "1.22.0",
+          "to": "1.23.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/knative/serving",
+          "factId": "component.knative.serving_startup_http_named_port_mismatch",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T16:29:25Z",
+          "validUntil": "2026-12-09T16:29:25Z",
+          "sources": [
+            {
+              "id": "knative-serving-v1-22-user-container-probes",
+              "url": "https://github.com/knative/serving/blob/370ad5a2a599e1966787e66e4443e1bad131fa7a/pkg/apis/serving/k8s_validation.go",
+              "revision": "370ad5a2a599e1966787e66e4443e1bad131fa7a",
+              "contentDigest": "sha256:6ca70c2eb4c8ff839836981669f0aa2d3a42d8cfaef90c96e584b47b9bf9117b",
+              "startLine": 588,
+              "endLine": 595
+            },
+            {
+              "id": "knative-serving-v1-23-probe-port-match",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/pkg/apis/serving/k8s_validation.go",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:b04dc9aa8918cab28facd2054d69f3e6391fd064dad1870c27638d53fdcd26ca",
+              "startLine": 875,
+              "endLine": 893
+            },
+            {
+              "id": "knative-serving-v1-23-service-http-probe",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/config/core/300-resources/service.yaml",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:2df2faa748f4d8e9470a2a5e9f208d7310aa89fc8cad1f2b1b9941fefe3def33",
+              "startLine": 829,
+              "endLine": 832
+            },
+            {
+              "id": "knative-serving-v1-23-service-http-probe-port",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/config/core/300-resources/service.yaml",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:2df2faa748f4d8e9470a2a5e9f208d7310aa89fc8cad1f2b1b9941fefe3def33",
+              "startLine": 857,
+              "endLine": 868
+            },
+            {
+              "id": "knative-serving-v1-23-service-startup-probe",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/config/core/300-resources/service.yaml",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:2df2faa748f4d8e9470a2a5e9f208d7310aa89fc8cad1f2b1b9941fefe3def33",
+              "startLine": 781,
+              "endLine": 790
+            },
+            {
+              "id": "knative-serving-v1-23-user-container-startup-probe",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/pkg/apis/serving/k8s_validation.go",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:b04dc9aa8918cab28facd2054d69f3e6391fd064dad1870c27638d53fdcd26ca",
+              "startLine": 605,
+              "endLine": 614
+            },
+            {
+              "id": "knative-serving-v1-23-user-port-validation",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/pkg/apis/serving/k8s_validation.go",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:b04dc9aa8918cab28facd2054d69f3e6391fd064dad1870c27638d53fdcd26ca",
+              "startLine": 772,
+              "endLine": 799
+            },
+            {
+              "id": "knative-serving-v1-23-valid-port-names",
+              "url": "https://github.com/knative/serving/blob/7ed4aa2ab601e3a33c6552285f6e0d910747351d/pkg/apis/serving/k8s_validation.go",
+              "revision": "7ed4aa2ab601e3a33c6552285f6e0d910747351d",
+              "contentDigest": "sha256:b04dc9aa8918cab28facd2054d69f3e6391fd064dad1870c27638d53fdcd26ca",
+              "startLine": 71,
+              "endLine": 79
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "In the proposed Knative Service, set spec.template.spec.containers[0].startupProbe.httpGet.port to the same supported name as spec.template.spec.containers[0].ports[0].name, then recheck this target admission constraint."
+      }
+    },
+    {
+      "project": "kubeedge",
+      "description": "KubeEdge v1.19.0 changes the exact keadm init legacy version-selector form --profile version=<version> into external values-file handling; this checks only an explicit complete official-upstream init plan and does not inspect files or claim that --profile itself was removed.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubeedge.distribution",
+          "component": "pkg:github/kubeedge/kubeedge",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared proposed KubeEdge distribution. Only the reviewed official upstream v1.19.0 keadm behavior is covered; custom builds remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.kubeedge.effective_argv_complete",
+          "component": "pkg:github/kubeedge/kubeedge",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the operator has declared the complete intended effective keadm init argv. Partial fragments, wrappers, defaults, generated arguments and unexamined sources must not be declared complete."
+        },
+        {
+          "side": "proposed",
+          "id": "component.kubeedge.execution_surface",
+          "component": "pkg:github/kubeedge/kubeedge",
+          "type": "enum",
+          "enumTokens": [
+            "keadm_init",
+            "other"
+          ],
+          "description": "Declared proposed command surface. Only official upstream keadm init is covered; join, upgrade and every other command remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.kubeedge.init_version_selection_form",
+          "component": "pkg:github/kubeedge/kubeedge",
+          "type": "enum",
+          "enumTokens": [
+            "kubeedge_version_flag_only",
+            "legacy_profile_version"
+          ],
+          "description": "Explicit operator intent for the complete proposed keadm init argv. legacy_profile_version means --profile version=<version> is intentionally the version selector. kubeedge_version_flag_only means --kubeedge-version=v1.19.0 selects the target and --profile is absent. A version-like filename does not prove legacy intent; external values files, both selectors, defaults and ambiguous forms must remain missing, unsupported or conflicting."
+        }
+      ],
+      "rule": {
+        "id": "kubeedge.keadm-init-profile-version-selector.1-18-to-1-19",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubeedge/kubeedge",
+          "from": "1.18.0",
+          "to": "1.19.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubeedge/kubeedge",
+          "factId": "component.kubeedge.init_version_selection_form",
+          "enumValue": "legacy_profile_version"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/kubeedge/kubeedge",
+            "factId": "component.kubeedge.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/kubeedge/kubeedge",
+            "factId": "component.kubeedge.effective_argv_complete",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/kubeedge/kubeedge",
+            "factId": "component.kubeedge.execution_surface",
+            "enumValue": "keadm_init"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T14:15:00Z",
+          "validUntil": "2026-12-09T14:15:00Z",
+          "sources": [
+            {
+              "id": "source-656ad81a245c-release-85",
+              "url": "https://github.com/kubeedge/website/blob/656ad81a245c713dd2982ce854331796a7ccf1c8/blog/release-v1.19/index.mdx",
+              "revision": "656ad81a245c713dd2982ce854331796a7ccf1c8",
+              "contentDigest": "sha256:306ff5b158c324bbe3adc6761bbe51fa9a6804d859152e39fca03481d7cfce47",
+              "startLine": 85,
+              "endLine": 89
+            },
+            {
+              "id": "source-6ca40b8e51d9-cloudcore-112",
+              "url": "https://github.com/kubeedge/kubeedge/blob/6ca40b8e51d96817b79eab23a327aac4b8b4a0ae/keadm/cmd/keadm/app/cmd/helm/cloudcore.go",
+              "revision": "6ca40b8e51d96817b79eab23a327aac4b8b4a0ae",
+              "contentDigest": "sha256:b7ed3753bd725ac4b47a7e9ba2b9ce9253a6786417e0a53a7e0dd3f71e91156b",
+              "startLine": 112,
+              "endLine": 129
+            },
+            {
+              "id": "source-6ca40b8e51d9-helper-103",
+              "url": "https://github.com/kubeedge/kubeedge/blob/6ca40b8e51d96817b79eab23a327aac4b8b4a0ae/keadm/cmd/keadm/app/cmd/helm/helm_helper.go",
+              "revision": "6ca40b8e51d96817b79eab23a327aac4b8b4a0ae",
+              "contentDigest": "sha256:0ae4c86028df08e81f154b9eb45e0cc3d8861bdda6c4e9469d9a6aad33c236b8",
+              "startLine": 103,
+              "endLine": 113
+            },
+            {
+              "id": "source-6ca40b8e51d9-init-75",
+              "url": "https://github.com/kubeedge/kubeedge/blob/6ca40b8e51d96817b79eab23a327aac4b8b4a0ae/keadm/cmd/keadm/app/cmd/cloud/init.go",
+              "revision": "6ca40b8e51d96817b79eab23a327aac4b8b4a0ae",
+              "contentDigest": "sha256:6fa53e6cf07661765bcacaf2e52e911a051c2f488915d06401556d700e5e24b8",
+              "startLine": 75,
+              "endLine": 77
+            },
+            {
+              "id": "source-c5e705a7545d-cloudcore-93",
+              "url": "https://github.com/kubeedge/kubeedge/blob/c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3/keadm/cmd/keadm/app/cmd/helm/cloudcore.go",
+              "revision": "c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3",
+              "contentDigest": "sha256:21214ff47c5323b37188f1005c497030dc185ef05a0925c3432ceaf3dc3609eb",
+              "startLine": 93,
+              "endLine": 108
+            },
+            {
+              "id": "source-c5e705a7545d-init-101",
+              "url": "https://github.com/kubeedge/kubeedge/blob/c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3/keadm/cmd/keadm/app/cmd/cloud/init.go",
+              "revision": "c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3",
+              "contentDigest": "sha256:6fa53e6cf07661765bcacaf2e52e911a051c2f488915d06401556d700e5e24b8",
+              "startLine": 101,
+              "endLine": 104
+            },
+            {
+              "id": "source-c5e705a7545d-init-47",
+              "url": "https://github.com/kubeedge/kubeedge/blob/c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3/keadm/cmd/keadm/app/cmd/cloud/init.go",
+              "revision": "c5e705a7545de9e7e36ed6b1fbb2072ad5b5e1d3",
+              "contentDigest": "sha256:6fa53e6cf07661765bcacaf2e52e911a051c2f488915d06401556d700e5e24b8",
+              "startLine": 47,
+              "endLine": 64
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For this exact official v1.19.0 keadm init plan, replace legacy --profile version=<version> selection with --kubeedge-version=v1.19.0. Review any external --profile values file separately."
+      }
+    },
+    {
+      "project": "kubeflow",
+      "description": "KFP Python SDK 2.0.0 removes create_component_from_func from the public component-authoring API; this checks only one conservatively bound bare decorator form in caller-supplied Python source.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubeflow.kfp_component_authoring_api",
+          "component": "pkg:pypi/kfp",
+          "type": "enum",
+          "enumTokens": [
+            "dsl_component",
+            "legacy_create_component_from_func"
+          ],
+          "description": "The one admitted unaliased bare KFP component-authoring decorator form in a supplied Python source file."
+        }
+      ],
+      "rule": {
+        "id": "kubeflow.kfp-create-component-from-func-removed.1-8-22-to-2-0-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:pypi/kfp",
+          "from": "1.8.22",
+          "to": "2.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:pypi/kfp",
+          "factId": "component.kubeflow.kfp_component_authoring_api",
+          "enumValue": "legacy_create_component_from_func"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T20:30:00Z",
+          "validUntil": "2026-12-09T20:30:00Z",
+          "sources": [
+            {
+              "id": "kubeflow-kfp-v1-components-public-import",
+              "url": "https://github.com/kubeflow/pipelines/blob/f5ba0212fc316aff38d4a3129bc6f2a7b54f97b5/sdk/python/kfp/components/__init__.py",
+              "revision": "f5ba0212fc316aff38d4a3129bc6f2a7b54f97b5",
+              "contentDigest": "sha256:8c469526b1a55281f04ede011aecc9ca0dbd4855f7eb36f8886863252c9d136f",
+              "startLine": 13,
+              "endLine": 17
+            },
+            {
+              "id": "kubeflow-kfp-v1-create-component-export",
+              "url": "https://github.com/kubeflow/pipelines/blob/f5ba0212fc316aff38d4a3129bc6f2a7b54f97b5/sdk/python/kfp/components/_python_op.py",
+              "revision": "f5ba0212fc316aff38d4a3129bc6f2a7b54f97b5",
+              "contentDigest": "sha256:076b64273844e8413ee510f22c97dca9a9ee1e4cefeb8e5b3ee4a2c1b3d8d8fb",
+              "startLine": 13,
+              "endLine": 27
+            },
+            {
+              "id": "kubeflow-kfp-v2-components-export",
+              "url": "https://github.com/kubeflow/pipelines/blob/e03e31219387b587b700ba3e31a02df486aa364f/sdk/python/kfp/components/__init__.py",
+              "revision": "e03e31219387b587b700ba3e31a02df486aa364f",
+              "contentDigest": "sha256:198591beb7def92163e7d2d50afbc0d9b1282c50df03c6c4aa2b08e90368f2c3",
+              "startLine": 15,
+              "endLine": 31
+            },
+            {
+              "id": "kubeflow-kfp-v2-dsl-component-export",
+              "url": "https://github.com/kubeflow/pipelines/blob/e03e31219387b587b700ba3e31a02df486aa364f/sdk/python/kfp/dsl/__init__.py",
+              "revision": "e03e31219387b587b700ba3e31a02df486aa364f",
+              "contentDigest": "sha256:0bf2281a2930250696df64277ba8478750a72ea5da80d466163b2ca9bf18997d",
+              "startLine": 15,
+              "endLine": 24
+            },
+            {
+              "id": "kubeflow-kfp-v2-migration-create-component",
+              "url": "https://github.com/kubeflow/website/blob/debcbb9035e75869e9dc2ed6b9354376ac1a26e7/content/en/docs/components/pipelines/user-guides/migration.md",
+              "revision": "debcbb9035e75869e9dc2ed6b9354376ac1a26e7",
+              "contentDigest": "sha256:aa87039104f2a84c657ec499a0e3e61d4dc63283c7ab608caa442a5d31617473",
+              "startLine": 75,
+              "endLine": 131
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For a legacy observation, replace the import with `from kfp import dsl` and the bare decorator with `@dsl.component`; for `dsl_component`, retain that form. Separately validate inputs, outputs, dependencies, base image, compilation, backend, and runtime."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes in-tree dockershim removal only; CRI endpoint health and runtime compatibility are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.in_tree_dockershim_required",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed kubelet deployment still requires the removed in-tree dockershim. External cri-dockerd is a distinct implementation; Docker use alone does not make this true."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.in-tree-dockershim-removed.1-24",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.23.17",
+          "to": "1.24.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.in_tree_dockershim_required",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-4ce5a8954017-1002",
+              "url": "https://github.com/kubernetes/kubernetes/blob/4ce5a8954017644c5420bae81d72b09b735c21f0/CHANGELOG/CHANGELOG-1.24.md",
+              "revision": "4ce5a8954017644c5420bae81d72b09b735c21f0",
+              "contentDigest": "sha256:db40d9b3e7241eaabaad67d5f3fa811b6fd46dc5a5c5948b30768f4a07be5d22",
+              "startLine": 1002,
+              "endLine": 1008
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace the in-tree dockershim dependency with a supported external CRI implementation and validate it separately."
+      }
+    },
+    {
+      "project": "kuma",
+      "description": "Kuma 2.9 removes two deprecated kumactl install transparent-proxy UID exclusion flags; this rule covers only an operator-declared proposed argv presence predicate for that command surface.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kuma.distribution",
+          "component": "pkg:github/kumahq/kuma",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared distribution identity for the proposed kumactl command. This source rule applies only to the reviewed official upstream distribution and does not prove binary, image, or runtime identity."
+        },
+        {
+          "side": "proposed",
+          "id": "component.kuma.execution_surface",
+          "component": "pkg:github/kumahq/kuma",
+          "type": "enum",
+          "enumTokens": [
+            "kumactl_install_transparent_proxy",
+            "other"
+          ],
+          "description": "Declared proposed command surface. This rule applies only to kumactl install transparent-proxy; every other command surface remains outside the reviewed parser evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.kuma.removed_exclude_uid_flags_present",
+          "component": "pkg:github/kumahq/kuma",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether an operator-declared explicit effective proposed kumactl install transparent-proxy argv contains either --exclude-outbound-tcp-ports-for-uids or --exclude-outbound-udp-ports-for-uids. Declare false only when both exact old flags are definitely absent. Wrappers, expansion, implicit sources, images, defaults, consolidated-flag presence, Dataplane migration, and runtime behavior are not inferred."
+        }
+      ],
+      "rule": {
+        "id": "kuma.deprecated-exclude-uid-flags-removed.2-8-to-2-9",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kumahq/kuma",
+          "from": "2.8.0",
+          "to": "2.9.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/kumahq/kuma",
+            "factId": "component.kuma.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/kumahq/kuma",
+            "factId": "component.kuma.execution_surface",
+            "enumValue": "kumactl_install_transparent_proxy"
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kumahq/kuma",
+          "factId": "component.kuma.removed_exclude_uid_flags_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T21:06:35Z",
+          "validUntil": "2026-12-07T21:06:35Z",
+          "sources": [
+            {
+              "id": "source-1110a0305eec-220",
+              "url": "https://github.com/kumahq/kuma/blob/1110a0305eec00f1b2fd7482d6df4f3dd6a9d78e/app/kumactl/cmd/install/install_transparent_proxy.go",
+              "revision": "1110a0305eec00f1b2fd7482d6df4f3dd6a9d78e",
+              "contentDigest": "sha256:05b0c3c975322264589799afb9fc09e1fb3eb0c45be3e98e8ec5c0a65e3cb228",
+              "startLine": 220,
+              "endLine": 222
+            },
+            {
+              "id": "source-948e6a439163-113",
+              "url": "https://github.com/kumahq/kuma/blob/948e6a4391632607148f4dcdf7e9adce422a8075/UPGRADE.md",
+              "revision": "948e6a4391632607148f4dcdf7e9adce422a8075",
+              "contentDigest": "sha256:efe8bc3071dbb55cba6fb396e91d777f25091c343de6c9ebffc02e43933badc3",
+              "startLine": 113,
+              "endLine": 115
+            },
+            {
+              "id": "source-948e6a439163-126",
+              "url": "https://github.com/kumahq/kuma/blob/948e6a4391632607148f4dcdf7e9adce422a8075/app/kumactl/cmd/install/install_transparent_proxy.go",
+              "revision": "948e6a4391632607148f4dcdf7e9adce422a8075",
+              "contentDigest": "sha256:c964f496b9ca1d0bf00370d265e1d5775fdbc8292dbe6bfa4ca845d006b0b323",
+              "startLine": 126,
+              "endLine": 133
+            },
+            {
+              "id": "source-948e6a439163-173",
+              "url": "https://github.com/kumahq/kuma/blob/948e6a4391632607148f4dcdf7e9adce422a8075/app/kumactl/cmd/install/install_transparent_proxy.go",
+              "revision": "948e6a4391632607148f4dcdf7e9adce422a8075",
+              "contentDigest": "sha256:c964f496b9ca1d0bf00370d265e1d5775fdbc8292dbe6bfa4ca845d006b0b323",
+              "startLine": 173,
+              "endLine": 177
+            },
+            {
+              "id": "source-948e6a439163-260",
+              "url": "https://github.com/kumahq/kuma/blob/948e6a4391632607148f4dcdf7e9adce422a8075/app/kumactl/cmd/install/install_transparent_proxy.go",
+              "revision": "948e6a4391632607148f4dcdf7e9adce422a8075",
+              "contentDigest": "sha256:c964f496b9ca1d0bf00370d265e1d5775fdbc8292dbe6bfa4ca845d006b0b323",
+              "startLine": 260,
+              "endLine": 260
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace either declared removed Kuma UID exclusion flag with the target-supported consolidated form, then review the explicit proposed kumactl install transparent-proxy argv separately. Supply an explicit declaration when that argv is unknown."
+      }
+    },
+    {
+      "project": "kyverno",
+      "description": "Kyverno reportsChunkSize removal only for an explicitly declared official upstream reports-controller invocation; image provenance, wrappers, other command surfaces, controller behavior, and whole-upgrade compatibility are unverified.",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/kyverno/kyverno",
+          "description": "Explicit proposed distribution declaration for this rule. official_upstream scopes source evidence; custom_build, missing, unsupported, and conflicting declarations remain UNKNOWN. This declaration does not establish image provenance.",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "id": "component.kyverno.distribution",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/kyverno/kyverno",
+          "description": "Explicit proposed invocation surface. reports_controller means the admitted bare reports-controller command surface only; other, missing, unsupported, and conflicting surfaces remain UNKNOWN.",
+          "enumTokens": [
+            "other",
+            "reports_controller"
+          ],
+          "id": "component.kyverno.execution_surface",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/kyverno/kyverno",
+          "description": "Whether the admitted proposed reports-controller argument sequence retains reportsChunkSize. Only a closed literal integer grammar is derivable; unresolved values, wrappers, and other argument sources remain UNKNOWN.",
+          "enumTokens": null,
+          "id": "component.kyverno.reports_chunk_size_flag_present",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/kyverno/kyverno",
+            "factId": "component.kyverno.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/kyverno/kyverno",
+            "factId": "component.kyverno.execution_surface",
+            "enumValue": "reports_controller"
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kyverno/kyverno",
+          "factId": "component.kyverno.reports_chunk_size_flag_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-09T00:53:06Z",
+          "sources": [
+            {
+              "id": "go-1-21-4-standard-flag-grammar",
+              "url": "https://github.com/golang/go/blob/ed817f1c4055a559a94afffecbb91c78e4f39942/src/flag/flag.go",
+              "revision": "ed817f1c4055a559a94afffecbb91c78e4f39942",
+              "contentDigest": "sha256:d803a25f5bba6ce835aab9ed55a93aa785d2cf02d0e4dd84c726c334944c9919",
+              "startLine": 1074,
+              "endLine": 1146
+            },
+            {
+              "id": "kyverno-v1-12-5-command-line-flag-bridge",
+              "url": "https://github.com/kyverno/kyverno/blob/b7fb616a6db3081a7c6d1d72d375819e777064ee/cmd/internal/flag.go",
+              "revision": "b7fb616a6db3081a7c6d1d72d375819e777064ee",
+              "contentDigest": "sha256:56822cc05203fcfb28ba3ff2a2fe062e9e1acd3ced5d34f9bf279df2b3978c67",
+              "startLine": 222,
+              "endLine": 235
+            },
+            {
+              "id": "kyverno-v1-12-5-reports-controller-build",
+              "url": "https://github.com/kyverno/kyverno/blob/b7fb616a6db3081a7c6d1d72d375819e777064ee/Makefile",
+              "revision": "b7fb616a6db3081a7c6d1d72d375819e777064ee",
+              "contentDigest": "sha256:cc3acfeb2ed65109561d841d358db608bc7e23e87f29021b972f115106d928ff",
+              "startLine": 253,
+              "endLine": 255
+            },
+            {
+              "id": "kyverno-v1-12-5-reports-controller-registration",
+              "url": "https://github.com/kyverno/kyverno/blob/b7fb616a6db3081a7c6d1d72d375819e777064ee/cmd/reports-controller/main.go",
+              "revision": "b7fb616a6db3081a7c6d1d72d375819e777064ee",
+              "contentDigest": "sha256:4c0273a0e1fc1fd18523d40cd341a7db1a4e14a8f93af47c287f143b6acfcf9b",
+              "startLine": 202,
+              "endLine": 208
+            },
+            {
+              "id": "kyverno-v1-13-0-changelog-removal",
+              "url": "https://github.com/kyverno/kyverno/blob/978c2f3b56df37a8bea4ee649369efaea53a684b/CHANGELOG.md",
+              "revision": "978c2f3b56df37a8bea4ee649369efaea53a684b",
+              "contentDigest": "sha256:ab2660c7d3fc27644bc568db9ea2cb1612d9ee87253d7b060cee6e351819e637",
+              "startLine": 1,
+              "endLine": 6
+            },
+            {
+              "id": "kyverno-v1-13-0-reports-controller-build",
+              "url": "https://github.com/kyverno/kyverno/blob/978c2f3b56df37a8bea4ee649369efaea53a684b/Makefile",
+              "revision": "978c2f3b56df37a8bea4ee649369efaea53a684b",
+              "contentDigest": "sha256:ce7305b3997657915e54ef5436c2665c6b573b793325d33f799e69e8d4a10616",
+              "startLine": 253,
+              "endLine": 255
+            },
+            {
+              "id": "kyverno-v1-13-0-reports-controller-removal",
+              "url": "https://github.com/kyverno/kyverno/blob/978c2f3b56df37a8bea4ee649369efaea53a684b/cmd/reports-controller/main.go",
+              "revision": "978c2f3b56df37a8bea4ee649369efaea53a684b",
+              "contentDigest": "sha256:a76c60f1403d76b15654a5185cf05978214f180901817d9437572ecf57cff391",
+              "startLine": 192,
+              "endLine": 208
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-08T00:53:06Z"
+        },
+        "id": "kyverno.reports-chunk-size-removed.1-13",
+        "nextAction": "For the declared official upstream bare reports-controller surface, remove reportsChunkSize from literal proposed arguments. Otherwise supply an explicit supported surface declaration or keep the result UNKNOWN; review reporting behavior separately.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/kyverno/kyverno",
+          "from": "1.12.5",
+          "to": "1.13.0"
+        }
+      }
+    },
+    {
+      "project": "linkerd",
+      "description": "Linkerd stable 2.14 MeshTLSAuthentication adds minItems: 1 to each selector array; this admission-schema predicate is scoped to declared target validation intent and does not validate complete objects or runtime.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.linkerd.distribution",
+          "component": "pkg:github/linkerd/linkerd2",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Operator-declared proposed distribution scope. Only official_upstream is covered; custom builds are UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.linkerd.execution_surface",
+          "component": "pkg:github/linkerd/linkerd2",
+          "type": "enum",
+          "enumTokens": [
+            "meshtls_authentication_crd",
+            "other"
+          ],
+          "description": "Operator-declared proposed input surface. Only meshtls_authentication_crd is covered; other surfaces are UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.linkerd.schema_validation_required",
+          "component": "pkg:github/linkerd/linkerd2",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the operator requires the proposed MeshTLSAuthentication to validate against the official target CRD schema. This is intent, not installed-schema or API-server evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.linkerd.mtls_identity_selector_empty",
+          "component": "pkg:github/linkerd/linkerd2",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether exactly one proposed selector property, identities or identityRefs, is explicitly present and known empty while the other is known absent; false means exactly one is explicitly present and known nonempty while the other is known absent. Both, neither, wrappers, unresolved, and unsupported declarations remain UNKNOWN."
+        }
+      ],
+      "rule": {
+        "id": "linkerd.mtls-identity-selector-minitems.2-13-2-14",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/linkerd/linkerd2",
+          "from": "2.13.7",
+          "to": "2.14.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/linkerd/linkerd2",
+          "factId": "component.linkerd.mtls_identity_selector_empty",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/linkerd/linkerd2",
+            "factId": "component.linkerd.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/linkerd/linkerd2",
+            "factId": "component.linkerd.execution_surface",
+            "enumValue": "meshtls_authentication_crd"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/linkerd/linkerd2",
+            "factId": "component.linkerd.schema_validation_required",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T22:06:25Z",
+          "validUntil": "2026-12-07T22:06:25Z",
+          "sources": [
+            {
+              "id": "source-526633fdeea3-36",
+              "url": "https://github.com/linkerd/linkerd2/blob/526633fdeea30fd1c51c9ee5ef8ec889949cef87/charts/linkerd-crds/templates/policy/meshtls-authentication.yaml",
+              "revision": "526633fdeea30fd1c51c9ee5ef8ec889949cef87",
+              "contentDigest": "sha256:6266757895704a41198c30383c33d599b92541a6a6337fa70efe278ac9e8356b",
+              "startLine": 36,
+              "endLine": 54
+            },
+            {
+              "id": "source-a4bec904cc19-36",
+              "url": "https://github.com/linkerd/linkerd2/blob/a4bec904cc19d30441fb4ab591cff0a1edc66c20/charts/linkerd-crds/templates/policy/meshtls-authentication.yaml",
+              "revision": "a4bec904cc19d30441fb4ab591cff0a1edc66c20",
+              "contentDigest": "sha256:73371c998eee66157cd40b90c15669ef28c58e0430d36d6257a97b0862a9f87b",
+              "startLine": 36,
+              "endLine": 55
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Supply exactly one nonempty identities or identityRefs selector and validate the proposed object against the official target CRD schema; complete-object validity and runtime behavior remain unverified."
+      }
+    },
+    {
+      "project": "longhorn",
+      "description": "Longhorn upstream path check rejects a two-minor direct jump; intermediate health, engines and volumes are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.longhorn.upgrade_path_check_enabled",
+          "component": "pkg:github/longhorn/longhorn",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed Longhorn manager uses its upstream upgrade-path check. Bypassed or custom validation is outside this rule."
+        }
+      ],
+      "rule": {
+        "id": "longhorn.intermediate-1-8.1-9",
+        "operator": "require_intermediate_version",
+        "subject": {
+          "component": "pkg:github/longhorn/longhorn",
+          "from": "1.7.3",
+          "to": "1.9.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/longhorn/longhorn",
+            "factId": "component.longhorn.upgrade_path_check_enabled",
+            "boolValue": true
+          }
+        ],
+        "intermediate": "1.8.0",
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-8bb4d023b6d8-222",
+              "url": "https://github.com/longhorn/longhorn-manager/blob/8bb4d023b6d85475471091d3eedea02a7411bc5c/upgrade/util/util.go",
+              "revision": "8bb4d023b6d85475471091d3eedea02a7411bc5c",
+              "contentDigest": "sha256:a594d4ce6c6dbd18aa636bbb143456fa41dbe374a0bf7ffefe6808591433082b",
+              "startLine": 222,
+              "endLine": 273
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Plan a separate validated upgrade through Longhorn 1.8.x before evaluating the 1.9.0 transition."
+      }
+    },
+    {
+      "project": "opa",
+      "description": "OPA v1 producer option prerequisite for v0 consumers without rego.v1 imports. Policy v0 compliance is a separate unverified prerequisite.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.opa.modules_use_rego_v1_import",
+          "component": "pkg:github/open-policy-agent/opa",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the produced modules use the documented rego.v1 import alternative. Absence must be established locally across relevant modules; unresolved modules mean missing."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opa.producer_v0_compatible",
+          "component": "pkg:github/open-policy-agent/opa",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed OPA bundle producer runs with --v0-compatible. This is a declared invocation setting, not a test of policy syntax or bundle contents."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opa.v0_consumers_remain",
+          "component": "pkg:github/open-policy-agent/opa",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed producer still supplies OPA v0 consumers."
+        }
+      ],
+      "rule": {
+        "id": "opa.v0-consumer-producer-option.1-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/open-policy-agent/opa",
+          "from": "0.70.0",
+          "to": "1.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/open-policy-agent/opa",
+          "factId": "component.opa.producer_v0_compatible",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-policy-agent/opa",
+            "factId": "component.opa.v0_consumers_remain",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-policy-agent/opa",
+            "factId": "component.opa.modules_use_rego_v1_import",
+            "boolValue": false
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-7b004efe4a7c-134",
+              "url": "https://github.com/open-policy-agent/opa/blob/7b004efe4a7c032e2af82969ce9214929bbef732/docs/docs/v0-upgrade/index.md",
+              "revision": "7b004efe4a7c032e2af82969ce9214929bbef732",
+              "contentDigest": "sha256:d29a841cdeffceeab6354f9b9d2da36bcb6e9653a6f7bfaa9e392e30c6954943",
+              "startLine": 134,
+              "endLine": 150
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use --v0-compatible for this declared producer scenario, or review the rego.v1 alternative; independently check v0 policy compliance."
+      }
+    },
+    {
+      "project": "opentelemetry",
+      "description": "Logging exporter removal in the upstream Collector; this does not prove replacement exporter availability or telemetry delivery.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.distribution",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "enum",
+          "enumTokens": [
+            "custom",
+            "official"
+          ],
+          "description": "Whether the proposed artifact uses the official upstream Collector distribution or a custom build."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.logging_exporter_present",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed effective Collector configuration uses the logging exporter. Unresolved includes or providers must be marked missing."
+        }
+      ],
+      "rule": {
+        "id": "opentelemetry.logging-exporter-removed.0-111",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "from": "0.110.0",
+          "to": "0.111.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "factId": "component.opentelemetry.logging_exporter_present",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-telemetry/opentelemetry-collector",
+            "factId": "component.opentelemetry.distribution",
+            "enumValue": "official"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-080b76506c5b-10",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/CHANGELOG.md",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:8b2b559dd21ff7facbacf97af92c9f92e3b55f64b5232f6e406d6fd87c295429",
+              "startLine": 10,
+              "endLine": 17
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace the removed logging exporter with an available exporter such as debug and verify pipeline behavior separately."
+      }
+    },
+    {
+      "project": "rook",
+      "description": "Direct Rook Helm upgrade requires first reaching 1.19.5; no claim that an intermediate deployment is healthy.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.rook.deployment_mode",
+          "component": "pkg:github/rook/rook",
+          "type": "enum",
+          "enumTokens": [
+            "custom",
+            "helm",
+            "manifests"
+          ],
+          "description": "Deployment method for the proposed Rook operator. The mandatory 1.19.5 prerequisite cited here is specifically for Helm upgrades."
+        }
+      ],
+      "rule": {
+        "id": "rook.helm-intermediate-1-19-5.1-20",
+        "operator": "require_intermediate_version",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.19.4",
+          "to": "1.20.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/rook/rook",
+            "factId": "component.rook.deployment_mode",
+            "enumValue": "helm"
+          }
+        ],
+        "intermediate": "1.19.5",
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-51bca7e46d75-87",
+              "url": "https://github.com/rook/rook/blob/51bca7e46d7557031dde89c900483e6c0681ce23/Documentation/Upgrade/rook-upgrade.md",
+              "revision": "51bca7e46d7557031dde89c900483e6c0681ce23",
+              "contentDigest": "sha256:14b4b94f88eff9232455b3aaaaad352b95f2c273330ff8838948c143ed2875d8",
+              "startLine": 87,
+              "endLine": 101
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Plan and validate the intermediate Rook 1.19.5 Helm upgrade before assessing a separate transition to 1.20.0."
+      }
+    },
+    {
+      "project": "rook",
+      "description": "Rook 1.20 Kubernetes minimum only; CSI migration, Ceph health and chart order are unverified.",
+      "requiredFacts": [],
+      "rule": {
+        "id": "rook.minimum-kubernetes.1-20",
+        "operator": "require_component_version",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.19.5",
+          "to": "1.20.0"
+        },
+        "dependency": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "comparison": "gte",
+          "version": "1.31.0"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-51bca7e46d75-37",
+              "url": "https://github.com/rook/rook/blob/51bca7e46d7557031dde89c900483e6c0681ce23/Documentation/Upgrade/rook-upgrade.md",
+              "revision": "51bca7e46d7557031dde89c900483e6c0681ce23",
+              "contentDigest": "sha256:14b4b94f88eff9232455b3aaaaad352b95f2c273330ff8838948c143ed2875d8",
+              "startLine": 37,
+              "endLine": 44
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "The cited Rook 1.20 minimum requires Kubernetes 1.31 or newer; review all other upgrade requirements separately."
+      }
+    },
+    {
+      "project": "spire",
+      "description": "SPIRE 1.11 removes the legacy direct spire-server entry create -ttl/--ttl option; this rule covers only an operator-declared proposed effective option-presence predicate for that exact command surface.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.spire.distribution",
+          "component": "pkg:github/spiffe/spire",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared distribution identity for the proposed SPIRE Server command. This source rule applies only to the reviewed official upstream distribution and does not prove binary, image, or runtime identity."
+        },
+        {
+          "side": "proposed",
+          "id": "component.spire.execution_surface",
+          "component": "pkg:github/spiffe/spire",
+          "type": "enum",
+          "enumTokens": [
+            "other",
+            "spire_server_entry_create"
+          ],
+          "description": "Declared proposed command surface. This rule applies only to direct spire-server entry create; wrappers, shell expansion, delimiter-terminated, and unresolved invocations remain outside the reviewed parser evidence."
+        },
+        {
+          "side": "proposed",
+          "id": "component.spire.removed_entry_ttl_flag_present",
+          "component": "pkg:github/spiffe/spire",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether an operator-declared explicit effective proposed direct entry-create option set contains -ttl or --ttl. Declare false only when both exact spellings are definitely absent. This preview does not parse argv, infer wrappers or delimiters, validate replacement TTL values, inspect entries, or establish runtime behavior."
+        }
+      ],
+      "rule": {
+        "id": "spire.removed-entry-ttl.1-11",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/spiffe/spire",
+          "from": "1.10.4",
+          "to": "1.11.0"
+        },
+        "appliesWhen": [
+          {
+            "component": "pkg:github/spiffe/spire",
+            "enumValue": "official_upstream",
+            "factId": "component.spire.distribution",
+            "side": "proposed"
+          },
+          {
+            "component": "pkg:github/spiffe/spire",
+            "enumValue": "spire_server_entry_create",
+            "factId": "component.spire.execution_surface",
+            "side": "proposed"
+          }
+        ],
+        "condition": {
+          "boolValue": true,
+          "component": "pkg:github/spiffe/spire",
+          "factId": "component.spire.removed_entry_ttl_flag_present",
+          "side": "proposed"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T23:37:17Z",
+          "validUntil": "2026-12-07T23:37:17Z",
+          "sources": [
+            {
+              "id": "source-9c4d83a3b44d-137",
+              "url": "https://github.com/spiffe/spire/blob/9c4d83a3b44d37b3c6d644facc9126b096916990/cmd/spire-server/util/util.go",
+              "revision": "9c4d83a3b44d37b3c6d644facc9126b096916990",
+              "contentDigest": "sha256:3b867fcc48cdece3008c8dcb7fe58d07cee28b2ddd49edacb68cebcf80322cde",
+              "startLine": 137,
+              "endLine": 156
+            },
+            {
+              "id": "source-9c4d83a3b44d-93",
+              "url": "https://github.com/spiffe/spire/blob/9c4d83a3b44d37b3c6d644facc9126b096916990/cmd/spire-server/cli/entry/create.go",
+              "revision": "9c4d83a3b44d37b3c6d644facc9126b096916990",
+              "contentDigest": "sha256:a9cb8330a3022d3c320738f7a3f493b34474e5aba7101d77c92ede69daaa62b2",
+              "startLine": 93,
+              "endLine": 100
+            },
+            {
+              "id": "source-ca35234a30a2-137",
+              "url": "https://github.com/spiffe/spire/blob/ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7/cmd/spire-server/util/util.go",
+              "revision": "ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7",
+              "contentDigest": "sha256:3b867fcc48cdece3008c8dcb7fe58d07cee28b2ddd49edacb68cebcf80322cde",
+              "startLine": 137,
+              "endLine": 156
+            },
+            {
+              "id": "source-ca35234a30a2-21",
+              "url": "https://github.com/spiffe/spire/blob/ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7/CHANGELOG.md",
+              "revision": "ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7",
+              "contentDigest": "sha256:5a4cc742987acd4c2cf9b62b222c71f19bc38f067dc994e0f22f0c45cc21a8a2",
+              "startLine": 21,
+              "endLine": 24
+            },
+            {
+              "id": "source-ca35234a30a2-88",
+              "url": "https://github.com/spiffe/spire/blob/ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7/cmd/spire-server/cli/entry/create.go",
+              "revision": "ca35234a30a2aeb2254dec4db6cf09a1fce3c9d7",
+              "contentDigest": "sha256:0edc70decfe6d2916ed0e9b9f5a722710eac4e248610f52f4daa89c4e7c712d8",
+              "startLine": 88,
+              "endLine": 104
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove each declared legacy -ttl or --ttl option from the proposed direct spire-server entry create invocation, then review the explicit proposed effective option set separately. Supply an explicit declaration when that option set is unknown."
+      }
+    },
+    {
+      "description": "Strimzi 1.0.0 official Kafka CRD no longer serves v1beta2; this checks declared Kafka custom-resource input against explicit target-CRD admission intent only.",
+      "project": "strimzi",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "description": "Declared proposed Strimzi distribution. Only official_upstream is covered; custom operator or CRD builds remain UNKNOWN.",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "id": "component.strimzi.distribution",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "description": "Declared proposed resource surface. kafka_custom_resource means only apiVersion kafka.strimzi.io/* with kind Kafka; KafkaTopic, KafkaUser and other kinds are outside scope.",
+          "enumTokens": [
+            "kafka_custom_resource",
+            "other"
+          ],
+          "id": "component.strimzi.execution_surface",
+          "side": "proposed",
+          "type": "enum"
+        },
+        {
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "description": "Whether proposed rendered kind Kafka resources use apiVersion kafka.strimzi.io/v1beta2. False means only that exact API use is absent; unresolved rendering must be missing.",
+          "enumTokens": null,
+          "id": "component.strimzi.kafka_v1beta2_api_present",
+          "side": "proposed",
+          "type": "bool"
+        },
+        {
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "description": "Whether the declared plan requires Kafka resources to be admitted against the official Strimzi 1.0.0 Kafka CRD served-version and schema surface. This is intent, not proof the CRD is installed or API-server validation ran.",
+          "enumTokens": null,
+          "id": "component.strimzi.target_kafka_crd_admission_required",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "appliesWhen": [
+          {
+            "component": "pkg:github/strimzi/strimzi-kafka-operator",
+            "enumValue": "official_upstream",
+            "factId": "component.strimzi.distribution",
+            "side": "proposed"
+          },
+          {
+            "component": "pkg:github/strimzi/strimzi-kafka-operator",
+            "enumValue": "kafka_custom_resource",
+            "factId": "component.strimzi.execution_surface",
+            "side": "proposed"
+          },
+          {
+            "boolValue": true,
+            "component": "pkg:github/strimzi/strimzi-kafka-operator",
+            "factId": "component.strimzi.target_kafka_crd_admission_required",
+            "side": "proposed"
+          }
+        ],
+        "condition": {
+          "boolValue": true,
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "factId": "component.strimzi.kafka_v1beta2_api_present",
+          "side": "proposed"
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-09T01:59:12Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:cf97d0e156ad5b8347d1416a70df6791ad1eab3b7ba53f54d16a21d6ff66b6e6",
+              "endLine": 27,
+              "id": "source-4836c7dd74ce-19",
+              "revision": "4836c7dd74ce973f06d97936916ed7f20c1a2ff0",
+              "startLine": 19,
+              "url": "https://github.com/strimzi/strimzi-kafka-operator/blob/4836c7dd74ce973f06d97936916ed7f20c1a2ff0/install/cluster-operator/040-Crd-kafka.yaml"
+            },
+            {
+              "contentDigest": "sha256:e87a11cefddd9907a96c010476dbbc6b768c1224ee18359412c0cad861395ee4",
+              "endLine": 8,
+              "id": "source-4836c7dd74ce-3",
+              "revision": "4836c7dd74ce973f06d97936916ed7f20c1a2ff0",
+              "startLine": 3,
+              "url": "https://github.com/strimzi/strimzi-kafka-operator/blob/4836c7dd74ce973f06d97936916ed7f20c1a2ff0/CHANGELOG.md"
+            },
+            {
+              "contentDigest": "sha256:ba98fca9c605ac9bf8332996c15256d93e3efb75ef1fb6dcf5df3df982fc6641",
+              "endLine": 25,
+              "id": "source-4836c7dd74ce-8",
+              "revision": "4836c7dd74ce973f06d97936916ed7f20c1a2ff0",
+              "startLine": 8,
+              "url": "https://github.com/strimzi/strimzi-kafka-operator/blob/4836c7dd74ce973f06d97936916ed7f20c1a2ff0/documentation/modules/upgrading/con-api-conversion-v1.adoc"
+            },
+            {
+              "contentDigest": "sha256:4966bceb2f85a238132fb3ba7e8b37fe86b28cf30344c15d4cf2b77bc7c2c951",
+              "endLine": 28,
+              "id": "source-54081abf97d0-20",
+              "revision": "54081abf97d0e5e524de773b88343756934db1a8",
+              "startLine": 20,
+              "url": "https://github.com/strimzi/strimzi-kafka-operator/blob/54081abf97d0e5e524de773b88343756934db1a8/install/cluster-operator/040-Crd-kafka.yaml"
+            },
+            {
+              "contentDigest": "sha256:4966bceb2f85a238132fb3ba7e8b37fe86b28cf30344c15d4cf2b77bc7c2c951",
+              "endLine": 4973,
+              "id": "source-54081abf97d0-4966",
+              "revision": "54081abf97d0e5e524de773b88343756934db1a8",
+              "startLine": 4966,
+              "url": "https://github.com/strimzi/strimzi-kafka-operator/blob/54081abf97d0e5e524de773b88343756934db1a8/install/cluster-operator/040-Crd-kafka.yaml"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-08T01:36:41Z"
+        },
+        "id": "strimzi.kafka-v1beta2-api-removed.1-0",
+        "nextAction": "Convert rendered kind Kafka resources to kafka.strimzi.io/v1 and require validation against the official target Kafka CRD; verify CRD application and runtime separately.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/strimzi/strimzi-kafka-operator",
+          "from": "0.51.0",
+          "to": "1.0.0"
+        }
+      }
+    },
+    {
+      "project": "tekton",
+      "description": "Tekton Pipelines v1.9.0 to v1.10.0 metrics ConfigMap migration: preserve an explicitly declared Prometheus protocol when the target parser no longer recognizes metrics.backend-destination. This is a scoped configuration declaration; effective composition and runtime observability remain unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.tekton.distribution",
+          "component": "pkg:github/tektoncd/pipeline",
+          "type": "enum",
+          "enumTokens": [
+            "custom_build",
+            "official_upstream"
+          ],
+          "description": "Declared proposed Tekton distribution. Only official_upstream is covered; custom builds remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.tekton.config_observability_identity_bound",
+          "component": "pkg:github/tektoncd/pipeline",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed declaration is bound to an apiVersion v1, kind ConfigMap named config-observability, with namespace equal to the proposed system namespace. This is an operator declaration, not live-cluster discovery."
+        },
+        {
+          "side": "proposed",
+          "id": "component.tekton.proposed_config_observability_complete_effective",
+          "component": "pkg:github/tektoncd/pipeline",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed config-observability data is a complete effective composition, including defaults and overlays relevant to metrics. Partial overlays or unresolved composition remain UNKNOWN."
+        },
+        {
+          "side": "proposed",
+          "id": "component.tekton.retain_prometheus_metrics_required",
+          "component": "pkg:github/tektoncd/pipeline",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the declared migration requirement is to retain the Prometheus metrics protocol across the exact transition. This records operator intent only."
+        },
+        {
+          "side": "proposed",
+          "id": "component.tekton.proposed_metrics_protocol_prometheus",
+          "component": "pkg:github/tektoncd/pipeline",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete effective proposed config-observability data has exactly one functional metrics-protocol value of prometheus. Definitive absence alone is false; non-Prometheus, empty, duplicate, ambiguous, or unresolved values must be unsupported or conflict and remain UNKNOWN."
+        }
+      ],
+      "rule": {
+        "id": "tekton.metrics-protocol-prometheus.1-10",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/tektoncd/pipeline",
+          "from": "1.9.0",
+          "to": "1.10.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/tektoncd/pipeline",
+          "factId": "component.tekton.proposed_metrics_protocol_prometheus",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/tektoncd/pipeline",
+            "factId": "component.tekton.distribution",
+            "enumValue": "official_upstream"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/tektoncd/pipeline",
+            "factId": "component.tekton.config_observability_identity_bound",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/tektoncd/pipeline",
+            "factId": "component.tekton.proposed_config_observability_complete_effective",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/tektoncd/pipeline",
+            "factId": "component.tekton.retain_prometheus_metrics_required",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-09T03:59:00Z",
+          "validUntil": "2026-12-08T03:59:00Z",
+          "sources": [
+            {
+              "id": "source-tekton-v1-10-config-active",
+              "url": "https://github.com/tektoncd/pipeline/blob/9db88e0a3f072ade16ad0d88f1fd6a391281cf39/config/config-observability.yaml",
+              "revision": "9db88e0a3f072ade16ad0d88f1fd6a391281cf39",
+              "contentDigest": "sha256:17127b1f03751753f64206c7d012bb691042cd117caefca5e879960bab6ef6a2",
+              "startLine": 24,
+              "endLine": 24
+            },
+            {
+              "id": "source-tekton-v1-10-config-legacy-note",
+              "url": "https://github.com/tektoncd/pipeline/blob/9db88e0a3f072ade16ad0d88f1fd6a391281cf39/config/config-observability.yaml",
+              "revision": "9db88e0a3f072ade16ad0d88f1fd6a391281cf39",
+              "contentDigest": "sha256:17127b1f03751753f64206c7d012bb691042cd117caefca5e879960bab6ef6a2",
+              "startLine": 76,
+              "endLine": 78
+            },
+            {
+              "id": "source-tekton-v1-10-generic-parser-registered",
+              "url": "https://github.com/tektoncd/pipeline/blob/9db88e0a3f072ade16ad0d88f1fd6a391281cf39/vendor/knative.dev/pkg/configmap/parser/parse.go",
+              "revision": "9db88e0a3f072ade16ad0d88f1fd6a391281cf39",
+              "contentDigest": "sha256:02346317d3590640b2e9480caef61f1937b29b1d727e31c1eb7cbef11d20c518",
+              "startLine": 26,
+              "endLine": 35
+            },
+            {
+              "id": "source-tekton-v1-10-metrics-defaults",
+              "url": "https://github.com/tektoncd/pipeline/blob/9db88e0a3f072ade16ad0d88f1fd6a391281cf39/vendor/knative.dev/pkg/observability/metrics/config.go",
+              "revision": "9db88e0a3f072ade16ad0d88f1fd6a391281cf39",
+              "contentDigest": "sha256:95667b7723788a9cf7035837b90f140418f565f3116bbbec2ea3678dcc4e356b",
+              "startLine": 65,
+              "endLine": 85
+            },
+            {
+              "id": "source-tekton-v1-10-metrics-protocols",
+              "url": "https://github.com/tektoncd/pipeline/blob/9db88e0a3f072ade16ad0d88f1fd6a391281cf39/vendor/knative.dev/pkg/observability/metrics/config.go",
+              "revision": "9db88e0a3f072ade16ad0d88f1fd6a391281cf39",
+              "contentDigest": "sha256:95667b7723788a9cf7035837b90f140418f565f3116bbbec2ea3678dcc4e356b",
+              "startLine": 27,
+              "endLine": 30
+            },
+            {
+              "id": "source-tekton-v1-9-config-old-key",
+              "url": "https://github.com/tektoncd/pipeline/blob/0cc798780b36936047e90d3e5a9af8cdc61f3947/config/config-observability.yaml",
+              "revision": "0cc798780b36936047e90d3e5a9af8cdc61f3947",
+              "contentDigest": "sha256:37733f98761d69a9bfa55641092c02a90dd2a1f6672f98e91f60a6110e2a62f3",
+              "startLine": 40,
+              "endLine": 43
+            },
+            {
+              "id": "source-tekton-v1-9-metrics-parser-constants",
+              "url": "https://github.com/tektoncd/pipeline/blob/0cc798780b36936047e90d3e5a9af8cdc61f3947/vendor/knative.dev/pkg/metrics/config.go",
+              "revision": "0cc798780b36936047e90d3e5a9af8cdc61f3947",
+              "contentDigest": "sha256:6cabcc8042668bd039db43d27e924436c1df57494da90a89c1b7003e64ce8ebc",
+              "startLine": 37,
+              "endLine": 39
+            },
+            {
+              "id": "source-tekton-v1-9-metrics-parser-parse",
+              "url": "https://github.com/tektoncd/pipeline/blob/0cc798780b36936047e90d3e5a9af8cdc61f3947/vendor/knative.dev/pkg/metrics/config.go",
+              "revision": "0cc798780b36936047e90d3e5a9af8cdc61f3947",
+              "contentDigest": "sha256:6cabcc8042668bd039db43d27e924436c1df57494da90a89c1b7003e64ce8ebc",
+              "startLine": 137,
+              "endLine": 150
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Declare metrics-protocol: prometheus in the complete effective target config-observability data, then separately verify composition, endpoint configuration, scrape availability, dashboards, alerts, and runtime rollout."
+      }
+    },
+    {
+      "project": "thanos",
+      "description": "Removal of two subcommand-specific Thanos flags only; Query compatibility, storage and compaction behavior are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.thanos.removed_subcommand_flags_present",
+          "component": "pkg:github/thanos-io/thanos",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "True if proposed Receive arguments retain shipper.ignore-unequal-block-size or proposed Store arguments retain debug.advertise-compatibility-label. Respect the named subcommand; unresolved effective arguments mean missing."
+        }
+      ],
+      "rule": {
+        "id": "thanos.receive-store-flags-removed.0-42",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/thanos-io/thanos",
+          "from": "0.41.0",
+          "to": "0.42.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/thanos-io/thanos",
+          "factId": "component.thanos.removed_subcommand_flags_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-0d7a3536be53-40",
+              "url": "https://github.com/thanos-io/thanos/blob/0d7a3536be5385d8dec8d36b77ad5179c800348c/CHANGELOG.md",
+              "revision": "0d7a3536be5385d8dec8d36b77ad5179c800348c",
+              "contentDigest": "sha256:01d9b9d986d3884cb3f02cf6e800c69bcde2558cd192bdc67108f7fd97005be5",
+              "startLine": 40,
+              "endLine": 45
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove the named Receive/Store flags and separately review compaction behavior and compatibility with older Thanos Query."
+      }
+    },
+    {
+      "project": "the-update-framework-tuf",
+      "description": "python-tuf 7.0.0 requires an explicitly named bootstrap argument for tuf.ngclient.Updater; this checks only keyword presence in one conservatively bound direct call in caller-supplied Python source.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.tuf.updater_bootstrap_keyword_present",
+          "component": "pkg:github/theupdateframework/python-tuf",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the one admitted statically direct tuf.ngclient.Updater call contains an explicit bootstrap keyword. Values are not inspected and trust, cache, metadata, update, and runtime behavior are not evaluated."
+        }
+      ],
+      "rule": {
+        "id": "tuf.updater-bootstrap-keyword.6-to-7",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/theupdateframework/python-tuf",
+          "from": "6.0.0",
+          "to": "7.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/theupdateframework/python-tuf",
+          "factId": "component.tuf.updater_bootstrap_keyword_present",
+          "boolValue": false
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-10T21:54:36Z",
+          "validUntil": "2026-12-09T21:54:36Z",
+          "sources": [
+            {
+              "id": "python-tuf-v6-ngclient-export",
+              "url": "https://github.com/theupdateframework/python-tuf/blob/bb6d459ce30137e061da9c347c2cc6cb5d9e5992/tuf/ngclient/__init__.py",
+              "revision": "bb6d459ce30137e061da9c347c2cc6cb5d9e5992",
+              "contentDigest": "sha256:6fab1ae3c177de227d2b931daf30f0057ac33059f41a0366c985dcddd87763fd",
+              "startLine": 4,
+              "endLine": 18
+            },
+            {
+              "id": "python-tuf-v6-updater-signature",
+              "url": "https://github.com/theupdateframework/python-tuf/blob/bb6d459ce30137e061da9c347c2cc6cb5d9e5992/tuf/ngclient/updater.py",
+              "revision": "bb6d459ce30137e061da9c347c2cc6cb5d9e5992",
+              "contentDigest": "sha256:9e8a1f7dc0df08cb3670c0e3135f8a23eb3eda01c679a44dbde351880059bd53",
+              "startLine": 80,
+              "endLine": 111
+            },
+            {
+              "id": "python-tuf-v7-ngclient-export",
+              "url": "https://github.com/theupdateframework/python-tuf/blob/353bdb767db56fd4667c9bcf56b710d50fdc2ac0/tuf/ngclient/__init__.py",
+              "revision": "353bdb767db56fd4667c9bcf56b710d50fdc2ac0",
+              "contentDigest": "sha256:6fab1ae3c177de227d2b931daf30f0057ac33059f41a0366c985dcddd87763fd",
+              "startLine": 4,
+              "endLine": 18
+            },
+            {
+              "id": "python-tuf-v7-release-change",
+              "url": "https://github.com/theupdateframework/python-tuf/blob/353bdb767db56fd4667c9bcf56b710d50fdc2ac0/docs/CHANGELOG.md",
+              "revision": "353bdb767db56fd4667c9bcf56b710d50fdc2ac0",
+              "contentDigest": "sha256:a6f6e446a37d9ff1b61cf2b1b443421355ada34ab2fcc07954cebf22e8a405e9",
+              "startLine": 5,
+              "endLine": 20
+            },
+            {
+              "id": "python-tuf-v7-updater-signature",
+              "url": "https://github.com/theupdateframework/python-tuf/blob/353bdb767db56fd4667c9bcf56b710d50fdc2ac0/tuf/ngclient/updater.py",
+              "revision": "353bdb767db56fd4667c9bcf56b710d50fdc2ac0",
+              "contentDigest": "sha256:80d7d2c92c603eab40bff77260847a620e1e17d50dfe648c4db013c70dec4e49",
+              "startLine": 81,
+              "endLine": 147
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Add an explicit bootstrap keyword suitable for the application and recheck. Use trusted root metadata bytes, or bootstrap=None only for an intended cached-root path; separately validate cache, trust, metadata, update, and runtime behavior."
+      }
+    },
+    {
+      "project": "velero",
+      "description": "Velero CRD-before-server ordering in the declared upgrade plan only; applied CRDs, plugin support and restores are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.velero.crd_update_before_server",
+          "component": "pkg:github/velero-io/velero",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the declared upgrade procedure applies the target CRDs before updating the Velero server deployment. This is a plan declaration, not an execution receipt."
+        }
+      ],
+      "rule": {
+        "id": "velero.crd-update-order.1-18",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/velero-io/velero",
+          "from": "1.17.0",
+          "to": "1.18.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/velero-io/velero",
+          "factId": "component.velero.crd_update_before_server",
+          "boolValue": false
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-0b7eaaf4e6bb-27",
+              "url": "https://github.com/velero-io/velero/blob/0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8/site/content/docs/main/upgrade-to-1.18.md",
+              "revision": "0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8",
+              "contentDigest": "sha256:f8522b523b0c73380a48ad559fa10fda0d3e5316243707bd655ecd3617d7e8c6",
+              "startLine": 27,
+              "endLine": 62
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Order the target CRD update before the server deployment update; validate plugins, node agents and restores separately."
+      }
+    },
+    {
+      "project": "velero",
+      "description": "The Velero 1.18 upgrade guide starts from 1.17.x; this direct 1.16.2 transition is outside that documented path. Backup/restore behavior is unverified.",
+      "requiredFacts": [],
+      "rule": {
+        "id": "velero.intermediate-1-17.1-18",
+        "operator": "require_intermediate_version",
+        "subject": {
+          "component": "pkg:github/velero-io/velero",
+          "from": "1.16.2",
+          "to": "1.18.0"
+        },
+        "intermediate": "1.17.0",
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-0b7eaaf4e6bb-6",
+              "url": "https://github.com/velero-io/velero/blob/0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8/site/content/docs/main/upgrade-to-1.18.md",
+              "revision": "0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8",
+              "contentDigest": "sha256:f8522b523b0c73380a48ad559fa10fda0d3e5316243707bd655ecd3617d7e8c6",
+              "startLine": 6,
+              "endLine": 23
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Upgrade and validate Velero 1.17.x first, then assess a separate transition to 1.18.0 with its upgrade guide."
+      }
+    },
+    {
+      "project": "vitess",
+      "description": "Vitess ExecuteFetchAsDba rejection of multiple statements per RPC only; SQL semantics, transactions and other RPCs are unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.vitess.multi_statement_execute_fetch_as_dba",
+          "component": "pkg:github/vitessio/vitess",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether proposed integrations still send multiple SQL statements in one ExecuteFetchAsDba RPC. Inspect code locally; do not supply SQL text. Unknown callers must be marked missing."
+        }
+      ],
+      "rule": {
+        "id": "vitess.multi-statement-dba-rpc-rejected.23-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/vitessio/vitess",
+          "from": "22.0.0",
+          "to": "23.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/vitessio/vitess",
+          "factId": "component.vitess.multi_statement_execute_fetch_as_dba",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-08T12:07:56Z",
+          "validUntil": "2026-12-07T12:07:56Z",
+          "sources": [
+            {
+              "id": "source-bee41a670a0e-78",
+              "url": "https://github.com/vitessio/vitess/blob/bee41a670a0e18e7400364712263bab171ee89dc/changelog/23.0/23.0.0/release_notes.md",
+              "revision": "bee41a670a0e18e7400364712263bab171ee89dc",
+              "contentDigest": "sha256:3def5e98dd2a72ca1d7750228c1f569229c2588dc263c7d39c168f8085813897",
+              "startLine": 78,
+              "endLine": 93
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Split multi-statement ExecuteFetchAsDba calls into individual RPC calls and verify application transaction semantics separately."
+      }
+    }
+  ]
+}

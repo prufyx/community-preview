@@ -1,0 +1,88 @@
+package cncfcheck
+
+import "sort"
+
+type Project struct {
+	Slug              string   `json:"slug"`
+	Name              string   `json:"name"`
+	RepositoryURL     string   `json:"repositoryURL"`
+	CNCFStage         string   `json:"cncfStage"`
+	Priority          bool     `json:"priority"`
+	GenericCoverage   string   `json:"genericCoverage"`
+	SourceRuleCount   int      `json:"sourceRuleCount"`
+	RuntimeReproduced int      `json:"runtimeReproduced"`
+	ExistingChecks    []string `json:"existingChecks"`
+	Checks            []Entry  `json:"checks"`
+}
+
+type Catalogue struct {
+	Schema              string    `json:"schema"`
+	LandscapeRevision   string    `json:"landscapeRevision"`
+	LandscapeSourceURL  string    `json:"landscapeSourceURL"`
+	LandscapeFileDigest string    `json:"landscapeFileDigest"`
+	CatalogueDigest     string    `json:"catalogueDigest"`
+	KnowledgeRevision   string    `json:"knowledgeRevision"`
+	KnowledgePackDigest string    `json:"knowledgePackDigest"`
+	Catalogued          int       `json:"catalogued"`
+	PriorityProjects    int       `json:"priorityProjects"`
+	SourceRuleCovered   int       `json:"sourceRuleCovered"`
+	RuntimeReproduced   int       `json:"runtimeReproduced"`
+	CoverageScope       string    `json:"coverageScope"`
+	Projects            []Project `json:"projects"`
+}
+
+// Catalog separates landscape identity from source-rule and runtime coverage.
+// Counters describe the full embedded generic pack, even in a filtered listing.
+func Catalog(priorityOnly bool, selectedProject string) (Catalogue, error) {
+	b, err := load()
+	if err != nil {
+		return Catalogue{}, err
+	}
+	if selectedProject != "" && !b.hasProject(selectedProject) {
+		return Catalogue{}, ErrInvalid
+	}
+	result := Catalogue{
+		Schema:            "prufyx.io/cncf-catalogue/v1alpha1",
+		LandscapeRevision: b.landscape.Revision, LandscapeSourceURL: b.landscape.SourceURL,
+		LandscapeFileDigest: b.landscape.LandscapeFileDigest, CatalogueDigest: b.catalogueDigest,
+		KnowledgeRevision: b.pack.Revision, KnowledgePackDigest: b.packDigest,
+		Catalogued: len(b.landscape.Projects), PriorityProjects: len(b.priority.Priority),
+		CoverageScope: "sourceRuleCovered and runtimeReproduced describe only the generic source-constraint preview; existing named checks are listed separately; priority is maintainer selection, not an adoption ranking",
+		Projects:      make([]Project, 0),
+	}
+	covered := map[string]bool{}
+	for _, entry := range b.pack.Entries {
+		covered[entry.Project] = true
+	}
+	result.SourceRuleCovered = len(covered)
+	for _, identity := range b.landscape.Projects {
+		priority := sort.SearchStrings(b.priority.Priority, identity.Slug)
+		isPriority := priority < len(b.priority.Priority) && b.priority.Priority[priority] == identity.Slug
+		if priorityOnly && !isPriority || selectedProject != "" && selectedProject != identity.Slug {
+			continue
+		}
+		project := Project{Slug: identity.Slug, Name: identity.Name, RepositoryURL: identity.RepositoryURL, CNCFStage: identity.CNCFStage, Priority: isPriority, GenericCoverage: "catalogued_only", ExistingChecks: make([]string, 0), Checks: make([]Entry, 0)}
+		for _, entry := range b.pack.Entries {
+			if entry.Project == identity.Slug {
+				project.Checks = append(project.Checks, entry)
+			}
+		}
+		project.SourceRuleCount = len(project.Checks)
+		if project.SourceRuleCount > 0 {
+			project.GenericCoverage = "source_rule_preview"
+		}
+		switch identity.Slug {
+		case "cert-manager":
+			project.ExistingChecks = []string{"prufyx check cert-manager-values --help"}
+		case "prometheus":
+			project.ExistingChecks = []string{"prufyx check prometheus-mode --help"}
+		}
+		result.Projects = append(result.Projects, project)
+	}
+	return result, nil
+}
+
+func (b bundle) hasProject(slug string) bool {
+	index := sort.Search(len(b.landscape.Projects), func(i int) bool { return b.landscape.Projects[i].Slug >= slug })
+	return index < len(b.landscape.Projects) && b.landscape.Projects[index].Slug == slug
+}
