@@ -110,7 +110,7 @@
   "limitations": [
     "Tag bindings, source bytes, digests, exact spans, attribution and semantic scope require independent review.",
     "The supplementary website guide is pinned documentation evidence for proposed SDK applicability; it is not a Pipelines release tag or proof the guide existed at release time.",
-    "The local adapter parses one private caller-supplied Python source file with a fixed helper under a caller-selected CPython 3.12 or 3.14 executable; it does not authenticate the interpreter, installed SDK, process or version provenance.",
+    "The local adapter reads one private caller-supplied Python source file with a closed Go lexical parser; it does not authenticate the installed SDK, process or version provenance.",
     "Only one unaliased bare decorator in either reviewed form is admitted; unsupported bindings and shapes remain UNKNOWN.",
     "PASS clears only this removed public authoring API condition; component semantics, dependencies, images, compilation, backend and runtime behavior remain UNKNOWN.",
     "The checker does not import or execute supplied source, access the network, or modify the input file."

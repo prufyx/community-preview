@@ -36,12 +36,12 @@ replacement or telemetry delivery.
 Run the local walkthrough with an already-built Community executable:
 
 ```sh
-./examples/cncf/opentelemetry-collector/run.sh /absolute/path/to/prufyx-community
+prufyx community-preview example cncf-opentelemetry
 ```
 
-The walkthrough copies the example into private `0600` temporary files under
-`umask 077`, binds every input with its digest, and removes its temporary
-directory. The explicit `logging_exporter_present=true` case returns scoped
+The Go walkthrough creates private `0600` temporary files, binds every input
+with its digest, and removes its temporary directory. The retained `run.sh`
+entrypoint is a compatibility shim for an already-built Community executable. The explicit `logging_exporter_present=true` case returns scoped
 `BLOCKED` (exit `10`). A declaration with that fact explicitly set to `false`
 returns scoped `PASS` (exit `0`), while an absent fact returns `UNKNOWN` (exit
 `11`). Every report retains aggregate `UNKNOWN`, and no case proves runtime,
@@ -872,10 +872,8 @@ in the knowledge database.
 
 [`kubeflow-kfp/component.py`](kubeflow-kfp/component.py) is a synthetic Python
 source file using the legacy bare `create_component_from_func` decorator. Copy
-your own planned source to a private `0600` file and select an absolute CPython
-3.12 or 3.14 executable. Prufyx runs a fixed helper under that interpreter with
-`-I -S` and passes the source over stdin as data; it never imports or executes
-the supplied source.
+your own planned source to a private `0600` file. Prufyx reads it with a Go
+lexical parser; it never imports, executes, or requires Python.
 
 ```sh
 umask 077
@@ -883,11 +881,8 @@ example_dir="$(mktemp -d)"
 cp cli/examples/cncf/kubeflow-kfp/component.py "${example_dir}/component.py"
 chmod 600 "${example_dir}/component.py"
 review_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-python_ast_interpreter=/opt/homebrew/bin/python3.14 # select an absolute supported CPython path
-"${python_ast_interpreter}" --version
 prufyx check cncf --project kubeflow \
   --python-source "${example_dir}/component.py" \
-  --python-ast-interpreter "${python_ast_interpreter}" \
   --from 1.8.22 --to 2.0.0 \
   --now "${review_time}" --format human
 ```
@@ -899,13 +894,13 @@ That action addresses only the removed public authoring API. Validate component
 inputs, outputs, dependencies, base image, compilation, backend and runtime
 separately; aggregate assessment remains `UNKNOWN`.
 
-The adapter recognizes only one ordinary synchronous function with one of those
-two exact unaliased bare decorator forms. Aliases, rebinding, decorator calls,
-dynamic or conditional imports, mixed or multiple candidates, async functions,
-and other valid but unsupported AST shapes remain `UNKNOWN`. Malformed syntax
-and interpreter setup failures stop without a semantic result. The selected
-interpreter is caller-trusted rather than authenticated; other commands neither
-discover nor require it.
+The Go lexical adapter recognizes only one ordinary synchronous function with
+one of those two exact unaliased bare decorator forms, a header ending at `:`,
+and an indented `return ...` or `pass` body. Aliases, rebinding, decorator
+calls, dynamic or conditional imports, mixed or multiple candidates, async
+functions, f-strings, escapes, inline suites, nested blocks, and other valid
+but unsupported source forms remain `UNKNOWN`. Malformed lexical syntax stops
+without a semantic result.
 
 An explicitly selected verified local CNCF store is authoritative with no
 embedded fallback. Current external checking omits `--now`. Historical replay
@@ -918,9 +913,8 @@ identity matters. Neither checking nor replay stores raw source in the database.
 
 [`tuf-updater/updater.py`](tuf-updater/updater.py) is a synthetic Python source
 file with one direct `tuf.ngclient.Updater` call. Copy your own planned source
-to a private file and select an absolute CPython 3.12 or 3.14 executable. Prufyx
-runs a fixed helper under that interpreter with `-I -S` and passes the source
-over stdin as data; it does not import or execute the supplied source.
+to a private file. Prufyx reads it with a Go lexical parser and does not import,
+execute, or require Python.
 
 ```sh
 umask 077
@@ -928,11 +922,8 @@ example_dir="$(mktemp -d)"
 cp cli/examples/cncf/tuf-updater/updater.py "${example_dir}/updater.py"
 chmod 600 "${example_dir}/updater.py"
 review_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-python_ast_interpreter=/usr/bin/python3 # select an absolute CPython 3.12 or 3.14 path
-"${python_ast_interpreter}" --version
 prufyx check cncf --project the-update-framework-tuf \
   --python-source "${example_dir}/updater.py" \
-  --python-ast-interpreter "${python_ast_interpreter}" \
   --from 6.0.0 --to 7.0.0 \
   --now "${review_time}" --format human
 ```
@@ -951,14 +942,13 @@ argument, missing shared required arguments, unknown or duplicate keywords,
 and other call shapes remain `UNKNOWN`. The output identifies the blocking
 category without printing source, values, paths, URLs, or raw code.
 
-The caller-selected interpreter is trusted by the caller and is not
-authenticated as official CPython. This binary supports CPython 3.12 and 3.14,
-tested on Linux 3.12.3 and Darwin 3.14.6; other implementations or minor
-versions stop with setup guidance. Other Prufyx commands do not discover,
-install, or require Python. A scoped `PASS` does not validate the bootstrap
-value, cached or supplied root, metadata, updates, network behavior, installed
-python-tuf package, process provenance, or whole-upgrade safety. Aggregate
-assessment remains `UNKNOWN`.
+The Go lexical parser admits only the documented direct import and one
+top-level direct call; conditional, nested, dynamic, alias, rebinding,
+prefixed or escaped strings, and other unsupported source forms remain
+`UNKNOWN`. A scoped `PASS` does not
+validate the bootstrap value, cached or supplied root, metadata, updates,
+network behavior, installed python-tuf package, process provenance, or whole-
+upgrade safety. Aggregate assessment remains `UNKNOWN`.
 
 An explicitly selected verified local CNCF store is authoritative and never
 falls back to embedded rules. Current selection uses verifier time and omits

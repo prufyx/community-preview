@@ -38,7 +38,7 @@ The first engine capability can select, subset, or withdraw only these compiled 
 
 A database update cannot add a fourth inspected path without a new engine release. The values reader keeps only the input digest, whether the relevant shapes resolved, and matching curated path names. It does not retain raw keys outside the compiled set, values, filenames, or local paths. Reports bind the exact bundle, rule, trust receipt, evaluation time, evidence freshness, and binary build identity.
 
-For a complete local demonstration, run [`examples/community/knowledge/run.sh`](../examples/community/knowledge/run.sh). The example uses visibly synthetic knowledge and ephemeral keys; it is not a production signer or compatibility authority.
+For a complete local demonstration, run `prufyx community-preview example knowledge-cert-manager` (the retained [`examples/community/knowledge/run.sh`](../examples/community/knowledge/run.sh) is a compatibility shim). The example uses visibly synthetic knowledge and ephemeral keys; it is not a production signer or compatibility authority.
 
 The commands below show the explicit interface. Values files and the database directory must satisfy the private local-file modes described by the CLI. Digests and revisions come from the fixture manifest or an independently reviewed operator package; they are assertions, not substitutes for TUF verification.
 

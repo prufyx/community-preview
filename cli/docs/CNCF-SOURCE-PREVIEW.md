@@ -190,8 +190,8 @@ these narrow source constraints:
 | Buildpacks Lifecycle `0.16.5` → `0.17.7` | current and proposed `selected_platform_api` plus whether each supplied Lifecycle API label declares support | requested target API `0.13` is `BLOCKED`; target-declared `0.12` is scoped `PASS`; malformed, inconsistent, out-of-domain, unsupported-current, or other-pair inputs remain `UNKNOWN` |
 | in-toto Python CLI `2.2.0` → `3.0.0` | `in_toto_run_key_argument` derived from one conservatively parsed planned argv | pre-boundary `legacy_key` is `BLOCKED`; `signing_key` is scoped `PASS`; unsupported prefix grammar and other pairs remain `UNKNOWN` |
 | CubeFS `3.2.1` → `3.3.2` | caller-declared `metanode-upgrade` phase plus `raftSyncSnapFormatVersion` guard derived from one supplied planned MetaNode JSON config | explicit numeric `0` is scoped `PASS`; absent (target default `1`) or explicit numeric `1` is `BLOCKED`; unsupported phase, role, type, value, ambiguity or other pairs remain `UNKNOWN` |
-| TUF Updater `6.0.0` → `7.0.0` | `updater_bootstrap_keyword_present` derived from one conservatively bound direct call in supplied Python source | absent keyword is `BLOCKED`; explicit keyword, including `None`, is scoped `PASS`; unsupported bindings or call shapes and other pairs remain `UNKNOWN`, while syntax and interpreter setup failures stop without a semantic result |
-| Kubeflow KFP Python SDK `1.8.22` → `2.0.0` | `kfp_component_authoring_api` derived from one conservatively bound bare decorator in supplied Python source | unaliased `create_component_from_func` is `BLOCKED`; unaliased `dsl.component` is scoped `PASS`; aliases, rebinding, multiple or dynamic forms, unsupported syntax shapes and other pairs remain `UNKNOWN`, while malformed syntax and interpreter setup failures stop without a semantic result |
+| TUF Updater `6.0.0` → `7.0.0` | `updater_bootstrap_keyword_present` derived from one conservatively bound direct call in supplied Python source | absent keyword is `BLOCKED`; explicit keyword, including `None`, is scoped `PASS`; unsupported bindings or call shapes and other pairs remain `UNKNOWN`, while malformed lexical input stops without a semantic result |
+| Kubeflow KFP Python SDK `1.8.22` → `2.0.0` | `kfp_component_authoring_api` derived from one conservatively bound bare decorator in supplied Python source | unaliased `create_component_from_func` is `BLOCKED`; unaliased `dsl.component` is scoped `PASS`; aliases, rebinding, multiple or dynamic forms, unsupported syntax shapes and other pairs remain `UNKNOWN`, while malformed lexical input stops without a semantic result |
 
 The Karmada fact covers only declared proposed rendered `PropagationPolicy` or
 `ClusterPropagationPolicy` application-failover `purgeMode` values at the exact
@@ -241,15 +241,11 @@ upgrade compatibility are not evaluated.
 
 The TUF Updater observation comes from one caller-supplied private Python
 source file. `check cncf --project the-update-framework-tuf --python-source
-...` runs a fixed AST helper under an explicitly selected absolute CPython
-executable with `-I -S`, passing the source through stdin as data. The helper
-does not import or execute supplied source. This binary supports CPython 3.12
-and 3.14, tested on Linux 3.12.3 and Darwin 3.14.6; other runtimes stop without
-producing a semantic result. The selected executable is trusted by the caller
-and is not authenticated. Other CLI modes do not discover, install, or require
-Python.
+...` uses a Go lexical parser and reads the source only as data. It does not
+import, execute, or require Python. Source outside the documented direct-import
+and single-top-level-call subset remains UNKNOWN.
 
-The adapter admits exactly one conservatively bound direct
+The adapter admits exactly one conservatively bound top-level direct
 `tuf.ngclient.Updater` call using either documented unaliased import form and
 the shared stable base call shape. It records only whether an explicit
 `bootstrap` keyword is present. Missing keyword is scoped `BLOCKED` for exact
@@ -265,9 +261,8 @@ upgrade safety. External knowledge is authoritative with no embedded fallback;
 historical replay binds minimized input and requires the raw source digest plus
 all three knowledge pins.
 
-The KFP Python SDK observation uses the same fixed, isolated AST-helper
-boundary with caller-selected CPython 3.12 or 3.14. It accepts exactly one
-ordinary synchronous function with either unaliased
+The KFP Python SDK observation uses the same Go lexical source boundary. It
+accepts exactly one ordinary synchronous function with either unaliased
 `from kfp.components import create_component_from_func` and bare
 `@create_component_from_func`, or unaliased `from kfp import dsl` and bare
 `@dsl.component`. It records only which of those two authoring forms appears;
@@ -275,9 +270,10 @@ raw source bytes and their digest remain outside the minimized evaluator input.
 For exact KFP `1.8.22` to `2.0.0`, the legacy form is scoped `BLOCKED` and the
 `dsl.component` form is scoped `PASS` for this removed-API predicate. Aliases,
 rebinding, decorator calls, mixed or multiple candidates, dynamic bindings,
-async definitions, and other supported-but-unrecognized AST shapes remain
-`UNKNOWN`. Syntax and interpreter setup failures stop without a semantic result.
-The checker never imports or executes supplied source. Neither result validates
+async definitions, f-strings, escaped or prefixed string forms, inline suites,
+nested blocks, and other supported-but-unrecognized source forms remain
+`UNKNOWN`. Malformed lexical syntax stops without a semantic result. The
+checker never imports or executes supplied source. Neither result validates
 component inputs, outputs, dependencies, base image, compilation, backend,
 installed-package/process provenance, runtime behavior, or whole-upgrade safety.
 External knowledge is authoritative with no embedded fallback; historical

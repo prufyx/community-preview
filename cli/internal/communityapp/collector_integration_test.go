@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/currentbundle"
+	"github.com/prufyx/prufyx-cli/internal/localcollector"
 	"github.com/prufyx/prufyx-cli/internal/observation"
 )
 
@@ -23,41 +25,34 @@ func TestOfflineCollectorOutputsImportIntoCurrentBundle(t *testing.T) {
 		{name: "producer-v3", mode: "component-v3-prom", args: []string{"--include-component-configuration", "--component-configuration-profile", "v3"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cliRoot, err := filepath.Abs(filepath.Join("..", ".."))
-			if err != nil {
-				t.Fatal(err)
-			}
 			work := t.TempDir()
-			bin := filepath.Join(work, "bin")
-			if err := os.Mkdir(bin, 0700); err != nil {
-				t.Fatal(err)
-			}
-			fake, err := os.ReadFile(filepath.Join(cliRoot, "scripts", "testdata", "fake-kubectl.sh"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(filepath.Join(bin, "kubectl"), fake, 0700); err != nil {
-				t.Fatal(err)
-			}
 			kubeconfig := filepath.Join(work, "kubeconfig")
 			if err := os.WriteFile(kubeconfig, []byte("synthetic kubeconfig\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
 			output := filepath.Join(work, "output")
-			args := []string{output, "--kubeconfig", kubeconfig, "--acknowledge-kubeconfig-exec-risk", "--allow-partial", "--exec-env", "FAKE_KUBECTL_MODE"}
-			args = append(args, tc.args...)
-			args = append(args, "synthetic-context")
-			commandArgs := append([]string{filepath.Join(cliRoot, "scripts", "kubeconfig-api-snapshot.sh")}, args...)
-			command := exec.Command("bash", commandArgs...)
-			command.Env = collectorIntegrationEnvironment(bin, tc.mode)
-			if raw, err := command.CombinedOutput(); err != nil {
-				t.Fatalf("offline collector: %v\n%s", err, raw)
+			for _, name := range integrationProxyNames {
+				t.Setenv(name, "")
 			}
-			children, err := os.ReadDir(output)
-			if err != nil || len(children) != 1 {
-				t.Fatalf("output inventory: %v %v", children, err)
+			profile := "v2"
+			components := false
+			for i := range tc.args {
+				if tc.args[i] == "--include-component-configuration" {
+					components = true
+				}
+				if tc.args[i] == "--component-configuration-profile" && i+1 < len(tc.args) {
+					profile = tc.args[i+1]
+				}
 			}
-			rootPath := filepath.Join(output, children[0].Name())
+			var stdout, stderr bytes.Buffer
+			rootPath, code := (localcollector.Collector{Runner: integrationRunner{mode: tc.mode}}).Collect(context.Background(), localcollector.Options{
+				OutputRoot: output, Kubeconfig: kubeconfig, Contexts: []string{"synthetic-context"}, AcknowledgeExecRisk: true,
+				AllowPartial: true, IncludeComponentConfiguration: components, ComponentConfigurationProfile: profile,
+				Kubectl: "/not-executed", ExecEnv: integrationProxyNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("i", 32)),
+			}, &stdout, &stderr)
+			if code != 0 {
+				t.Fatalf("collector exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+			}
 			assertCollectorTreeOmitsPrivateCanaries(t, rootPath)
 			root, err := observation.OpenPath(rootPath)
 			if err != nil {
@@ -91,17 +86,40 @@ func TestOfflineCollectorOutputsImportIntoCurrentBundle(t *testing.T) {
 	}
 }
 
-func collectorIntegrationEnvironment(bin, mode string) []string {
-	environment := []string{
-		"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"),
-		"HOME=" + os.Getenv("HOME"),
-		"TMPDIR=" + os.TempDir(),
-		"FAKE_KUBECTL_MODE=" + mode,
+var integrationProxyNames = []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"}
+
+type integrationRunner struct{ mode string }
+
+func (r integrationRunner) Run(_ context.Context, argv, _ []string, _ time.Duration) (localcollector.CommandResult, error) {
+	joined := strings.Join(argv, " ")
+	var value any = map[string]any{"items": []any{}}
+	switch {
+	case strings.Contains(joined, "--raw=/version"):
+		value = map[string]any{"gitVersion": "v1.34.0", "goVersion": "go1.26.8", "compiler": "gc", "platform": "linux/amd64"}
+	case strings.Contains(joined, "customresourcedefinitions"):
+		value = map[string]any{"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinitionList", "metadata": map[string]any{"resourceVersion": "1", "continue": ""}, "items": []any{}}
+	case strings.Contains(joined, "--raw=/apis"):
+		value = map[string]any{"groups": []any{}}
+	case strings.Contains(joined, "--raw=/api"):
+		value = map[string]any{"versions": []any{"v1"}}
+	case strings.Contains(joined, "get deployments.apps"):
+		image := "docker.io/prom/prometheus:v2.55.1"
+		container := map[string]any{"image": image, "args": []any{}}
+		if r.mode == "component-v3-prom" {
+			image = "docker.io/prom/prometheus:v2.55.1@sha256:f4def6b3b61109a6eeea59945d578bb7e926c36cb0e036a23e3ceb8b6de024ad"
+			container = map[string]any{"image": image, "command": []any{"/bin/prometheus"}, "args": []any{"--enable-feature=native-histograms,agent"}}
+		}
+		value = integrationWorkload(container)
 	}
-	if user := os.Getenv("USER"); user != "" {
-		environment = append(environment, "USER="+user)
-	}
-	return environment
+	raw, _ := json.Marshal(value)
+	return localcollector.CommandResult{Stdout: raw, Exit: 0}, nil
+}
+
+func integrationWorkload(container map[string]any) any {
+	podSpec := map[string]any{"containers": []any{container}, "initContainers": []any{}}
+	template := map[string]any{"spec": podSpec}
+	item := map[string]any{"kind": "Deployment", "spec": map[string]any{"template": template}}
+	return map[string]any{"items": []any{item}}
 }
 
 func assertCollectorTreeOmitsPrivateCanaries(t *testing.T, root string) {

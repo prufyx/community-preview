@@ -12,11 +12,11 @@ import (
 )
 
 type kubeflowKFPFactSummary struct {
-	state, category, interpreterVersion string
-	value                               string
+	state, category string
+	value           string
 }
 
-func (r runtime) cncfKubeflowKFP(path, pin, interpreter, from, to string, now time.Time, format string, selection *knowledge.SelectionRequest, replayPath string) int {
+func (r runtime) cncfKubeflowKFP(path, pin, from, to string, now time.Time, format string, selection *knowledge.SelectionRequest, replayPath string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
 		return r.kubeflowKFPInputFailure(err)
@@ -25,14 +25,14 @@ func (r runtime) cncfKubeflowKFP(path, pin, interpreter, from, to string, now ti
 	if pin != "" && pin != rawDigest {
 		return r.knativeIntegrityFailure()
 	}
-	prepared, err := cncfprepare.PrepareKubeflowKFP(raw, from, to, interpreter)
+	prepared, err := cncfprepare.PrepareKubeflowKFP(raw, from, to)
 	if err != nil {
 		return r.kubeflowKFPInputFailure(err)
 	}
 	if prepared.SourceDigest != rawDigest || prepared.InputDigest != digestCommunityBytes(prepared.CanonicalInputJSON) || !json.Valid(prepared.CanonicalInputJSON) {
 		return r.knativeIntegrityFailure()
 	}
-	fact, err := summarizeKubeflowKFPPrepared(prepared.CanonicalInputJSON, prepared.UnsupportedCategory, prepared.InterpreterVersion)
+	fact, err := summarizeKubeflowKFPPrepared(prepared.CanonicalInputJSON, prepared.UnsupportedCategory)
 	if err != nil {
 		return r.knativeIntegrityFailure()
 	}
@@ -103,7 +103,7 @@ func (r runtime) cncfKubeflowKFPExternal(selection knowledge.SelectionRequest, r
 	return cncfknowledge.ClaimExit(report)
 }
 
-func summarizeKubeflowKFPPrepared(raw []byte, category, interpreterVersion string) (kubeflowKFPFactSummary, error) {
+func summarizeKubeflowKFPPrepared(raw []byte, category string) (kubeflowKFPFactSummary, error) {
 	var input struct {
 		Proposed struct {
 			Components []struct {
@@ -122,7 +122,7 @@ func summarizeKubeflowKFPPrepared(raw []byte, category, interpreterVersion strin
 	if f.ID != cncfprepare.KubeflowKFPFact || (f.State == "declared") != (f.EnumValue != "") || (f.EnumValue != "" && f.EnumValue != cncfprepare.KubeflowKFPLegacyAPI && f.EnumValue != cncfprepare.KubeflowKFPV2API) {
 		return kubeflowKFPFactSummary{}, cncfcheck.ErrIntegrity
 	}
-	return kubeflowKFPFactSummary{state: f.State, value: f.EnumValue, category: category, interpreterVersion: interpreterVersion}, nil
+	return kubeflowKFPFactSummary{state: f.State, value: f.EnumValue, category: category}, nil
 }
 
 func writeKubeflowKFPHuman(out interface{ Write([]byte) (int, error) }, report cncfcheck.Report, from, to, rawDigest string, fact kubeflowKFPFactSummary, origin string) error {
@@ -130,7 +130,7 @@ func writeKubeflowKFPHuman(out interface{ Write([]byte) (int, error) }, report c
 		return cncfcheck.ErrIntegrity
 	}
 	claim := report.Check.Claims[0]
-	if _, err := fmt.Fprintf(out, "KFP Python SDK component-authoring source review\ntransition: KFP Python SDK %s -> %s\nobserved component-authoring form: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: %s revision %s\nknowledge pack digest: %s\nselected AST runtime: CPython %s (caller-selected executable is not authenticated)\nnetwork used: false\ninput file handling: Prufyx reads but does not modify, import, or execute the supplied Python source. A fixed helper process parses it as data with -I -S.\n", from, to, formatKubeflowKFPFact(fact), claim.Status, claim.ReasonCode, rawDigest, report.InputFileDigest, report.Check.EvaluatedAt, origin, report.KnowledgeRevision, report.KnowledgePackDigest, fact.interpreterVersion); err != nil {
+	if _, err := fmt.Fprintf(out, "KFP Python SDK component-authoring source review\ntransition: KFP Python SDK %s -> %s\nobserved component-authoring form: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: %s revision %s\nknowledge pack digest: %s\nsource parser: Go lexical subset; no Python interpreter, import, or execution is used\nnetwork used: false\ninput file handling: Prufyx reads but does not modify or execute the supplied Python source.\n", from, to, formatKubeflowKFPFact(fact), claim.Status, claim.ReasonCode, rawDigest, report.InputFileDigest, report.Check.EvaluatedAt, origin, report.KnowledgeRevision, report.KnowledgePackDigest); err != nil {
 		return err
 	}
 	for _, source := range claim.Sources {
@@ -150,7 +150,7 @@ func writeKubeflowKFPExternalHuman(out interface{ Write([]byte) (int, error) }, 
 	if len(claims) == 1 {
 		status, reason, action = claims[0].Status, claims[0].ReasonCode, claims[0].NextAction
 	}
-	if _, err := fmt.Fprintf(out, "KFP Python SDK component-authoring source review\ntransition: KFP Python SDK %s -> %s\nobserved component-authoring form: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: external signed local revision %s\nknowledge bundle digest: %s\nknowledge trust receipt digest: %s\nknowledge purpose: %s\nselected AST runtime: CPython %s (caller-selected executable is not authenticated)\ncurrent non-revocation: not checked offline\nnetwork used: false\n", from, to, formatKubeflowKFPFact(fact), status, reason, rawDigest, report.Check.InputFileDigest, report.Knowledge.EvaluatedAt, report.Knowledge.Revision, report.Knowledge.BundleDigest, report.Knowledge.TrustReceiptDigest, report.Knowledge.Purpose, fact.interpreterVersion); err != nil {
+	if _, err := fmt.Fprintf(out, "KFP Python SDK component-authoring source review\ntransition: KFP Python SDK %s -> %s\nobserved component-authoring form: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: external signed local revision %s\nknowledge bundle digest: %s\nknowledge trust receipt digest: %s\nknowledge purpose: %s\nsource parser: Go lexical subset; no Python interpreter, import, or execution is used\ncurrent non-revocation: not checked offline\nnetwork used: false\n", from, to, formatKubeflowKFPFact(fact), status, reason, rawDigest, report.Check.InputFileDigest, report.Knowledge.EvaluatedAt, report.Knowledge.Revision, report.Knowledge.BundleDigest, report.Knowledge.TrustReceiptDigest, report.Knowledge.Purpose); err != nil {
 		return err
 	}
 	if len(claims) == 1 {

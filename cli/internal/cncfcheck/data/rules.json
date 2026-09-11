@@ -4,9 +4,9 @@
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:a429231f2d30c95184c173dde733af797447bbe5584225ee797c911dedefbfe9",
+  "registryDigest": "sha256:3d247ca36a43f5d524c96ed8402518fd434f199e8600f6a984df8d476a1f543f",
   "entries": [
-    {
+{
       "project": "argo-cd",
       "description": "Argo CD inheritance setting versus explicitly declared v2 access intent; this does not authorize users or validate the whole RBAC policy.",
       "requiredFacts": [
@@ -68,7 +68,7 @@
         "nextAction": "For required v2 inheritance set the documented option to false, or review explicit resource grants and the intended access model."
       }
     },
-    {
+{
       "project": "buildpacks",
       "description": "Lifecycle 0.17.7 checks a requested CNB_PLATFORM_API against its declared supported Platform API set; this evaluates only a 0.16.5 to 0.17.7 plan whose current 0.11 request is declared supported.",
       "requiredFacts": [
@@ -164,7 +164,7 @@
         "nextAction": "Use Platform API 0.12 only if the platform implementation supports it, or choose a Lifecycle whose independently reviewed metadata declares support for the required API; then recheck the exact plan."
       }
     },
-    {
+{
       "project": "cilium",
       "description": "Cilium v1.19.7 CNP and CCNP CRD schemas require fromRequires/toRequires arrays to be empty (maxItems: 0). This narrow check evaluates only an operator-declared complete relevant set; it does not claim support-removal history, API-server/runtime behavior, or whole-upgrade safety.",
       "requiredFacts": [
@@ -266,7 +266,7 @@
         "nextAction": "For the target Cilium v1.19.7 CRDs, remove or rewrite every operator-declared nonempty fromRequires/toRequires array across the complete CNP and CCNP set; recheck the target schema constraint separately."
       }
     },
-    {
+{
       "project": "cilium",
       "description": "Cilium rejects nonempty fromRequires/toRequires lists; empty lists satisfy this narrow requirement. Policy behavior and traffic are unverified.",
       "requiredFacts": [
@@ -312,7 +312,186 @@
         "nextAction": "Migrate nonempty fromRequires/toRequires constraints using the upstream guide and validate intended traffic policy separately."
       }
     },
-    {
+{
+      "project": "cloudnativepg",
+      "description": "CloudNativePG 1.30 makes the cluster reference immutable on Database, Pooler, Publication, Subscription, and ScheduledBackup resources; this compares one caller-supplied current/proposed pair with matching identity.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cloudnativepg.cluster_reference_changed",
+          "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the submitted matching current/proposed object pair changes spec.cluster.name. A single object or identity mismatch remains unsupported."
+        }
+      ],
+      "rule": {
+        "id": "cloudnativepg.cluster-reference-immutable.1-29-to-1-30",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+          "from": "1.29.0",
+          "to": "1.30.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+          "factId": "component.cloudnativepg.cluster_reference_changed",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:00:00Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "cnpg-v1-30-database-cel",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/api/v1/database_types.go",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:852c4d7dd099d200c37e667ea5f33dc1e1d312c77e7066ee22b43faec6278116",
+              "startLine": 62,
+              "endLine": 64
+            },
+            {
+              "id": "cnpg-v1-30-pooler-cel",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/api/v1/pooler_types.go",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:ab99f9306981e4b06d172026261d61b73048042a82f8c5c42915362af317dd7b",
+              "startLine": 89,
+              "endLine": 92
+            },
+            {
+              "id": "cnpg-v1-30-publication-cel",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/api/v1/publication_types.go",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:7b083828c9a5b58a3446af10a67a63e5c06c92b2899d4b59037386f7e7d57322",
+              "startLine": 43,
+              "endLine": 45
+            },
+            {
+              "id": "cnpg-v1-30-release-note",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/docs/src/release_notes/v1.30.md",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:7ed8e77352b49a1e8f441ee7a5f34a3ab304596eb4db2025912fe1f43d177650",
+              "startLine": 25,
+              "endLine": 30
+            },
+            {
+              "id": "cnpg-v1-30-scheduledbackup-cel",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/api/v1/scheduledbackup_types.go",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:0b14cbb3bc289e36feef1cbe9e80ce706cefc173120db910a9ba692567ebe933",
+              "startLine": 41,
+              "endLine": 43
+            },
+            {
+              "id": "cnpg-v1-30-subscription-cel",
+              "url": "https://github.com/cloudnative-pg/cloudnative-pg/blob/4b5e244a7d031f67e025c83c1555e7726ecbbfa1/api/v1/subscription_types.go",
+              "revision": "4b5e244a7d031f67e025c83c1555e7726ecbbfa1",
+              "contentDigest": "sha256:8fe00a2ab9299c2b67a6fef49476e8d32bd430366629104cb832da4e2ffc221a",
+              "startLine": 43,
+              "endLine": 45
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Keep spec.cluster.name unchanged for the matching namespaced object; if changing clusters is intended, create a new object under the target identity after reviewing dependent resources. This check does not call the API server."
+      }
+    },
+{
+      "project": "container-network-interface-cni",
+      "description": "CNI specification 1.0.0 removes the non-List configuration form. This checks only a caller-supplied configuration shape and explicit specification-migration intent; the versions do not identify the CNI library, plugins, or a runtime.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cni_spec.configuration_shape",
+          "component": "pkg:generic/cni-configuration-spec",
+          "type": "enum",
+          "enumTokens": ["plugin_list", "single_plugin"],
+          "description": "Whether the supplied configuration uses one top-level plugin type or a nonempty plugins list. A mixed or unsupported relevant structure remains unavailable."
+        },
+        {
+          "side": "proposed",
+          "id": "component.cni_spec.configuration_spec_migration_planned",
+          "component": "pkg:generic/cni-configuration-spec",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly declared the configuration-spec-migration operation."
+        },
+        {
+          "side": "proposed",
+          "id": "component.cni_spec.inspected_spec_version",
+          "component": "pkg:generic/cni-configuration-spec",
+          "type": "enum",
+          "enumTokens": ["0.4.0", "1.0.0"],
+          "description": "The cniVersion declared by the supplied configuration. This is a CNI specification version, not a library, plugin, or runtime version."
+        }
+      ],
+      "rule": {
+        "id": "cni-spec.non-list-configuration-removed.0-4-0-to-1-0-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:generic/cni-configuration-spec",
+          "from": "0.4.0",
+          "to": "1.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:generic/cni-configuration-spec",
+          "factId": "component.cni_spec.configuration_shape",
+          "enumValue": "single_plugin"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:generic/cni-configuration-spec",
+            "factId": "component.cni_spec.configuration_spec_migration_planned",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:generic/cni-configuration-spec",
+            "factId": "component.cni_spec.inspected_spec_version",
+            "enumValue": "1.0.0"
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T15:18:55Z",
+          "validUntil": "2026-12-10T15:18:55Z",
+          "sources": [
+            {
+              "id": "cni-spec-v0-4-0-network-configuration-forms",
+              "url": "https://github.com/containernetworking/cni/blob/7d76556571b6cf1ab90d7026a73092ac8d5e0c23/SPEC.md",
+              "revision": "7d76556571b6cf1ab90d7026a73092ac8d5e0c23",
+              "contentDigest": "sha256:e217714ffca64bb40a62c01a5fd25925d4f4b06b627a3e3173d691206c5701de",
+              "startLine": 225,
+              "endLine": 310
+            },
+            {
+              "id": "cni-spec-v1-0-0-list-shape-and-version-identity",
+              "url": "https://github.com/containernetworking/cni/blob/5608690f77380743f29bb314458da9a9fb88c003/SPEC.md",
+              "revision": "5608690f77380743f29bb314458da9a9fb88c003",
+              "contentDigest": "sha256:99703f131b5479a9d38b016953b16f2325895c77ee8f9ef3c43569573cacd53d",
+              "startLine": 41,
+              "endLine": 109
+            },
+            {
+              "id": "cni-spec-v1-0-0-non-list-removal",
+              "url": "https://github.com/containernetworking/cni/blob/5608690f77380743f29bb314458da9a9fb88c003/Documentation/spec-upgrades.md",
+              "revision": "5608690f77380743f29bb314458da9a9fb88c003",
+              "contentDigest": "sha256:3af8b0dc90a1e619a0273208b0c21c96ecc6ae4e9a9b528728570e7e4eaee4ce",
+              "startLine": 1,
+              "endLine": 7
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Convert the configuration to a CNI 1.0.0 plugin list and separately verify that the selected runtime and every plugin support the intended specification version."
+      }
+    },
+{
       "project": "containerd",
       "description": "containerd CRI v1alpha2 removal; PASS concerns only the declared API major.",
       "requiredFacts": [
@@ -377,7 +556,62 @@
         "nextAction": "Use a CRI v1 client with containerd 2.0 and validate the actual CRI endpoint separately."
       }
     },
-    {
+{
+      "project": "contour",
+      "description": "Contour 1.20.0 dropped Gateway API v1alpha1 resources and exclusively supports v1alpha2; this checks only a submitted old-group resource and does not claim full schema conversion or runtime compatibility.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.contour.gateway_v1alpha1_present",
+          "component": "pkg:github/projectcontour/contour",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The submitted resource uses the old networking.x-k8s.io/v1alpha1 Gateway API group/version. This is a resource-local declaration, not cluster observation."
+        }
+      ],
+      "rule": {
+        "id": "contour.gateway-v1alpha1-removed.1-19-0-to-1-20-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/projectcontour/contour",
+          "from": "1.19.0",
+          "to": "1.20.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/projectcontour/contour",
+          "factId": "component.contour.gateway_v1alpha1_present",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:00:00Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "contour-v1-20-gateway-api-v1alpha1-removal",
+              "url": "https://github.com/projectcontour/contour/blob/48568538d465fde791fe3d921957e3a4f25c3f18/changelogs/CHANGELOG-v1.20.0.md",
+              "revision": "48568538d465fde791fe3d921957e3a4f25c3f18",
+              "contentDigest": "sha256:461e40645486c1740b3859b82dbb8a947e4de213c93ae29558dfd0d11bbf1cbd",
+              "startLine": 17,
+              "endLine": 24
+            },
+            {
+              "id": "contour-v1-20-reference-policy-and-supported-kinds",
+              "url": "https://github.com/projectcontour/contour/blob/48568538d465fde791fe3d921957e3a4f25c3f18/changelogs/CHANGELOG-v1.20.0.md",
+              "revision": "48568538d465fde791fe3d921957e3a4f25c3f18",
+              "contentDigest": "sha256:461e40645486c1740b3859b82dbb8a947e4de213c93ae29558dfd0d11bbf1cbd",
+              "startLine": 96,
+              "endLine": 103
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the submitted resource to the gateway.networking.k8s.io/v1alpha2 API using the Gateway API migration requirements, then validate target schema separately; this check does not perform conversion."
+      }
+    },
+{
       "project": "coredns",
       "description": "Federation plugin removal from the official CoreDNS distribution; custom builds are UNKNOWN.",
       "requiredFacts": [
@@ -442,7 +676,7 @@
         "nextAction": "Remove federation usage or obtain separately reviewed custom-plugin evidence; validate DNS behavior separately."
       }
     },
-    {
+{
       "description": "Removal of the exact Cortex querier.at-modifier-enabled option; this checks declared input compatibility only and does not claim a query-behavior change.",
       "project": "cortex",
       "requiredFacts": [
@@ -564,7 +798,7 @@
         }
       }
     },
-    {
+{
       "project": "cri-o",
       "description": "CRI-O target ArtifactStore named-reference short-name guard for an explicitly declared resolution plan only; store contents, caller branch, ordinary images and runtime remain unverified.",
       "requiredFacts": [
@@ -682,7 +916,7 @@
         "nextAction": "Replace the planned artifact reference with a fully-qualified explicit-tag reference and recheck; separately validate ArtifactStore contents, target request routing, registry access and runtime behavior."
       }
     },
-    {
+{
       "project": "crossplane",
       "description": "Crossplane 2.0 Composition CRD removes the Resources mode; this rule covers declared validation against the official target CRD schema only.",
       "requiredFacts": [
@@ -771,7 +1005,7 @@
         "nextAction": "Use Composition Pipeline mode for the official Crossplane 2.0 target schema, or review a separate migration for Resources-mode Compositions."
       }
     },
-    {
+{
       "project": "cubefs",
       "description": "CubeFS 3.3.2 prescribes raftSyncSnapFormatVersion=0 in a MetaNode configuration during the exact 3.2.1 to 3.3.2 MetaNode upgrade phase; this checks only that caller-supplied planned-phase guard.",
       "requiredFacts": [
@@ -857,7 +1091,7 @@
         "nextAction": "For the declared MetaNode upgrade phase, set raftSyncSnapFormatVersion to numeric 0 and recheck. Upstream then says remove it after all MetaNodes upgrade, restart all MetaNodes, and upgrade the client last; those steps remain unchecked."
       }
     },
-    {
+{
       "project": "dapr",
       "description": "Dapr Scheduler-owned embedded-etcd persisted-data loss during the exact 1.14.0 to 1.15.0 upgrade only; external or unexamined storage, snapshot restoration and runtime behavior are unverified.",
       "requiredFacts": [
@@ -927,7 +1161,70 @@
         "nextAction": "Preserve the applicable Dapr Scheduler embedded-etcd data before this exact upgrade and plan restoration separately; a snapshot alone does not establish a safe migration."
       }
     },
-    {
+{
+      "project": "distribution",
+      "description": "Distribution 3.0.0 removes the schema1 manifest handler present in the 2.8.3 source line. This classifies only one caller-supplied image manifest JSON document; it does not claim schema1 was enabled in every 2.8.3 deployment or validate storage, pull, content, platform, or runtime behavior.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.distribution.image_manifest_format",
+          "component": "pkg:github/distribution/distribution",
+          "type": "enum",
+          "enumTokens": ["docker_schema1", "docker_schema2", "oci_image_manifest"],
+          "description": "The bounded format of the supplied image manifest JSON. Unsupported manifest kinds or relevant structures remain unavailable."
+        }
+      ],
+      "rule": {
+        "id": "distribution.schema1-manifest-removed.2-8-3-to-3-0-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/distribution/distribution",
+          "from": "2.8.3",
+          "to": "3.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/distribution/distribution",
+          "factId": "component.distribution.image_manifest_format",
+          "enumValue": "docker_schema1"
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T15:18:55Z",
+          "validUntil": "2026-12-10T15:18:55Z",
+          "sources": [
+            {
+              "id": "distribution-v2-8-3-schema1-format",
+              "url": "https://github.com/distribution/distribution/blob/4772604ae973031ab32dd9805a4bccf61d94909f/manifest/schema1/manifest.go",
+              "revision": "4772604ae973031ab32dd9805a4bccf61d94909f",
+              "contentDigest": "sha256:933590e631ea31e4dab22924cde21f0216744c8e78f929efc872628af6ceeab6",
+              "startLine": 14,
+              "endLine": 107
+            },
+            {
+              "id": "distribution-v2-8-3-schema1-handler",
+              "url": "https://github.com/distribution/distribution/blob/4772604ae973031ab32dd9805a4bccf61d94909f/registry/storage/manifeststore.go",
+              "revision": "4772604ae973031ab32dd9805a4bccf61d94909f",
+              "contentDigest": "sha256:70e8cfab9d6f4466e0f169d21522a160cd2d43cd390796f3745c9d394920e5fc",
+              "startLine": 1,
+              "endLine": 135
+            },
+            {
+              "id": "distribution-v3-0-0-schema2-only-store",
+              "url": "https://github.com/distribution/distribution/blob/9ed95e7365224025ee89365e12cf128e1f1bf965/registry/storage/manifeststore.go",
+              "revision": "9ed95e7365224025ee89365e12cf128e1f1bf965",
+              "contentDigest": "sha256:954cb23c66041f25423477087e48aab9419e803afc9eb3cae1283b98074665ee",
+              "startLine": 1,
+              "endLine": 132
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Convert the image manifest to a supported Docker schema2 or OCI image-manifest form, then validate content references, storage, pull, platform, and runtime behavior separately."
+      }
+    },
+{
       "project": "dragonfly",
       "description": "Dragonfly manager debug-retention intent for the 2.2.3 to 2.2.4 transition; only the declared manager configuration surface is covered, without parser, default-resolution, or runtime evidence.",
       "requiredFacts": [
@@ -1094,7 +1391,7 @@
         "nextAction": "Review the proposed manager configuration and retain an effective debug logger when the declared current verbose intent and proposed retention intent apply; custom overrides and unresolved effective settings remain UNKNOWN."
       }
     },
-    {
+{
       "project": "dragonfly",
       "description": "Dragonfly scheduler debug-retention intent for the 2.2.3 to 2.2.4 transition; only the declared scheduler configuration surface is covered, without parser, default-resolution, or runtime evidence.",
       "requiredFacts": [
@@ -1261,7 +1558,69 @@
         "nextAction": "Review the proposed scheduler configuration and retain an effective debug logger when the declared current verbose intent and proposed retention intent apply; custom overrides and unresolved effective settings remain UNKNOWN."
       }
     },
-    {
+{
+      "project": "emissary-ingress",
+      "description": "Emissary-Ingress 4.0.1 removes diagd's extra metrics endpoint option; this rule covers only a caller-declared direct diagd argv and does not treat the banner endpoint's default change as option removal.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.emissary.removed_metrics_endpoint_present",
+          "component": "pkg:github/emissary-ingress/emissary",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller-declared direct diagd argv contains the removed --metrics-endpoint option. Unknown wrappers, environment, Helm values, and unsupported argv forms remain unresolved."
+        }
+      ],
+      "rule": {
+        "id": "emissary-ingress.metrics-endpoint-removed.3-10-to-4-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/emissary-ingress/emissary",
+          "from": "3.10.0",
+          "to": "4.0.1"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/emissary-ingress/emissary",
+          "factId": "component.emissary.removed_metrics_endpoint_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:00:00Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "emissary-changelog-v4-0-1",
+              "url": "https://github.com/emissary-ingress/emissary/blob/6460e5181f527317e8bba7eaf7f5e1fc6fa17f77/CHANGELOG.md",
+              "revision": "6460e5181f527317e8bba7eaf7f5e1fc6fa17f77",
+              "contentDigest": "sha256:afcea842ede518ae91c9124e80707b18749c09fdd0ff0ccefd9b41f5524a64d6",
+              "startLine": 62,
+              "endLine": 65
+            },
+            {
+              "id": "emissary-v3-10-0-diagd-options",
+              "url": "https://github.com/emissary-ingress/emissary/blob/7a501744c9922bbe22aa0c05ea2829afea638ebb/python/ambassador_diag/diagd.py",
+              "revision": "7a501744c9922bbe22aa0c05ea2829afea638ebb",
+              "contentDigest": "sha256:bf5208f0fa67e4623073e4413b1e98b8b5ef12918628072525b4a7ea62abbe77",
+              "startLine": 2309,
+              "endLine": 2314
+            },
+            {
+              "id": "emissary-v4-0-1-diagd-options",
+              "url": "https://github.com/emissary-ingress/emissary/blob/6460e5181f527317e8bba7eaf7f5e1fc6fa17f77/python/ambassador-diag/src/ambassador_diag/diagd.py",
+              "revision": "6460e5181f527317e8bba7eaf7f5e1fc6fa17f77",
+              "contentDigest": "sha256:c3a5db6973c8548ace4aa428c4c87e0df6e7655649790b7b1bc59e0b9f518ec5",
+              "startLine": 2140,
+              "endLine": 2202
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove --metrics-endpoint from the proposed direct diagd argv; configure any desired banner behavior separately through the target-supported interface and validate deployment wiring independently."
+      }
+    },
+{
       "project": "envoy",
       "description": "Historical Envoy v2 xDS support removal only; v3 schema validity and control-plane rollout are unverified.",
       "requiredFacts": [
@@ -1310,7 +1669,7 @@
         "nextAction": "Migrate xDS/bootstrap references to v3 and verify schema compatibility and control-plane rollout separately."
       }
     },
-    {
+{
       "project": "etcd",
       "description": "Removal of the eight named etcd v2/proxy options only; data migration and quorum health are unverified.",
       "requiredFacts": [
@@ -1372,7 +1731,7 @@
         "nextAction": "Remove the documented v2/proxy flags from the proposed effective arguments; plan storage and quorum migration separately."
       }
     },
-    {
+{
       "project": "falco",
       "description": "Falco 0.41 removes five deprecated 0.40 CLI spellings for the official Falco executable; this rule covers only an operator-declared proposed argv presence predicate.",
       "requiredFacts": [
@@ -1478,7 +1837,7 @@
         "nextAction": "Replace any declared removed Falco 0.40 CLI spelling with a target-supported configuration mechanism, then review the explicit proposed argv separately. Supply an explicit declaration when the argv is unknown."
       }
     },
-    {
+{
       "project": "falco",
       "description": "Falco 0.42.0 retains the documented removal of five deprecated 0.40 CLI spellings for the official Falco executable; this exact transition covers only an operator-declared proposed argv presence predicate.",
       "requiredFacts": [
@@ -1592,7 +1951,7 @@
         "nextAction": "For the exact 0.40.0 to 0.42.0 transition, replace any declared removed Falco 0.40 CLI spelling with a target-supported configuration mechanism, then review the explicit proposed argv separately. Supply an explicit declaration when that argv is unknown."
       }
     },
-    {
+{
       "project": "fluentd",
       "description": "Fluentd 1.17.0 raises the official upstream package minimum Ruby version to 2.7; custom builds and plugin compatibility are unverified.",
       "requiredFacts": [
@@ -1665,7 +2024,7 @@
         "nextAction": "Use a proposed Ruby version at least 2.7.0 for the official Fluentd 1.17.0 package; review custom packaging and plugins separately."
       }
     },
-    {
+{
       "project": "flux",
       "description": "Flux removal of five beta APIs from CRDs; absence in proposed manifests does not prove stored-version migration or reconciliation.",
       "requiredFacts": [
@@ -1711,7 +2070,7 @@
         "nextAction": "Migrate the named resource APIs with the upstream Flux migration procedure; separately verify stored CRD versions and reconciliation."
       }
     },
-    {
+{
       "project": "harbor",
       "description": "Historical Harbor docker-compose installer format change; YAML field correctness and database migration are unverified.",
       "requiredFacts": [
@@ -1780,7 +2139,7 @@
         "nextAction": "Convert the legacy installer configuration to the documented harbor.yml format and separately review its settings."
       }
     },
-    {
+{
       "project": "helm",
       "description": "Helm 4 post-renderer argument form only; PASS does not prove plugin installation, execution or rendered manifests.",
       "requiredFacts": [
@@ -1838,7 +2197,7 @@
         "nextAction": "Use an installed Helm 4 post-renderer plugin name instead of an executable path; validate the plugin and output separately."
       }
     },
-    {
+{
       "project": "in-toto",
       "description": "in-toto Python CLI 3.0.0 removes the legacy pre-boundary -k/--key option from in-toto-run; this checks only that option spelling in one conservatively parsed planned argv.",
       "requiredFacts": [
@@ -1943,7 +2302,7 @@
         "nextAction": "If the plan uses pre-boundary -k/--key, first validate or convert the key to target-supported standard PEM/PKCS8, then use --signing-key and check password handling. A plan already using --signing-key clears only this removed-option condition."
       }
     },
-    {
+{
       "project": "istio",
       "description": "Istio removal of the 1.20 compatibility profile only; other profiles, mesh behavior and sidecar rollout are unverified.",
       "requiredFacts": [
@@ -1993,7 +2352,7 @@
         "nextAction": "Remove the 1.20 compatibility profile and review the individual behavior settings using the upstream migration note."
       }
     },
-    {
+{
       "project": "jaeger",
       "description": "Jaeger v2 absent --config fallback only; this constraint does not validate config content, backend, credentials, or runtime.",
       "requiredFacts": [
@@ -2101,7 +2460,7 @@
         "nextAction": "Provide one explicit non-empty --config selection for the proposed Jaeger v2 invocation, then review its content and backend separately."
       }
     },
-    {
+{
       "description": "Karmada 1.19.0 official policy CRDs remove the deprecated application failover purgeMode values Immediately and Graciously; this checks declared rendered input only when target-CRD admission is explicitly required.",
       "project": "karmada",
       "requiredFacts": [
@@ -2253,7 +2612,7 @@
         }
       }
     },
-    {
+{
       "project": "keda",
       "description": "KEDA 2.16 direct External Scaler transport selected tlsCertFile as a TLS certificate file; 2.17 removes that direct client setting while forwarding trigger metadata to the external scaler. This claim covers only the declared legacy transport dependency.",
       "requiredFacts": [
@@ -2339,7 +2698,7 @@
         "nextAction": "If target relies on KEDA direct TLS from tlsCertFile, migrate to reviewed replacement authentication fields and verify the external scaler separately; retain the actual declaration when unknown."
       }
     },
-    {
+{
       "project": "keycloak",
       "description": "Keycloak 26.7.2 to 26.7.3: a restricted OIDC response parameter in the fragment of one operator-selected registered authorization redirect URI is rejected when both the server and that client leave the legacy allowance disabled. This is a scoped compatibility claim only; query behavior, logout, other clients/realms, security policy, runtime behavior, and whole-upgrade safety are outside it.",
       "requiredFacts": [
@@ -2455,7 +2814,7 @@
         "nextAction": "Inspect the same selected authorization redirect URI, server option, and client attribute locally; do not infer other clients, logout behavior, security posture, runtime behavior, or whole-upgrade safety."
       }
     },
-    {
+{
       "project": "knative",
       "description": "Knative Serving v1.23.0 target admission validates a user container startup HTTP probe; this checks only whether one explicit named probe port matches one explicit supported named container port in a proposed Service.",
       "requiredFacts": [
@@ -2557,7 +2916,7 @@
         "nextAction": "In the proposed Knative Service, set spec.template.spec.containers[0].startupProbe.httpGet.port to the same supported name as spec.template.spec.containers[0].ports[0].name, then recheck this target admission constraint."
       }
     },
-    {
+{
       "project": "kubeedge",
       "description": "KubeEdge v1.19.0 changes the exact keadm init legacy version-selector form --profile version=<version> into external values-file handling; this checks only an explicit complete official-upstream init plan and does not inspect files or claim that --profile itself was removed.",
       "requiredFacts": [
@@ -2704,7 +3063,7 @@
         "nextAction": "For this exact official v1.19.0 keadm init plan, replace legacy --profile version=<version> selection with --kubeedge-version=v1.19.0. Review any external --profile values file separately."
       }
     },
-    {
+{
       "project": "kubeflow",
       "description": "KFP Python SDK 2.0.0 removes create_component_from_func from the public component-authoring API; this checks only one conservatively bound bare decorator form in caller-supplied Python source.",
       "requiredFacts": [
@@ -2785,7 +3144,7 @@
         "nextAction": "For a legacy observation, replace the import with `from kfp import dsl` and the bare decorator with `@dsl.component`; for `dsl_component`, retain that form. Separately validate inputs, outputs, dependencies, base image, compilation, backend, and runtime."
       }
     },
-    {
+{
       "project": "kubernetes",
       "description": "Kubernetes in-tree dockershim removal only; CRI endpoint health and runtime compatibility are unverified.",
       "requiredFacts": [
@@ -2831,7 +3190,70 @@
         "nextAction": "Replace the in-tree dockershim dependency with a supported external CRI implementation and validate it separately."
       }
     },
-    {
+{
+      "project": "kubevirt",
+      "description": "KubeVirt 1.9.0 requires each supplied VM or VMI interface to have exactly one binding method or binding plugin; this resource-local check does not inspect admission, feature gates, plugins, or runtime behavior.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubevirt.interface_binding_cardinality_invalid",
+          "component": "pkg:github/kubevirt/kubevirt",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether any named interface in the supplied kubevirt.io/v1 VirtualMachine or VirtualMachineInstance has zero or multiple binding slots. Missing or malformed native paths remain unsupported."
+        }
+      ],
+      "rule": {
+        "id": "kubevirt.interface-binding-cardinality.1-8-4-to-1-9-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubevirt/kubevirt",
+          "from": "1.8.4",
+          "to": "1.9.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubevirt/kubevirt",
+          "factId": "component.kubevirt.interface_binding_cardinality_invalid",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:00:00Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "kubevirt-api-v1-9-inline-interface-binding-method",
+              "url": "https://github.com/kubevirt/api/blob/83a8fc3b8240742e8705c2110db7218f1f6b7cb7/core/v1/schema.go",
+              "revision": "83a8fc3b8240742e8705c2110db7218f1f6b7cb7",
+              "contentDigest": "sha256:0a901e87bd0ca79530890afe1ea3cfdde114f987bb0dec33f85dc9d9941f8eeb",
+              "startLine": 1442,
+              "endLine": 1571
+            },
+            {
+              "id": "kubevirt-v1-8-4-binding-plugin-conflict",
+              "url": "https://github.com/kubevirt/kubevirt/blob/dfaa398f086692d19e01be21d83a01036e07815f/pkg/network/admitter/binding.go",
+              "revision": "dfaa398f086692d19e01be21d83a01036e07815f",
+              "contentDigest": "sha256:96ff39873643acb6f1f24d85494b448ae2751cff2a34a72232e56b207d154209",
+              "startLine": 48,
+              "endLine": 64
+            },
+            {
+              "id": "kubevirt-v1-9-0-binding-exactly-one",
+              "url": "https://github.com/kubevirt/kubevirt/blob/79d34c1762169e5b0370ec491cef5ca12e6b504c/pkg/network/admitter/binding.go",
+              "revision": "79d34c1762169e5b0370ec491cef5ca12e6b504c",
+              "contentDigest": "sha256:a4970b9ce1e3f57ad0de28202b8d5d2cb7eb8368897823ae5d2dc53abe193eb3",
+              "startLine": 48,
+              "endLine": 79
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Ensure each submitted VM or VMI interface has exactly one supported binding method or plugin, then validate the target resource schema and admission separately."
+      }
+    },
+{
       "project": "kuma",
       "description": "Kuma 2.9 removes two deprecated kumactl install transparent-proxy UID exclusion flags; this rule covers only an operator-declared proposed argv presence predicate for that command surface.",
       "requiredFacts": [
@@ -2945,7 +3367,7 @@
         "nextAction": "Replace either declared removed Kuma UID exclusion flag with the target-supported consolidated form, then review the explicit proposed kumactl install transparent-proxy argv separately. Supply an explicit declaration when that argv is unknown."
       }
     },
-    {
+{
       "project": "kyverno",
       "description": "Kyverno reportsChunkSize removal only for an explicitly declared official upstream reports-controller invocation; image provenance, wrappers, other command surfaces, controller behavior, and whole-upgrade compatibility are unverified.",
       "requiredFacts": [
@@ -3075,7 +3497,7 @@
         }
       }
     },
-    {
+{
       "project": "linkerd",
       "description": "Linkerd stable 2.14 MeshTLSAuthentication adds minItems: 1 to each selector array; this admission-schema predicate is scoped to declared target validation intent and does not validate complete objects or runtime.",
       "requiredFacts": [
@@ -3179,7 +3601,7 @@
         "nextAction": "Supply exactly one nonempty identities or identityRefs selector and validate the proposed object against the official target CRD schema; complete-object validity and runtime behavior remain unverified."
       }
     },
-    {
+{
       "project": "longhorn",
       "description": "Longhorn upstream path check rejects a two-minor direct jump; intermediate health, engines and volumes are unverified.",
       "requiredFacts": [
@@ -3228,7 +3650,70 @@
         "nextAction": "Plan a separate validated upgrade through Longhorn 1.8.x before evaluating the 1.9.0 transition."
       }
     },
-    {
+{
+      "project": "metallb",
+      "description": "MetalLB 0.13.2 removed support for the legacy ConfigMap configuration used through 0.12; this checks only a caller-selected submitted ConfigMap and does not claim that other cluster configuration has migrated.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.metallb.legacy_configmap_present",
+          "component": "pkg:github/metallb/metallb",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The submitted object is the legacy v1 ConfigMap shape: nonempty metadata namespace, metadata.name=config, and nonempty data.config string."
+        }
+      ],
+      "rule": {
+        "id": "metallb.legacy-configmap-removed.0-12-1-to-0-13-2",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/metallb/metallb",
+          "from": "0.12.1",
+          "to": "0.13.2"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/metallb/metallb",
+          "factId": "component.metallb.legacy_configmap_present",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T00:00:00Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "metallb-v0-12-old-release",
+              "url": "https://github.com/metallb/metallb/blob/dbe1a20bb820e2b99337fd658ee40a2bbb53df42/website/content/release-notes/_index.md",
+              "revision": "dbe1a20bb820e2b99337fd658ee40a2bbb53df42",
+              "contentDigest": "sha256:2d2b4922b34d98b9ba26ff787a562abfee1966234a251c929cccbc174b4e11f2",
+              "startLine": 6,
+              "endLine": 12
+            },
+            {
+              "id": "metallb-v0-13-configmap-removal-and-conversion",
+              "url": "https://github.com/metallb/metallb/blob/2a00549f57d58e4a6cbfbdc76b87b6855ca11f22/website/content/release-notes/_index.md",
+              "revision": "2a00549f57d58e4a6cbfbdc76b87b6855ca11f22",
+              "contentDigest": "sha256:a1f6790cb6c47a31368bde30b9b5defd8244883dfa4ecc224eeb27dc62db0c90",
+              "startLine": 34,
+              "endLine": 42
+            },
+            {
+              "id": "metallb-v0-13-configmap-removed",
+              "url": "https://github.com/metallb/metallb/blob/2a00549f57d58e4a6cbfbdc76b87b6855ca11f22/website/content/release-notes/_index.md",
+              "revision": "2a00549f57d58e4a6cbfbdc76b87b6855ca11f22",
+              "contentDigest": "sha256:a1f6790cb6c47a31368bde30b9b5defd8244883dfa4ecc224eeb27dc62db0c90",
+              "startLine": 6,
+              "endLine": 13
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Convert the selected legacy ConfigMap with MetalLB's documented conversion path, apply the resulting CR resources, and recheck the submitted resource; this check does not convert or inspect the cluster."
+      }
+    },
+{
       "project": "opa",
       "description": "OPA v1 producer option prerequisite for v0 consumers without rego.v1 imports. Policy v0 compliance is a separate unverified prerequisite.",
       "requiredFacts": [
@@ -3304,7 +3789,70 @@
         "nextAction": "Use --v0-compatible for this declared producer scenario, or review the rego.v1 alternative; independently check v0 policy compliance."
       }
     },
-    {
+{
+      "project": "openfga",
+      "description": "OpenFGA 1.18.0 refuses startup for the official OIDC mode when the effective issuer or audience is empty; this checks only a caller-declared effective configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.openfga.oidc_required_fields_missing",
+          "component": "pkg:github/openfga/openfga",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller-declared effective authn.method=oidc configuration has an empty or missing issuer or audience. The preparer does not resolve file, environment, or flag precedence."
+        }
+      ],
+      "rule": {
+        "id": "openfga.oidc-required-fields.1-17-1-to-1-18-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/openfga/openfga",
+          "from": "1.17.1",
+          "to": "1.18.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/openfga/openfga",
+          "factId": "component.openfga.oidc_required_fields_missing",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T15:47:46Z",
+          "validUntil": "2026-12-10T00:00:00Z",
+          "sources": [
+            {
+              "id": "openfga-v1-18-0-oidc-changelog",
+              "url": "https://github.com/openfga/openfga/blob/81089a31698505b4d5f01311c04e83b9adfcf383/CHANGELOG.md",
+              "revision": "81089a31698505b4d5f01311c04e83b9adfcf383",
+              "contentDigest": "sha256:fc170f3ba0c13dd40d24ebb121aacd265b2f1a8662dc4f7b4e942ec71ea61b60",
+              "startLine": 11,
+              "endLine": 15
+            },
+            {
+              "id": "openfga-v1-18-0-oidc-config-bindings",
+              "url": "https://github.com/openfga/openfga/blob/81089a31698505b4d5f01311c04e83b9adfcf383/cmd/run/flags.go",
+              "revision": "81089a31698505b4d5f01311c04e83b9adfcf383",
+              "contentDigest": "sha256:9faf9aea0284561b75a9222e48bad47a5428f7ab73baa4a07fe7ddabba1e4dc5",
+              "startLine": 74,
+              "endLine": 84
+            },
+            {
+              "id": "openfga-v1-18-0-oidc-validation",
+              "url": "https://github.com/openfga/openfga/blob/81089a31698505b4d5f01311c04e83b9adfcf383/pkg/server/config/config.go",
+              "revision": "81089a31698505b4d5f01311c04e83b9adfcf383",
+              "contentDigest": "sha256:6408ad7ac5ca3af6df12b731a302909a2614d643184215537f5796ff7442bb6e",
+              "startLine": 623,
+              "endLine": 631
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Resolve all OpenFGA file, environment, and flag precedence outside this check, then provide complete effective configuration with nonempty OIDC issuer and audience before the target upgrade."
+      }
+    },
+{
       "project": "opentelemetry",
       "description": "Logging exporter removal in the upstream Collector; this does not prove replacement exporter availability or telemetry delivery.",
       "requiredFacts": [
@@ -3369,7 +3917,7 @@
         "nextAction": "Replace the removed logging exporter with an available exporter such as debug and verify pipeline behavior separately."
       }
     },
-    {
+{
       "project": "rook",
       "description": "Direct Rook Helm upgrade requires first reaching 1.19.5; no claim that an intermediate deployment is healthy.",
       "requiredFacts": [
@@ -3422,7 +3970,7 @@
         "nextAction": "Plan and validate the intermediate Rook 1.19.5 Helm upgrade before assessing a separate transition to 1.20.0."
       }
     },
-    {
+{
       "project": "rook",
       "description": "Rook 1.20 Kubernetes minimum only; CSI migration, Ceph health and chart order are unverified.",
       "requiredFacts": [],
@@ -3459,7 +4007,7 @@
         "nextAction": "The cited Rook 1.20 minimum requires Kubernetes 1.31 or newer; review all other upgrade requirements separately."
       }
     },
-    {
+{
       "project": "spire",
       "description": "SPIRE 1.11 removes the legacy direct spire-server entry create -ttl/--ttl option; this rule covers only an operator-declared proposed effective option-presence predicate for that exact command surface.",
       "requiredFacts": [
@@ -3573,7 +4121,7 @@
         "nextAction": "Remove each declared legacy -ttl or --ttl option from the proposed direct spire-server entry create invocation, then review the explicit proposed effective option set separately. Supply an explicit declaration when that option set is unknown."
       }
     },
-    {
+{
       "description": "Strimzi 1.0.0 official Kafka CRD no longer serves v1beta2; this checks declared Kafka custom-resource input against explicit target-CRD admission intent only.",
       "project": "strimzi",
       "requiredFacts": [
@@ -3701,7 +4249,7 @@
         }
       }
     },
-    {
+{
       "project": "tekton",
       "description": "Tekton Pipelines v1.9.0 to v1.10.0 metrics ConfigMap migration: preserve an explicitly declared Prometheus protocol when the target parser no longer recognizes metrics.backend-destination. This is a scoped configuration declaration; effective composition and runtime observability remain unverified.",
       "requiredFacts": [
@@ -3864,7 +4412,7 @@
         "nextAction": "Declare metrics-protocol: prometheus in the complete effective target config-observability data, then separately verify composition, endpoint configuration, scrape availability, dashboards, alerts, and runtime rollout."
       }
     },
-    {
+{
       "project": "thanos",
       "description": "Removal of two subcommand-specific Thanos flags only; Query compatibility, storage and compaction behavior are unverified.",
       "requiredFacts": [
@@ -3910,7 +4458,7 @@
         "nextAction": "Remove the named Receive/Store flags and separately review compaction behavior and compatibility with older Thanos Query."
       }
     },
-    {
+{
       "project": "the-update-framework-tuf",
       "description": "python-tuf 7.0.0 requires an explicitly named bootstrap argument for tuf.ngclient.Updater; this checks only keyword presence in one conservatively bound direct call in caller-supplied Python source.",
       "requiredFacts": [
@@ -3988,7 +4536,7 @@
         "nextAction": "Add an explicit bootstrap keyword suitable for the application and recheck. Use trusted root metadata bytes, or bootstrap=None only for an intended cached-root path; separately validate cache, trust, metadata, update, and runtime behavior."
       }
     },
-    {
+{
       "project": "velero",
       "description": "Velero CRD-before-server ordering in the declared upgrade plan only; applied CRDs, plugin support and restores are unverified.",
       "requiredFacts": [
@@ -4034,7 +4582,7 @@
         "nextAction": "Order the target CRD update before the server deployment update; validate plugins, node agents and restores separately."
       }
     },
-    {
+{
       "project": "velero",
       "description": "The Velero 1.18 upgrade guide starts from 1.17.x; this direct 1.16.2 transition is outside that documented path. Backup/restore behavior is unverified.",
       "requiredFacts": [],
@@ -4066,7 +4614,7 @@
         "nextAction": "Upgrade and validate Velero 1.17.x first, then assess a separate transition to 1.18.0 with its upgrade guide."
       }
     },
-    {
+{
       "project": "vitess",
       "description": "Vitess ExecuteFetchAsDba rejection of multiple statements per RPC only; SQL semantics, transactions and other RPCs are unverified.",
       "requiredFacts": [
@@ -4112,5 +4660,5 @@
         "nextAction": "Split multi-statement ExecuteFetchAsDba calls into individual RPC calls and verify application transaction semantics separately."
       }
     }
-  ]
+]
 }

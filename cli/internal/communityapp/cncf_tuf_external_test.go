@@ -61,7 +61,7 @@ func (f *tufExternalFixture) import3(t *testing.T) {
 
 func tufExternalArgs(t *testing.T, f tufExternalFixture, path, from, to, format string) []string {
 	t.Helper()
-	return []string{"check", "cncf", "--project", "the-update-framework-tuf", "--python-source", path, "--python-ast-interpreter", tufCLIPython(t), "--from", from, "--to", to, "--knowledge-db", f.store, "--format", format}
+	return []string{"check", "cncf", "--project", "the-update-framework-tuf", "--python-source", path, "--from", from, "--to", to, "--knowledge-db", f.store, "--format", format}
 }
 
 func TestTUFUpdaterRawExternalAuthorityAndHistoricalReplay(t *testing.T) {

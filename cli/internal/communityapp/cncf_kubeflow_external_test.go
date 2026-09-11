@@ -61,14 +61,14 @@ func (f *kubeflowExternalFixture) import3(t *testing.T) {
 
 func kubeflowExternalArgs(t *testing.T, f kubeflowExternalFixture, path, from, to, format string) []string {
 	t.Helper()
-	return []string{"check", "cncf", "--project", "kubeflow", "--python-source", path, "--python-ast-interpreter", kubeflowCLIPython(t), "--from", from, "--to", to, "--knowledge-db", f.store, "--format", format}
+	return []string{"check", "cncf", "--project", "kubeflow", "--python-source", path, "--from", from, "--to", to, "--knowledge-db", f.store, "--format", format}
 }
 
 func TestKubeflowKFPRawExternalAuthorityAndHistoricalReplay(t *testing.T) {
 	f := makeKubeflowExternalFixture(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "component.py")
-	blockedRaw := []byte("from kfp.components import create_component_from_func\n@create_component_from_func\ndef PRIVATE_COMPONENT(): pass\n")
+	blockedRaw := []byte("from kfp.components import create_component_from_func\n@create_component_from_func\ndef PRIVATE_COMPONENT():\n    pass\n")
 	writeCNCFFileAt(t, path, blockedRaw)
 	code, output, stderr := runCNCFCLI(t, kubeflowExternalArgs(t, f, path, "1.8.22", "2.0.0", "human")...)
 	if code != ExitUnknown || stderr != "" || !strings.Contains(output, "no embedded rule was used") {
@@ -85,14 +85,14 @@ func TestKubeflowKFPRawExternalAuthorityAndHistoricalReplay(t *testing.T) {
 	if code != ExitBlocked || stderr != "" || !json.Valid([]byte(report)) || strings.Contains(report, "PRIVATE_COMPONENT") {
 		t.Fatalf("current code=%d err=%q out=%s", code, stderr, report)
 	}
-	fixedRaw := []byte("from kfp import dsl\n@dsl.component\ndef PRIVATE_COMPONENT(): pass\n")
+	fixedRaw := []byte("from kfp import dsl\n@dsl.component\ndef PRIVATE_COMPONENT():\n    pass\n")
 	writeCNCFFileAt(t, path, fixedRaw)
 	code, fixed, stderr := runCNCFCLI(t, append(synthetic, "--python-source-digest", digestCommunityBytes(fixedRaw))...)
 	if code != ExitOK || stderr != "" || !json.Valid([]byte(fixed)) {
 		t.Fatalf("fixed code=%d err=%q out=%s", code, stderr, fixed)
 	}
 
-	metadataDifferentRaw := []byte("# unrelated private note\nfrom kfp.components import create_component_from_func\n@create_component_from_func\ndef OTHER_PRIVATE_NAME(): pass\n")
+	metadataDifferentRaw := []byte("# unrelated private note\nfrom kfp.components import create_component_from_func\n@create_component_from_func\ndef OTHER_PRIVATE_NAME():\n    pass\n")
 	writeCNCFFileAt(t, path, metadataDifferentRaw)
 	reportPath := filepath.Join(dir, "report.json")
 	writeCNCFFileAt(t, reportPath, []byte(report))

@@ -96,13 +96,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 	case "db":
 		return r.database(ctx, args[1:])
 	case "community-preview":
+		if len(args) >= 2 && args[1] == "example" {
+			return r.communityExample(args[2:])
+		}
 		if len(args) >= 2 && args[1] == "demo-prometheus-mode" {
 			return r.legacyPrometheusDemo(args[2:])
 		}
 		if len(args) >= 2 && args[1] == "validate-prometheus-mode" {
 			return r.prometheus(ctx, args[2:], true)
 		}
-		return r.usage("Usage: prufyx community-preview validate-prometheus-mode [flags]")
+		return r.usage("Usage: prufyx community-preview <example|validate-prometheus-mode> [flags]")
 	default:
 		return r.usage("unknown command; use prufyx --help")
 	}
@@ -120,6 +123,8 @@ Usage:
   prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]
   prufyx check cncf --project argo-cd --config-map FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] --now RFC3339 [--config-map-digest SHA256] [--format human|json]
   prufyx check cncf --project knative --service FILE --from 1.22.0 --to 1.23.0 --now RFC3339 [--service-digest SHA256] [--format human|json]
+  prufyx check cncf --project emissary-ingress --diagd-argv FILE --from 3.10.0 --to 4.0.1 --now RFC3339 [--diagd-argv-digest SHA256] [--format human|json]
+  prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --now RFC3339 [--input-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --knowledge-db DIR [--input-digest SHA256] [--format human|json]
   prufyx db verify FILE --profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup --bootstrap-root FILE --bootstrap-root-digest SHA256 [--expected-package-digest SHA256]
@@ -135,6 +140,7 @@ Usage:
   prufyx check cloudevents-structured-json --event FILE --knowledge-db DIR [--event-digest SHA256] [--format human|json]
   prufyx check tikv-gcp-v2-wif-backup --config FILE --target-version VERSION --operation OPERATION --now RFC3339 [--config-digest SHA256] [--format human|json]
   prufyx check tikv-gcp-v2-wif-backup --config FILE --target-version VERSION --operation OPERATION --knowledge-db DIR [--config-digest SHA256] [--format human|json]
+  prufyx community-preview example <cncf-etcd|cncf-opentelemetry|knowledge-cert-manager|knowledge-cncf>
   prufyx community-preview validate-prometheus-mode ...
 
 Exit status for check cert-manager-values: 0 scoped PASS, 10 scoped BLOCKED, 11 UNKNOWN, 2 invalid input, 3 integrity failure.
@@ -365,11 +371,34 @@ func duplicateFlags(args []string) bool {
 }
 func flagProvided(args []string, wanted string) bool {
 	for _, arg := range args {
-		if strings.TrimLeft(strings.SplitN(arg, "=", 2)[0], "-") == wanted {
+		if arg == "--" {
+			break
+		}
+		name, ok := optionName(arg)
+		if ok && name == wanted {
 			return true
 		}
 	}
 	return false
+}
+
+// optionName recognizes only one- or two-dash Go flag spellings. A positional
+// value must not become a selector simply because it has the same text.
+func optionName(arg string) (string, bool) {
+	if len(arg) < 2 || arg[0] != '-' || arg == "-" {
+		return "", false
+	}
+	trimmed := ""
+	if strings.HasPrefix(arg, "--") {
+		if len(arg) == 2 || strings.HasPrefix(arg, "---") {
+			return "", false
+		}
+		trimmed = arg[2:]
+	} else {
+		trimmed = arg[1:]
+	}
+	name := strings.SplitN(trimmed, "=", 2)[0]
+	return name, name != ""
 }
 func hasHelp(args []string) bool {
 	for _, arg := range args {

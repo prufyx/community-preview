@@ -7,7 +7,7 @@ labels: contribution, evidence
 ## Packet
 
 - [ ] I attached a `prufyx.io/upstream-evidence-packet/v1` packet.
-- [ ] `python3 -B cli/scripts/contribution_packet.py validate --packet PACKET.json` returned a `CANDIDATE` receipt.
+- [ ] `(cd cli && GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off GOFLAGS='-mod=vendor -buildvcs=false' go run ./cmd/prufyx-maintainer contribution validate --packet PACKET.json)` returned a `CANDIDATE` receipt.
 - [ ] The packet uses only public-source metadata and bounded excerpts.
 
 ## Proposal

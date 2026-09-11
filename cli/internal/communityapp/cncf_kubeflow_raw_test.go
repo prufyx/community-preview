@@ -4,52 +4,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func kubeflowCLIPython(t *testing.T) string {
-	t.Helper()
-	if value := os.Getenv("PRUFYX_TEST_PYTHON"); value != "" {
-		if !filepath.IsAbs(value) {
-			t.Fatalf("PRUFYX_TEST_PYTHON must be absolute: %q", value)
-		}
-		return value
-	}
-	value, err := exec.LookPath("python3")
-	if err != nil {
-		t.Fatal("python3 is required for KubeflowKFP raw-source tests")
-	}
-	value, err = filepath.Abs(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
-}
-
 func kubeflowRawArgs(t *testing.T, path, from, to, format string) []string {
 	t.Helper()
-	return []string{"check", "cncf", "--project", "kubeflow", "--python-source", path, "--python-ast-interpreter", kubeflowCLIPython(t), "--from", from, "--to", to, "--now", "2026-09-10T22:00:00Z", "--format", format}
+	return []string{"check", "cncf", "--project", "kubeflow", "--python-source", path, "--from", from, "--to", to, "--now", "2026-09-10T22:00:00Z", "--format", format}
 }
 
 func TestKubeflowKFPRawSourceEditAndRepeatWithoutSourceExecution(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "component.py")
 	canary := filepath.Join(dir, "MUST_NOT_EXIST")
-	beforeRaw := []byte(fmt.Sprintf("from kfp.components import create_component_from_func\nopen(%q, 'w').write('executed')\n@create_component_from_func\ndef PRIVATE_COMPONENT(value: str):\n    return value\n", canary))
+	beforeRaw := []byte(fmt.Sprintf("# %s\nfrom kfp.components import create_component_from_func\n@create_component_from_func\ndef PRIVATE_COMPONENT(value):\n    return value\n", canary))
 	writeCNCFFileAt(t, path, beforeRaw)
 	args := kubeflowRawArgs(t, path, "1.8.22", "2.0.0", "human")
 	code, before, stderr := runCNCFCLI(t, args...)
-	if code != ExitBlocked || stderr != "" || !strings.Contains(before, "create_component_from_func") || !strings.Contains(before, "scoped result: BLOCKED") || !strings.Contains(before, "aggregate: UNKNOWN") || !strings.Contains(before, "does not modify, import, or execute") || !strings.Contains(before, "CPython 3.") {
+	if code != ExitBlocked || stderr != "" || !strings.Contains(before, "create_component_from_func") || !strings.Contains(before, "scoped result: BLOCKED") || !strings.Contains(before, "aggregate: UNKNOWN") || !strings.Contains(before, "does not modify or execute") || !strings.Contains(before, "Go lexical subset") {
 		t.Fatalf("code=%d stderr=%q output=%s", code, stderr, before)
 	}
 	assertKubeflowKFPRedacted(t, before, path, canary)
 	if _, err := os.Stat(canary); !os.IsNotExist(err) {
 		t.Fatal("supplied source was executed")
 	}
-	afterRaw := []byte(fmt.Sprintf("from kfp import dsl\nopen(%q, 'w').write('executed')\n@dsl.component\ndef PRIVATE_COMPONENT(value: str):\n    return value\n", canary))
+	afterRaw := []byte(fmt.Sprintf("# %s\nfrom kfp import dsl\n@dsl.component\ndef PRIVATE_COMPONENT(value):\n    return value\n", canary))
 	writeCNCFFileAt(t, path, afterRaw)
 	code, after, stderr := runCNCFCLI(t, args...)
 	if code != ExitOK || stderr != "" || !strings.Contains(after, "dsl.component") || !strings.Contains(after, "scoped result: PASS") || !strings.Contains(after, "aggregate: UNKNOWN") || !strings.Contains(after, "separately validate component inputs") {
@@ -70,11 +50,11 @@ func TestKubeflowKFPRawUnknownPrivacyAndModeGuards(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "component.py")
 	tests := []struct{ name, source, from, to, category string }{
-		{"alias", "from kfp.components import create_component_from_func as PrivateAlias\n@PrivateAlias\ndef private_component(): pass\n", "1.8.22", "2.0.0", "binding_missing"},
-		{"except handler rebound", "from kfp import dsl\ntry:\n    pass\nexcept Exception as dsl:\n    pass\n@dsl.component\ndef private_component(): pass\n", "1.8.22", "2.0.0", "binding_rebound"},
-		{"decorator call", "from kfp import dsl\n@dsl.component()\ndef private_component(): pass\n", "1.8.22", "2.0.0", "candidate_definition_count"},
-		{"multiple", "from kfp import dsl\n@dsl.component\ndef one(): pass\n@dsl.component\ndef two(): pass\n", "1.8.22", "2.0.0", "candidate_definition_count"},
-		{"wrong pair", "from kfp.components import create_component_from_func\n@create_component_from_func\ndef private_component(): pass\n", "1.8.21", "2.0.0", ""},
+		{"alias", "from kfp.components import create_component_from_func as PrivateAlias\n@PrivateAlias\ndef private_component():\n    pass\n", "1.8.22", "2.0.0", "binding_missing"},
+		{"except handler rebound", "from kfp import dsl\ntry:\n    pass\nexcept Exception as dsl:\n    pass\n@dsl.component\ndef private_component():\n    pass\n", "1.8.22", "2.0.0", "unsupported_lexical_form"},
+		{"decorator call", "from kfp import dsl\n@dsl.component()\ndef private_component():\n    pass\n", "1.8.22", "2.0.0", "unsupported_lexical_form"},
+		{"multiple", "from kfp import dsl\n@dsl.component\ndef one():\n    pass\n@dsl.component\ndef two():\n    pass\n", "1.8.22", "2.0.0", "unsupported_lexical_form"},
+		{"wrong pair", "from kfp.components import create_component_from_func\n@create_component_from_func\ndef private_component():\n    pass\n", "1.8.21", "2.0.0", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -88,10 +68,10 @@ func TestKubeflowKFPRawUnknownPrivacyAndModeGuards(t *testing.T) {
 	}
 	writeCNCFFileAt(t, path, []byte("def broken(:\n"))
 	code, out, errout := runCNCFCLI(t, kubeflowRawArgs(t, path, "1.8.22", "2.0.0", "human")...)
-	if code != ExitUsage || out != "" || errout != "prufyx: SELECTED_KUBEFLOW_KFP_PYTHON_INTERPRETER_COULD_NOT_PARSE_SOURCE\n" {
+	if code != ExitUsage || out != "" || errout != "prufyx: KUBEFLOW_KFP_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX\n" {
 		t.Fatalf("syntax code=%d stdout=%q stderr=%q", code, out, errout)
 	}
-	raw := []byte("from kfp import dsl\n@dsl.component\ndef private_component(): pass\n")
+	raw := []byte("from kfp import dsl\n@dsl.component\ndef private_component():\n    pass\n")
 	writeCNCFFileAt(t, path, raw)
 	base := kubeflowRawArgs(t, path, "1.8.22", "2.0.0", "json")
 	matching := append(append([]string{}, base...), "--python-source-digest", digestCommunityBytes(raw))
@@ -111,15 +91,9 @@ func TestKubeflowKFPRawUnknownPrivacyAndModeGuards(t *testing.T) {
 			t.Fatalf("extra=%v code=%d out=%q err=%q", extra, code, out, errout)
 		}
 	}
-	badInterpreter := append([]string{}, base...)
-	for i := range badInterpreter {
-		if badInterpreter[i] == "--python-ast-interpreter" {
-			badInterpreter[i+1] = "/usr/bin/false"
-		}
-	}
-	code, out, errout = runCNCFCLI(t, badInterpreter...)
-	if code != ExitUsage || out != "" || errout != "prufyx: KUBEFLOW_KFP_PYTHON_AST_INTERPRETER_UNAVAILABLE_OR_UNSUPPORTED\n" {
-		t.Fatalf("runtime code=%d stdout=%q stderr=%q", code, out, errout)
+	code, out, errout = runCNCFCLI(t, append(base, "--python-ast-interpreter", "/usr/bin/false")...)
+	if code != ExitUsage || out != "" || errout == "" || strings.Contains(errout, path) {
+		t.Fatalf("interpreter flag code=%d stdout=%q stderr=%q", code, out, errout)
 	}
 }
 

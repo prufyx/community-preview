@@ -1,11 +1,11 @@
 # Private public-source capture
 
-`public_source_capture.py` is a maintainer-only intake tool for retained public
-source bytes. It takes a closed request file, fetches only its fixed immutable
-GitHub blob paths, and creates private evidence for a later offline corpus
-verification and independent source review. It is not a product CLI command,
-knowledge updater, TUF target, crawler, rule evaluator, source approval, or
-training workflow.
+`public-source-capture capture` is a maintainer-only intake command for retained
+public source bytes. It takes a closed request file, fetches only its fixed
+immutable GitHub blob paths, and creates private evidence for a later offline
+corpus verification and independent source review. It is not a product CLI
+command, knowledge updater, TUF target, crawler, rule evaluator, source
+approval, or training workflow.
 
 The checked-in [synthetic request](../examples/capture/synthetic-capture-request.json)
 is a placeholder/schema illustration only. Executing capture with it still
@@ -34,7 +34,7 @@ from the physical working directory.
 cd cli
 chmod 600 PRIVATE-request.json
 mkdir -m 700 PRIVATE-corpus-parent
-python3 -B scripts/public_source_capture.py capture \
+go run ./cmd/prufyx-maintainer public-source-capture capture \
   --request PRIVATE-request.json --output-parent PRIVATE-corpus-parent
 ```
 
@@ -43,11 +43,11 @@ The transport is serial and always requests the derived
 with system TLS, fixed `Accept`, `Accept-Encoding: identity`, and User-Agent
 headers. It has no proxy, cookies, auth, redirects, retries, GitHub API,
 discovery, endpoint override, custom CA, model, shell, external binary, or
-customer-data path. A fixed trusted Python worker is isolated solely to bound
-DNS and transfer time; it cannot execute caller code or commands. It bounds
-each source, including DNS and slow body reads, to 30 seconds; the parent
-enforces a 120-second aggregate network-capture budget. Preflight and local
-private-file creation, writes, and `fsync` are outside that network budget.
+customer-data path. The fixed Go transport uses context-bound DNS, TLS, and
+read deadlines and cannot execute caller code or commands. It bounds each
+source, including DNS and slow body reads, to 30 seconds and enforces a
+120-second aggregate network-capture budget. Preflight and local private-file
+creation, writes, and `fsync` are outside that network budget.
 
 At most 64 logical requests, 4 MiB per source, and 16 MiB of unique matching
 bytes are admitted. Shared references to the same immutable URL make one
@@ -67,7 +67,7 @@ text, redirect destinations, and invalid submitted text. A failure receipt has
 be fully removed; it has no completion marker and must never be consumed.
 
 A successful candidate is intentionally not authoritative. Verify it locally
-with the unchanged [`source_corpus.py`](source-corpus.md), then perform the
+with the [`source-corpus` verifier](source-corpus.md), then perform the
 separate immutable-source review, scoped rule/vector decision if appropriate,
 technical acceptance, and separate future signing/publication decision. Capture
 does not establish upstream ownership, tag binding, licence, CNCF membership,

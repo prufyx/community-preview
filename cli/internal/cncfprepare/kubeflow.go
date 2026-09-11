@@ -1,10 +1,9 @@
 package cncfprepare
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
+	"regexp"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -16,8 +15,6 @@ const (
 
 	KubeflowKFPLegacyAPI = "legacy_create_component_from_func"
 	KubeflowKFPV2API     = "dsl_component"
-
-	kubeflowKFPProtocol = "prufyx-kubeflow-kfp-ast/v1"
 )
 
 const (
@@ -25,69 +22,48 @@ const (
 	ReasonKubeflowKFPAuthoringAPIUnsupported Reason = "KUBEFLOW_KFP_COMPONENT_AUTHORING_API_UNSUPPORTED"
 )
 
-var (
-	ErrKubeflowKFPInterpreter = errors.New("selected Kubeflow KFP CPython interpreter is unavailable or unsupported")
-	ErrKubeflowKFPSourceParse = errors.New("selected Kubeflow KFP CPython interpreter could not parse the source")
-	ErrKubeflowKFPProtocol    = errors.New("Kubeflow KFP AST helper protocol failure")
-)
+var ErrKubeflowKFPSourceParse = errors.New("Kubeflow KFP source is outside the admitted lexical syntax")
 
 // KubeflowKFPPrepared retains one closed enum observation and a bounded
 // unsupported category. It never retains source text, paths, function names,
 // imports, decorator values, or URLs.
 type KubeflowKFPPrepared struct {
 	Prepared
-	InterpreterVersion  string
 	UnsupportedCategory string
 }
 
-type kubeflowKFPASTResult struct {
-	Protocol       string `json:"protocol"`
-	Implementation string `json:"implementation"`
-	Version        string `json:"version"`
-	State          string `json:"state"`
-	Category       string `json:"category"`
-	AuthoringAPI   string `json:"authoringApi"`
+type kubeflowKFPObservation struct {
+	state, category, api string
 }
 
-// PrepareKubeflowKFP inspects one caller-supplied Python file as data with a
-// fixed isolated AST helper. The observation is independent of the declared
-// versions; the selected knowledge rule owns exact transition applicability.
-func PrepareKubeflowKFP(raw []byte, from, to, interpreter string) (KubeflowKFPPrepared, error) {
+var (
+	kubeflowLegacyImport = regexp.MustCompile(`^from[ \t]+kfp\.components[ \t]+import[ \t]+create_component_from_func[ \t]*$`)
+	kubeflowModernImport = regexp.MustCompile(`^from[ \t]+kfp[ \t]+import[ \t]+dsl[ \t]*$`)
+	kubeflowDef          = regexp.MustCompile(`^def[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(([^\n]*)\)[ \t]*:$`)
+)
+
+// PrepareKubeflowKFP reads caller-supplied Python source only as UTF-8 data.
+// Its Go lexical parser admits exactly one unaliased direct import and one bare
+// synchronous decorator: create_component_from_func or dsl.component. It does
+// not import, execute, or otherwise evaluate the source. Aliases, wrappers,
+// dynamic binding use, multiple candidate definitions, and syntax outside this
+// deliberately small subset retain an unsupported fact and therefore UNKNOWN.
+// The observation is independent of declared versions; knowledge rules own
+// exact transition applicability.
+func PrepareKubeflowKFP(raw []byte, from, to string) (KubeflowKFPPrepared, error) {
 	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
 		return KubeflowKFPPrepared{}, ErrInvalid
 	}
-	stdout, err := runFixedPythonAST(raw, interpreter, kubeflowKFPASTHelper)
+	observed, err := inspectKubeflowKFP(raw)
 	if err != nil {
-		return KubeflowKFPPrepared{}, ErrKubeflowKFPInterpreter
-	}
-	var observed kubeflowKFPASTResult
-	decoder := json.NewDecoder(bytes.NewReader(stdout))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&observed) != nil || decoder.Decode(&struct{}{}) != io.EOF || observed.Protocol != kubeflowKFPProtocol || observed.Implementation != "CPython" || (observed.Version != "3.12" && observed.Version != "3.14") {
-		return KubeflowKFPPrepared{}, ErrKubeflowKFPProtocol
-	}
-	if observed.State == "error" && observed.Category == "syntax_error" && observed.AuthoringAPI == "" {
-		return KubeflowKFPPrepared{}, ErrKubeflowKFPSourceParse
-	}
-	if observed.State == "error" && observed.Category == "unsupported_runtime" && observed.AuthoringAPI == "" {
-		return KubeflowKFPPrepared{}, ErrKubeflowKFPInterpreter
+		return KubeflowKFPPrepared{}, err
 	}
 
 	fact := inputFact{ID: KubeflowKFPFact, State: "unsupported"}
 	state, reason := StateUnknown, ReasonKubeflowKFPAuthoringAPIUnsupported
-	switch observed.State {
-	case "declared":
-		if observed.Category != "" || (observed.AuthoringAPI != KubeflowKFPLegacyAPI && observed.AuthoringAPI != KubeflowKFPV2API) {
-			return KubeflowKFPPrepared{}, ErrKubeflowKFPProtocol
-		}
-		fact = inputFact{ID: KubeflowKFPFact, State: "declared", EnumValue: observed.AuthoringAPI}
+	if observed.state == "declared" {
+		fact = inputFact{ID: KubeflowKFPFact, State: "declared", EnumValue: observed.api}
 		state, reason = StatePrepared, ReasonKubeflowKFPAuthoringAPIObserved
-	case "unsupported":
-		if !validKubeflowKFPUnsupportedCategory(observed.Category) || observed.AuthoringAPI != "" {
-			return KubeflowKFPPrepared{}, ErrKubeflowKFPProtocol
-		}
-	default:
-		return KubeflowKFPPrepared{}, ErrKubeflowKFPProtocol
 	}
 	canonical, err := marshalComponentInput(KubeflowKFPComponent, from, to, []inputFact{fact})
 	if err != nil {
@@ -100,148 +76,187 @@ func PrepareKubeflowKFP(raw []byte, from, to, interpreter string) (KubeflowKFPPr
 		State:              state,
 		Reason:             reason,
 		Omissions: []string{
-			"SELECTED_CPYTHON_EXECUTABLE_NOT_AUTHENTICATED",
+			"GO_LEXICAL_PARSER_ADMITS_ONLY_DIRECT_UNALIASED_DECORATOR_FORMS",
 			"INSTALLED_KFP_PACKAGE_AND_PROCESS_PROVENANCE_NOT_ESTABLISHED",
 			"COMPONENT_INPUT_OUTPUT_DEPENDENCY_COMPILATION_BACKEND_AND_RUNTIME_NOT_EVALUATED",
 			OmissionNoWholeUpgrade,
 		},
-	}, InterpreterVersion: observed.Version, UnsupportedCategory: observed.Category}, nil
+	}, UnsupportedCategory: observed.category}, nil
 }
 
-func validKubeflowKFPUnsupportedCategory(value string) bool {
+func inspectKubeflowKFP(raw []byte) (kubeflowKFPObservation, error) {
+	lines, dynamicString, err := lexicalPythonLines(string(raw))
+	if err != nil {
+		return kubeflowKFPObservation{}, ErrKubeflowKFPSourceParse
+	}
+	if dynamicString {
+		return kubeflowUnsupported("unsupported_lexical_form"), nil
+	}
+
+	// The admitted module grammar is intentionally closed: comments/blank lines,
+	// one exact direct import, one exact bare decorator, then one synchronous
+	// top-level def with a simple parameter list and an indented `pass` or `return`
+	// body. It accepts no conditional, nested, generated, or later top-level code.
+	// This is a lexical observation,
+	// not a Python grammar implementation.
+	index := kubeflowNextCode(lines, 0)
+	if index < 0 {
+		return kubeflowUnsupported("binding_missing"), nil
+	}
+	first := lines[index]
+	if first.indent != 0 {
+		return kubeflowUnsupported("unsupported_lexical_form"), nil
+	}
+	binding, api := "", ""
+	switch {
+	case kubeflowLegacyImport.MatchString(first.text):
+		binding, api = "create_component_from_func", KubeflowKFPLegacyAPI
+	case kubeflowModernImport.MatchString(first.text):
+		binding, api = "dsl", KubeflowKFPV2API
+	default:
+		return kubeflowUnsupported("binding_missing"), nil
+	}
+
+	index = kubeflowNextCode(lines, index+1)
+	if index < 0 || lines[index].indent != 0 || !kubeflowDecoratorMatches(binding, api, lines[index].text) {
+		return kubeflowUnsupported("unsupported_lexical_form"), nil
+	}
+	index = kubeflowNextCode(lines, index+1)
+	if index < 0 || lines[index].indent != 0 {
+		return kubeflowUnsupported("unsupported_lexical_form"), nil
+	}
+	definition := lines[index].text
+	if strings.HasPrefix(definition, "async def ") {
+		return kubeflowUnsupported("definition_shape_unsupported"), nil
+	}
+	match := kubeflowDef.FindStringSubmatch(definition)
+	if match == nil {
+		return kubeflowUnsupported("definition_shape_unsupported"), nil
+	}
+	if match[1] == binding || !kubeflowSimpleIdentifier(match[1]) || !kubeflowParametersAdmitted(match[2]) {
+		return kubeflowUnsupported("definition_shape_unsupported"), nil
+	}
+	if kubeflowContainsIdentifier(match[2], binding) {
+		return kubeflowUnsupported("binding_rebound"), nil
+	}
+
+	bodyIndex := kubeflowNextCode(lines, index+1)
+	if bodyIndex < 0 || lines[bodyIndex].indent == 0 {
+		return kubeflowUnsupported("definition_body_unsupported"), nil
+	}
+	bodyIndent := lines[bodyIndex].indent
+	for cursor := bodyIndex; cursor < len(lines); cursor++ {
+		line := lines[cursor]
+		if line.text == "" {
+			continue
+		}
+		if line.indent != bodyIndent {
+			return kubeflowUnsupported("unsupported_lexical_form"), nil
+		}
+		if line.text == "pass" {
+			continue
+		}
+
+		if !strings.HasPrefix(line.text, "return ") {
+			return kubeflowUnsupported("definition_body_unsupported"), nil
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(line.text, "return "))
+		if !kubeflowSimpleExpression(value) {
+			return kubeflowUnsupported("definition_body_unsupported"), nil
+		}
+		if kubeflowContainsIdentifier(value, binding) {
+			if kubeflowBindingRebound(line.text, binding) {
+				return kubeflowUnsupported("binding_rebound"), nil
+			}
+			return kubeflowUnsupported("binding_dynamic_use"), nil
+		}
+	}
+	return kubeflowKFPObservation{state: "declared", api: api}, nil
+}
+
+func kubeflowNextCode(lines []lexicalPythonLine, start int) int {
+	for index := start; index < len(lines); index++ {
+		if lines[index].text != "" {
+			return index
+		}
+	}
+	return -1
+}
+
+func kubeflowUnsupported(category string) kubeflowKFPObservation {
+	return kubeflowKFPObservation{state: "unsupported", category: category}
+}
+
+func kubeflowDecoratorMatches(binding, api, value string) bool {
+	if api == KubeflowKFPLegacyAPI {
+		return value == "@"+binding
+	}
+	return value == "@"+binding+".component"
+}
+
+func kubeflowContainsIdentifier(line, identifier string) bool {
+	for start := 0; start < len(line); {
+		index := strings.Index(line[start:], identifier)
+		if index < 0 {
+			return false
+		}
+		index += start
+		leftOK := index == 0 || !lexicalIdentifierByte(line[index-1])
+		right := index + len(identifier)
+		rightOK := right == len(line) || !lexicalIdentifierByte(line[right])
+		if leftOK && rightOK {
+			return true
+		}
+		start = index + len(identifier)
+	}
+	return false
+}
+
+func kubeflowBindingRebound(line, binding string) bool {
+	if strings.HasPrefix(line, "global ") || strings.HasPrefix(line, "nonlocal ") || strings.HasPrefix(line, "del ") || strings.HasPrefix(line, "for "+binding+" ") || strings.Contains(line, " as "+binding) || strings.HasPrefix(line, "case "+binding) {
+		return true
+	}
+	index := strings.Index(line, "=")
+	return index >= 0 && kubeflowContainsIdentifier(line[:index], binding)
+}
+
+var kubeflowIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var kubeflowDecimal = regexp.MustCompile(`^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$`)
+
+func kubeflowSimpleIdentifier(value string) bool {
+	return kubeflowIdentifier.MatchString(value) && !pythonReservedWord(value) && value != "__debug__"
+}
+
+func kubeflowParametersAdmitted(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return true
+	}
+
+	seen := make(map[string]bool)
+	for _, parameter := range strings.Split(value, ",") {
+		parameter = strings.TrimSpace(parameter)
+		if !kubeflowSimpleIdentifier(parameter) || seen[parameter] {
+			return false
+		}
+		seen[parameter] = true
+	}
+	return true
+}
+
+// kubeflowSimpleExpression admits only one masked string literal, a
+// simple identifier, the three Python literal names, or a decimal number. It
+// intentionally rejects calls, operators, attributes, collections, semicolons,
+// and every expression form this lexical reader does not validate.
+func kubeflowSimpleExpression(value string) bool {
+	return value == lexicalStringLiteralMarker || value == "None" || value == "True" || value == "False" || kubeflowSimpleIdentifier(value) || kubeflowDecimal.MatchString(value)
+}
+
+func pythonReservedWord(value string) bool {
 	switch value {
-	case "binding_missing", "binding_ambiguous", "binding_rebound", "binding_dynamic_use",
-		"candidate_definition_count", "decorator_shape_unsupported", "definition_shape_unsupported":
+	case "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield":
 		return true
 	default:
 		return false
 	}
 }
-
-const kubeflowKFPASTHelper = `
-import ast
-import json
-import platform
-import sys
-
-PROTOCOL = "prufyx-kubeflow-kfp-ast/v1"
-SUPPORTED = {(3, 12), (3, 14)}
-
-def emit(state, category="", api=""):
-    print(json.dumps({
-        "protocol": PROTOCOL,
-        "implementation": platform.python_implementation(),
-        "version": f"{sys.version_info.major}.{sys.version_info.minor}",
-        "state": state,
-        "category": category,
-        "authoringApi": api,
-    }, sort_keys=True, separators=(",", ":")))
-
-if platform.python_implementation() != "CPython" or sys.version_info[:2] not in SUPPORTED:
-    emit("error", "unsupported_runtime")
-    raise SystemExit(0)
-
-try:
-    source = sys.stdin.buffer.read().decode("utf-8")
-    tree = ast.parse(source, filename="<supplied-source>", mode="exec")
-except (UnicodeDecodeError, SyntaxError, ValueError, MemoryError):
-    emit("error", "syntax_error")
-    raise SystemExit(0)
-
-allowed_import = None
-binding = None
-form = None
-for statement in tree.body:
-    if isinstance(statement, ast.ImportFrom) and statement.level == 0 and len(statement.names) == 1:
-        item = statement.names[0]
-        if statement.module == "kfp.components" and item.name == "create_component_from_func" and item.asname is None:
-            if allowed_import is not None:
-                emit("unsupported", "binding_ambiguous")
-                raise SystemExit(0)
-            allowed_import, binding, form = statement, "create_component_from_func", "legacy"
-        if statement.module == "kfp" and item.name == "dsl" and item.asname is None:
-            if allowed_import is not None:
-                emit("unsupported", "binding_ambiguous")
-                raise SystemExit(0)
-            allowed_import, binding, form = statement, "dsl", "modern"
-
-if allowed_import is None:
-    emit("unsupported", "binding_missing")
-    raise SystemExit(0)
-
-def imported_name(alias):
-    if alias.asname:
-        return alias.asname
-    return alias.name.split(".", 1)[0]
-
-for node in ast.walk(tree):
-    if isinstance(node, (ast.Import, ast.ImportFrom)):
-        if node is allowed_import:
-            continue
-        if any(imported_name(item) == binding or item.name == "*" or item.name.startswith("kfp") for item in node.names):
-            emit("unsupported", "binding_ambiguous")
-            raise SystemExit(0)
-    if isinstance(node, ast.Name) and node.id == binding and isinstance(node.ctx, (ast.Store, ast.Del)):
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, ast.arg) and node.arg == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, ast.ExceptHandler) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, (ast.Global, ast.Nonlocal)) and binding in node.names:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchAs") and isinstance(node, ast.MatchAs) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchStar") and isinstance(node, ast.MatchStar) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchMapping") and isinstance(node, ast.MatchMapping) and node.rest == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if type(node).__name__ in {"TypeVar", "ParamSpec", "TypeVarTuple"} and getattr(node, "name", None) == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-
-def candidate_decorator(node):
-    if form == "legacy":
-        return isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == binding
-    return (
-        isinstance(node, ast.Attribute) and node.attr == "component"
-        and isinstance(node.value, ast.Name) and isinstance(node.value.ctx, ast.Load)
-        and node.value.id == binding
-    )
-
-candidates = []
-for node in tree.body:
-    if isinstance(node, ast.AsyncFunctionDef):
-        if any(candidate_decorator(item) for item in node.decorator_list):
-            emit("unsupported", "definition_shape_unsupported")
-            raise SystemExit(0)
-    if isinstance(node, ast.FunctionDef):
-        for decorator in node.decorator_list:
-            if candidate_decorator(decorator):
-                candidates.append((node, decorator))
-
-if len(candidates) != 1:
-    emit("unsupported", "candidate_definition_count")
-    raise SystemExit(0)
-function, decorator = candidates[0]
-if len(function.decorator_list) != 1:
-    emit("unsupported", "decorator_shape_unsupported")
-    raise SystemExit(0)
-
-allowed_loads = {id(decorator)} if form == "legacy" else {id(decorator.value)}
-for node in ast.walk(tree):
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == binding and id(node) not in allowed_loads:
-        emit("unsupported", "binding_dynamic_use")
-        raise SystemExit(0)
-
-emit("declared", api="legacy_create_component_from_func" if form == "legacy" else "dsl_component")
-`

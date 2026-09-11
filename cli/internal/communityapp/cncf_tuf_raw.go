@@ -12,11 +12,11 @@ import (
 )
 
 type tufFactSummary struct {
-	state, category, interpreterVersion string
-	present                             *bool
+	state, category string
+	present         *bool
 }
 
-func (r runtime) cncfTUFUpdater(path, pin, interpreter, from, to string, now time.Time, format string, selection *knowledge.SelectionRequest, replayPath string) int {
+func (r runtime) cncfTUFUpdater(path, pin, from, to string, now time.Time, format string, selection *knowledge.SelectionRequest, replayPath string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
 		return r.tufInputFailure(err)
@@ -25,14 +25,14 @@ func (r runtime) cncfTUFUpdater(path, pin, interpreter, from, to string, now tim
 	if pin != "" && pin != rawDigest {
 		return r.knativeIntegrityFailure()
 	}
-	prepared, err := cncfprepare.PrepareTUFUpdater(raw, from, to, interpreter)
+	prepared, err := cncfprepare.PrepareTUFUpdater(raw, from, to)
 	if err != nil {
 		return r.tufInputFailure(err)
 	}
 	if prepared.SourceDigest != rawDigest || prepared.InputDigest != digestCommunityBytes(prepared.CanonicalInputJSON) || !json.Valid(prepared.CanonicalInputJSON) {
 		return r.knativeIntegrityFailure()
 	}
-	fact, err := summarizeTUFPrepared(prepared.CanonicalInputJSON, prepared.UnsupportedCategory, prepared.InterpreterVersion)
+	fact, err := summarizeTUFPrepared(prepared.CanonicalInputJSON, prepared.UnsupportedCategory)
 	if err != nil {
 		return r.knativeIntegrityFailure()
 	}
@@ -103,7 +103,7 @@ func (r runtime) cncfTUFExternal(selection knowledge.SelectionRequest, replayPat
 	return cncfknowledge.ClaimExit(report)
 }
 
-func summarizeTUFPrepared(raw []byte, category, interpreterVersion string) (tufFactSummary, error) {
+func summarizeTUFPrepared(raw []byte, category string) (tufFactSummary, error) {
 	var input struct {
 		Proposed struct {
 			Components []struct {
@@ -122,7 +122,7 @@ func summarizeTUFPrepared(raw []byte, category, interpreterVersion string) (tufF
 	if f.ID != cncfprepare.TUFBootstrapFact || (f.State == "declared") != (f.BoolValue != nil) {
 		return tufFactSummary{}, cncfcheck.ErrIntegrity
 	}
-	return tufFactSummary{state: f.State, present: f.BoolValue, category: category, interpreterVersion: interpreterVersion}, nil
+	return tufFactSummary{state: f.State, present: f.BoolValue, category: category}, nil
 }
 
 func writeTUFHuman(out interface{ Write([]byte) (int, error) }, report cncfcheck.Report, from, to, rawDigest string, fact tufFactSummary, origin string) error {
@@ -130,7 +130,7 @@ func writeTUFHuman(out interface{ Write([]byte) (int, error) }, report cncfcheck
 		return cncfcheck.ErrIntegrity
 	}
 	claim := report.Check.Claims[0]
-	if _, err := fmt.Fprintf(out, "TUF Updater source-call review\ntransition: Python API %s -> %s\nbootstrap keyword: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: %s revision %s\nknowledge pack digest: %s\nselected AST runtime: CPython %s (caller-selected executable is not authenticated)\nnetwork used: false\ninput file handling: Prufyx reads but does not modify, import, or execute the supplied Python source. A fixed helper process parses it as data with -I -S.\n", from, to, formatTUFFact(fact), claim.Status, claim.ReasonCode, rawDigest, report.InputFileDigest, report.Check.EvaluatedAt, origin, report.KnowledgeRevision, report.KnowledgePackDigest, fact.interpreterVersion); err != nil {
+	if _, err := fmt.Fprintf(out, "TUF Updater source-call review\ntransition: Python API %s -> %s\nbootstrap keyword: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: %s revision %s\nknowledge pack digest: %s\nsource parser: Go lexical subset; no Python interpreter, import, or execution is used\nnetwork used: false\ninput file handling: Prufyx reads but does not modify or execute the supplied Python source.\n", from, to, formatTUFFact(fact), claim.Status, claim.ReasonCode, rawDigest, report.InputFileDigest, report.Check.EvaluatedAt, origin, report.KnowledgeRevision, report.KnowledgePackDigest); err != nil {
 		return err
 	}
 	for _, source := range claim.Sources {
@@ -150,7 +150,7 @@ func writeTUFExternalHuman(out interface{ Write([]byte) (int, error) }, report c
 	if len(claims) == 1 {
 		status, reason, action = claims[0].Status, claims[0].ReasonCode, claims[0].NextAction
 	}
-	if _, err := fmt.Fprintf(out, "TUF Updater source-call review\ntransition: Python API %s -> %s\nbootstrap keyword: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: external signed local revision %s\nknowledge bundle digest: %s\nknowledge trust receipt digest: %s\nknowledge purpose: %s\nselected AST runtime: CPython %s (caller-selected executable is not authenticated)\ncurrent non-revocation: not checked offline\nnetwork used: false\n", from, to, formatTUFFact(fact), status, reason, rawDigest, report.Check.InputFileDigest, report.Knowledge.EvaluatedAt, report.Knowledge.Revision, report.Knowledge.BundleDigest, report.Knowledge.TrustReceiptDigest, report.Knowledge.Purpose, fact.interpreterVersion); err != nil {
+	if _, err := fmt.Fprintf(out, "TUF Updater source-call review\ntransition: Python API %s -> %s\nbootstrap keyword: %s\nscoped result: %s (%s)\naggregate: UNKNOWN\nraw source digest: %s\nprepared input digest: %s\nevaluated at: %s\nknowledge: external signed local revision %s\nknowledge bundle digest: %s\nknowledge trust receipt digest: %s\nknowledge purpose: %s\nsource parser: Go lexical subset; no Python interpreter, import, or execution is used\ncurrent non-revocation: not checked offline\nnetwork used: false\n", from, to, formatTUFFact(fact), status, reason, rawDigest, report.Check.InputFileDigest, report.Knowledge.EvaluatedAt, report.Knowledge.Revision, report.Knowledge.BundleDigest, report.Knowledge.TrustReceiptDigest, report.Knowledge.Purpose); err != nil {
 		return err
 	}
 	if len(claims) == 1 {

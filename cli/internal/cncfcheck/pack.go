@@ -310,6 +310,11 @@ func subjectComponent(project, repository string) string {
 	if project == "kubeflow" {
 		return "pkg:pypi/kfp"
 	}
+	// This rule identifies the versioned CNI configuration specification, not
+	// the Go library or plugins hosted in the Landscape repository.
+	if project == "container-network-interface-cni" {
+		return "pkg:generic/cni-configuration-spec"
+	}
 	const prefix = "https://github.com/"
 	if len(repository) <= len(prefix) || repository[:len(prefix)] != prefix {
 		return ""

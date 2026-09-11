@@ -25,6 +25,13 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.13 --to 1.19.7 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project metallb|contour --input FILE --from VERSION --to VERSION [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project cloudnativepg --input FILE --from 1.29.0 --to 1.30.0 [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project kubevirt --input FILE --from 1.8.4 --to 1.9.0 [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project emissary-ingress --input FILE --from 3.10.0 --to 4.0.1 [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project openfga --input FILE --from 1.17.1 --to 1.18.0 --effective-config-complete [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project distribution --input FILE --from 2.8.3 --to 3.0.0 [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project container-network-interface-cni --input FILE --from 0.4.0 --to 1.0.0 --operation configuration-spec-migration [--input-digest SHA256] [--format human|json|input]
 
 Prepare a minimized declaration from one private local supported resource JSON or declaration.
 Select the Kyverno container explicitly. A scoped result requires an explicit
@@ -53,6 +60,28 @@ bounded policy List JSON. A nonempty requires field is a scoped blocker. A
 scoped false result requires an explicit complete CNP and CCNP set declaration;
 partial List pages, policy semantics, and runtime behavior remain UNKNOWN.
 
+MetalLB accepts one caller-selected legacy ConfigMap or one supported
+metallb.io/v1beta1 CR. Contour accepts one caller-selected Gateway API resource
+and classifies only the reviewed v1alpha1 group versus v1alpha2. These checks
+do not inspect a cluster or establish runtime behavior; unsupported shapes
+remain UNKNOWN.
+
+CloudNativePG accepts one JSON envelope containing matching current and
+proposed Database, Pooler, Publication, Subscription, or ScheduledBackup
+objects. It compares only the namespaced object identity and spec.cluster.name;
+both objects are required to establish an update.
+
+KubeVirt accepts one caller-supplied kubevirt.io/v1 VirtualMachine or
+VirtualMachineInstance JSON resource. It counts only the five reviewed
+interface binding slots and requires exactly one per named interface. Missing
+or malformed native paths remain UNKNOWN; it does not inspect feature gates,
+plugins, admission, or runtime behavior.
+
+Emissary-Ingress accepts a caller-supplied direct diagd argv JSON array. OpenFGA
+accepts strictly parsed nested authn effective-configuration JSON only when the
+caller explicitly declares file, environment, and flag precedence complete.
+Both retain only reviewed facts; wrappers, custom behavior, and runtime remain UNKNOWN.
+
 etcd accepts one private EtcdEffectiveArguments JSON object containing a complete
 direct arguments-only vector. The first slice accepts only self-contained
 --name=value atoms and recognizes the eight removed v2/proxy options. It never
@@ -65,6 +94,16 @@ infer config content, backend, credentials, distribution, startup, or runtime.
 The two rule guards remain explicit operator declarations; other argument forms
 remain UNKNOWN.
 
+Distribution accepts one private image manifest JSON document and classifies
+only a bounded Docker schema1, Docker schema2, or OCI image-manifest shape.
+It does not contact a registry, pull an image, validate content references, or
+claim that a complete manifest can be stored or run.
+
+Container Network Interface (CNI) accepts one private CNI configuration JSON
+and explicit configuration-spec-migration intent. Its versions identify the
+specification, not the CNI Go library, plugins, or a runtime. It checks only
+single-plugin versus plugin-list configuration shape.
+
 --format input writes only the canonical declaration for check cncf. Redirect
 with umask 077 to a new file so it remains private. --format json also includes
 the source digest, preparation reason and omissions, without raw workload data.
@@ -73,7 +112,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	fs := flag.NewFlagSet("prepare cncf", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, etcd, or jaeger")
+	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, openfga, distribution, or container-network-interface-cni")
 	input := fs.String("input", "", "private proposed input JSON")
 	container := fs.String("container", "", "explicit local Kyverno container selector")
 	from := fs.String("from", "", "actual declared current component version")
@@ -85,6 +124,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	completeCNPCCNPSet := fs.String("complete-cnp-ccnp-set", "", "explicit Cilium CNP and CCNP policy-set completeness: true or false")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
 	jaegerOfficialDistribution := fs.String("official-jaeger-distribution", "", "explicit Jaeger official distribution declaration: true or false")
+	operation := fs.String("operation", "", "explicit operation for profiles that require one")
+	effectiveConfigComplete := fs.Bool("effective-config-complete", false, "caller declaration that OpenFGA file, environment, and flag precedence is resolved")
 	pin := fs.String("input-digest", "", "optional exact source file SHA-256")
 	format := fs.String("format", "human", "human, json or input")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
@@ -108,17 +149,22 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	if fs.NArg() != 0 || *project == "" || *input == "" || *from == "" || *to == "" || (*project == "kyverno" && *container == "") || (*format != "human" && *format != "json" && *format != "input") || (flagProvided(args, "input-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*pin)) {
 		return r.usage("invalid CNCF preparation arguments; use --help")
 	}
+	if *project != "openfga" && flagProvided(args, "effective-config-complete") {
+		return r.usage("--effective-config-complete is only valid for OpenFGA preparation")
+	}
 	// Validate project-specific flags before opening the private input. This keeps
 	// malformed cross-project invocations from admitting any local file.
 	switch *project {
 	case "kyverno":
 		if *container == "" || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "distribution") && *distribution == "") ||
 			(*distribution != "" && *distribution != cncfprepare.KyvernoDistributionOfficial && *distribution != cncfprepare.KyvernoDistributionCustom) {
 			return r.usage("invalid Kyverno preparation arguments; use --help")
 		}
 	case "linkerd":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "distribution") && *distribution == "") ||
 			(flagProvided(args, "schema-validation") && *schemaValidation == "") ||
 			(*distribution != "" && *distribution != cncfprepare.LinkerdDistributionOfficial && *distribution != cncfprepare.LinkerdDistributionCustom) ||
@@ -127,6 +173,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 	case "karmada":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "distribution") && *distribution == "") ||
 			(flagProvided(args, "target-policy-crd-admission") && *targetPolicyCRDAdmission == "") ||
 			(*distribution != "" && *distribution != cncfprepare.KarmadaDistributionOfficial && *distribution != cncfprepare.KarmadaDistributionCustom) ||
@@ -135,23 +182,42 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 	case "argo-cd":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false") {
 			return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "cilium":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "complete-cnp-ccnp-set") && *completeCNPCCNPSet != "true" && *completeCNPCCNPSet != "false") {
 			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "etcd":
-		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") {
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
 			return r.fail("ETCD_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "jaeger":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") ||
+			flagProvided(args, "operation") ||
 			(flagProvided(args, "non-memory-storage-required") && *jaegerNonMemoryStorage != "true" && *jaegerNonMemoryStorage != "false") ||
 			(flagProvided(args, "official-jaeger-distribution") && *jaegerOfficialDistribution != "true" && *jaegerOfficialDistribution != "false") {
 			return r.fail("JAEGER_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "metallb", "contour", "cloudnativepg", "kubevirt", "emissary-ingress":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("NATIVE_MIGRATION_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "distribution":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || cncfOptionProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("DISTRIBUTION_MANIFEST_INPUT_INVALID", ExitUsage)
+		}
+	case "container-network-interface-cni":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || cncfOptionProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") {
+			return r.fail("CNI_SPEC_CONFIGURATION_INPUT_INVALID", ExitUsage)
+		}
+	case "openfga":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("OPENFGA_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	default:
 		return r.usage("invalid CNCF preparation project; use --help")
@@ -218,6 +284,20 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			official = &value
 		}
 		prepared, err = cncfprepare.PrepareJaeger(raw, *from, *to, nonMemory, official)
+	case "metallb", "contour":
+		prepared, err = cncfprepare.PrepareNativeMigration(raw, *project, *from, *to)
+	case "cloudnativepg":
+		prepared, err = cncfprepare.PrepareCloudNativePG(raw, *from, *to)
+	case "kubevirt":
+		prepared, err = cncfprepare.PrepareKubeVirt(raw, *from, *to)
+	case "distribution":
+		prepared, err = cncfprepare.PrepareDistributionManifest(raw, *from, *to)
+	case "container-network-interface-cni":
+		prepared, err = cncfprepare.PrepareCNISpecConfiguration(raw, *from, *to, *operation)
+	case "emissary-ingress":
+		prepared, err = cncfprepare.PrepareEmissary(raw, *from, *to)
+	case "openfga":
+		prepared, err = cncfprepare.PrepareOpenFGAOIDC(raw, *from, *to, effectiveConfigComplete)
 	}
 	if err != nil {
 		if *project == "linkerd" {
@@ -299,6 +379,22 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Cilium"
 	} else if label == "jaeger" {
 		label = "Jaeger"
+	} else if label == "metallb" {
+		label = "MetalLB"
+	} else if label == "contour" {
+		label = "Contour"
+	} else if label == "cloudnativepg" {
+		label = "CloudNativePG"
+	} else if label == "kubevirt" {
+		label = "KubeVirt"
+	} else if label == "emissary-ingress" {
+		label = "Emissary-Ingress"
+	} else if label == "openfga" {
+		label = "OpenFGA"
+	} else if label == "distribution" {
+		label = "Distribution"
+	} else if label == "container-network-interface-cni" {
+		label = "CNI specification"
 	}
 	if _, err := fmt.Fprintf(r.stdout, "%s declaration preparation: %s\nreason: %s\nsource digest: %s\nprepared input digest: %s\nnetwork used: false\nupgrade check performed: false\n", label, prepared.State, prepared.Reason, prepared.SourceDigest, prepared.InputDigest); err != nil {
 		if concreteCNCFPreparationProject(*project) {
@@ -330,7 +426,19 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "jaeger"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "openfga" || project == "distribution" || project == "container-network-interface-cni"
+}
+
+func cncfOptionProvided(args []string, wanted string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+		if strings.HasPrefix(arg, "--") && strings.SplitN(strings.TrimPrefix(arg, "--"), "=", 2)[0] == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func (r runtime) linkerdInputFailure(err error) int {

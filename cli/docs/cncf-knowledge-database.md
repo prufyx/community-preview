@@ -11,11 +11,13 @@ require a binary update.
 
 This first alpha does not migrate stores between incompatible engine
 capabilities. A changed compiled registry, policy or engine contract can make an
-existing store ineligible, including for new imports. Preserve that store and
-its matching binary for historical checks. For a different capability, use a
-separate empty store, an independently verified bootstrap root and a signed
-package declaring the new capability. Do not copy trust or rollback state
-between stores. Rule-only updates within one capability use the existing store.
+existing store ineligible, including for new imports. Adding a compiled fact
+changes the registry and external-capability digests: a matching signed package
+must be rebuilt for that binary. Preserve the prior store and its matching
+binary for historical replay. For a different capability, use a separate empty
+store, an independently verified bootstrap root and a signed package declaring
+the new capability. Do not copy trust or rollback state between stores.
+Rule-only updates within one unchanged capability use the existing store.
 
 Run the [synthetic local example](../examples/cncf/knowledge/README.md) to see
 package-only verification, empty-to-active coverage and exact historical replay

@@ -27,12 +27,6 @@ VERSION=v0.1.0-alpha.5
 ARCHIVE="prufyx-cli_${VERSION#v}_linux_amd64.tar.gz"
 RELEASE_TAG="$VERSION"
 SOURCE_COMMIT="<independently-reviewed-40-character-release-commit>"
-METADATA_SOURCE_COMMIT="$(tar -xOzf "$ARCHIVE" \
-  "prufyx-cli_${VERSION#v}_linux_amd64/RELEASE-METADATA.json" | jq -er '.sourceRevision')"
-PACKAGED_SOURCE_COMMIT="$(tar -xOzf "$ARCHIVE" \
-  "prufyx-cli_${VERSION#v}_linux_amd64/SOURCE-REVISION" | tr -d '\n')"
-test "$METADATA_SOURCE_COMMIT" = "$SOURCE_COMMIT"
-test "$PACKAGED_SOURCE_COMMIT" = "$SOURCE_COMMIT"
 sha256sum -c SHA256SUMS
 gh attestation verify "$ARCHIVE" \
   --repo prufyx/prufyx-cli \
@@ -41,6 +35,10 @@ gh attestation verify "$ARCHIVE" \
   --source-digest "$SOURCE_COMMIT" \
   --deny-self-hosted-runners
 ```
+
+The release owner's Go `release verify` workflow checks the archive layout,
+metadata and `SOURCE-REVISION` binding before a formal bundle is finalized.
+Do not replace that validation with an ad-hoc JSON parser.
 
 Use the archive matching the host architecture. Every checksum and attestation
 verification must succeed before execution. GitHub verification needs network
@@ -80,6 +78,6 @@ See [Community source authority](../release/COMMUNITY-SOURCE-GATE.md) for
 receipt generation, verification and tests. Published binaries target native
 Linux amd64 and Linux arm64. Selected source variants additionally cover
 Darwin arm64. The SPDX inventory describes Prufyx, its Go runtime/standard
-library and the optional Python operator-tool runtime floor; it is not a
+library; it is not a
 file-level inventory of the entire build environment. `LICENSES` and
 `THIRD-PARTY.md` preserve the included notices.

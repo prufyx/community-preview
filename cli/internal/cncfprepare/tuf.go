@@ -1,10 +1,9 @@
 package cncfprepare
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io"
+	"regexp"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -13,8 +12,6 @@ const (
 	TUFBootstrapFact = "component.tuf.updater_bootstrap_keyword_present"
 	TUFFrom          = "6.0.0"
 	TUFTo            = "7.0.0"
-
-	tufASTProtocol = "prufyx-tuf-updater-ast/v1"
 )
 
 const (
@@ -22,70 +19,46 @@ const (
 	ReasonTUFUpdaterCallUnsupported Reason = "TUF_UPDATER_CALL_SHAPE_UNSUPPORTED"
 )
 
-var (
-	ErrTUFInterpreter = errors.New("selected TUF CPython interpreter is unavailable or unsupported")
-	ErrTUFSourceParse = errors.New("selected TUF CPython interpreter could not parse the source")
-	ErrTUFProtocol    = errors.New("TUF AST helper protocol failure")
-)
+var ErrTUFSourceParse = errors.New("TUF source is outside the admitted lexical syntax")
 
-// TUFPrepared retains only the minimized fact and a bounded presentation
-// category. InterpreterVersion comes from the explicitly selected parser
-// process; it is not an authentication claim about that executable.
+// TUFPrepared retains only the minimized bootstrap-presence fact and a bounded
+// unsupported category. It never retains source text, call values, paths, or
+// URLs.
 type TUFPrepared struct {
 	Prepared
-	InterpreterVersion  string
 	UnsupportedCategory string
 }
 
-type tufASTResult struct {
-	Protocol                string `json:"protocol"`
-	Implementation          string `json:"implementation"`
-	Version                 string `json:"version"`
-	State                   string `json:"state"`
-	Category                string `json:"category"`
-	BootstrapKeywordPresent *bool  `json:"bootstrapKeywordPresent"`
+type tufObservation struct {
+	state, category string
+	bootstrap       bool
 }
 
-// PrepareTUFUpdater uses a fixed, isolated CPython AST helper to inspect a
-// supplied source file as data. It never imports or executes the supplied
-// source and never retains source text, call values, paths, or URLs.
-func PrepareTUFUpdater(raw []byte, from, to, interpreter string) (TUFPrepared, error) {
+var (
+	tufFromImport   = regexp.MustCompile(`^from[ \t]+tuf\.ngclient[ \t]+import[ \t]+Updater[ \t]*$`)
+	tufModuleImport = regexp.MustCompile(`^import[ \t]+tuf\.ngclient[ \t]*$`)
+	tufIdentifier   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+)
+
+// PrepareTUFUpdater reads caller-supplied Python source as UTF-8 data. Its Go
+// lexical parser admits one unaliased direct import and one top-level direct
+// Updater call. It never imports, executes, or otherwise evaluates the source.
+// Aliases, rebinding, dynamic calls, and source outside this deliberately small
+// grammar produce an unsupported fact and therefore UNKNOWN.
+func PrepareTUFUpdater(raw []byte, from, to string) (TUFPrepared, error) {
 	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
 		return TUFPrepared{}, ErrInvalid
 	}
-	stdout, err := runFixedPythonAST(raw, interpreter, tufASTHelper)
+	observed, err := inspectTUFUpdater(raw)
 	if err != nil {
-		return TUFPrepared{}, ErrTUFInterpreter
-	}
-
-	var observed tufASTResult
-	decoder := json.NewDecoder(bytes.NewReader(stdout))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&observed) != nil || decoder.Decode(&struct{}{}) != io.EOF || observed.Protocol != tufASTProtocol || observed.Implementation != "CPython" || (observed.Version != "3.12" && observed.Version != "3.14") {
-		return TUFPrepared{}, ErrTUFProtocol
-	}
-	if observed.State == "error" && observed.Category == "syntax_error" && observed.BootstrapKeywordPresent == nil {
-		return TUFPrepared{}, ErrTUFSourceParse
-	}
-	if observed.State == "error" && observed.Category == "unsupported_runtime" && observed.BootstrapKeywordPresent == nil {
-		return TUFPrepared{}, ErrTUFInterpreter
+		return TUFPrepared{}, err
 	}
 
 	fact := inputFact{ID: TUFBootstrapFact, State: "unsupported"}
 	state, reason := StateUnknown, ReasonTUFUpdaterCallUnsupported
-	switch observed.State {
-	case "declared":
-		if observed.Category != "" || observed.BootstrapKeywordPresent == nil {
-			return TUFPrepared{}, ErrTUFProtocol
-		}
-		fact = inputFact{ID: TUFBootstrapFact, State: "declared", BoolValue: observed.BootstrapKeywordPresent}
+	if observed.state == "declared" {
+		fact = inputFact{ID: TUFBootstrapFact, State: "declared", BoolValue: &observed.bootstrap}
 		state, reason = StatePrepared, ReasonTUFUpdaterCallObserved
-	case "unsupported":
-		if !validTUFUnsupportedCategory(observed.Category) || observed.BootstrapKeywordPresent != nil {
-			return TUFPrepared{}, ErrTUFProtocol
-		}
-	default:
-		return TUFPrepared{}, ErrTUFProtocol
 	}
 	canonical, err := marshalComponentInput(TUFComponent, from, to, []inputFact{fact})
 	if err != nil {
@@ -98,168 +71,275 @@ func PrepareTUFUpdater(raw []byte, from, to, interpreter string) (TUFPrepared, e
 		State:              state,
 		Reason:             reason,
 		Omissions: []string{
-			"SELECTED_CPYTHON_EXECUTABLE_NOT_AUTHENTICATED",
+			"GO_LEXICAL_PARSER_ADMITS_ONLY_ONE_DIRECT_UNALIASED_UPDATER_CALL",
 			"INSTALLED_TUF_PACKAGE_AND_PROCESS_PROVENANCE_NOT_ESTABLISHED",
 			"BOOTSTRAP_VALUE_CACHE_TRUST_METADATA_UPDATE_AND_RUNTIME_NOT_EVALUATED",
 			OmissionNoWholeUpgrade,
 		},
-	}, InterpreterVersion: observed.Version, UnsupportedCategory: observed.Category}, nil
+	}, UnsupportedCategory: observed.category}, nil
 }
 
-func validTUFUnsupportedCategory(value string) bool {
-	switch value {
-	case "binding_missing", "binding_ambiguous", "binding_rebound", "binding_dynamic_use",
-		"candidate_call_count", "star_arguments", "duplicate_argument", "unknown_keyword",
-		"missing_required_argument", "positional_bootstrap", "call_shape_unsupported":
-		return true
-	default:
-		return false
+func inspectTUFUpdater(raw []byte) (tufObservation, error) {
+	lines, dynamicString, err := lexicalPythonLines(string(raw))
+	if err != nil {
+		return tufObservation{}, ErrTUFSourceParse
 	}
+	if dynamicString {
+		return tufUnsupported("unsupported_lexical_form"), nil
+	}
+	index := tufNextCode(lines, 0)
+	if index < 0 || lines[index].indent != 0 {
+		return tufUnsupported("binding_missing"), nil
+	}
+	binding, form := "", ""
+	switch {
+	case tufFromImport.MatchString(lines[index].text):
+		binding, form = "Updater", "from"
+	case tufModuleImport.MatchString(lines[index].text):
+		binding, form = "tuf", "module"
+	default:
+		return tufUnsupported("binding_missing"), nil
+	}
+	index = tufNextCode(lines, index+1)
+	if index < 0 || lines[index].indent != 0 {
+		return tufUnsupported("candidate_call_count"), nil
+	}
+	if tufTopLevelBindingRebound(lines[index].text, binding) {
+		return tufUnsupported("binding_rebound"), nil
+	}
+
+	callSource := make([]string, 0, len(lines)-index)
+	parenDepth := 0
+	completed := false
+	for cursor := index; cursor < len(lines); cursor++ {
+		line := lines[cursor]
+		if line.text == "" {
+			continue
+		}
+		if completed || (cursor != index && line.indent == 0 && parenDepth == 0) {
+			return tufUnsupported("candidate_call_count"), nil
+		}
+		callSource = append(callSource, line.text)
+		for offset := 0; offset < len(line.text); offset++ {
+			switch line.text[offset] {
+			case '(':
+				parenDepth++
+			case ')':
+				parenDepth--
+				if parenDepth == 0 {
+					completed = true
+				}
+			}
+		}
+	}
+	return tufInspectDirectCall(strings.Join(callSource, " "), binding, form)
 }
 
-const tufASTHelper = `
-import ast
-import json
-import platform
-import sys
+func tufNextCode(lines []lexicalPythonLine, start int) int {
+	for index := start; index < len(lines); index++ {
+		if lines[index].text != "" {
+			return index
+		}
+	}
+	return -1
+}
 
-PROTOCOL = "prufyx-tuf-updater-ast/v1"
-SHARED = ["metadata_dir", "metadata_base_url", "target_dir", "target_base_url", "fetcher", "config"]
-SUPPORTED = {(3, 12), (3, 14)}
+func tufInspectDirectCall(source, binding, form string) (tufObservation, error) {
+	function := "Updater"
+	if form == "module" {
+		function = "tuf.ngclient.Updater"
+	}
+	prefix := regexp.MustCompile(`^(?:([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*)?` + regexp.QuoteMeta(function) + `[ \t]*\(`)
+	match := prefix.FindStringSubmatchIndex(source)
+	if match == nil || match[0] != 0 {
+		if tufTopLevelBindingRebound(source, binding) {
+			return tufUnsupported("binding_rebound"), nil
+		}
+		return tufUnsupported("candidate_call_count"), nil
+	}
 
-def emit(state, category="", present=None):
-    result = {
-        "protocol": PROTOCOL,
-        "implementation": platform.python_implementation(),
-        "version": f"{sys.version_info.major}.{sys.version_info.minor}",
-        "state": state,
-        "category": category,
-        "bootstrapKeywordPresent": present,
-    }
-    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+	if match[2] >= 0 && !kubeflowSimpleIdentifier(source[match[2]:match[3]]) {
+		return tufUnsupported("call_shape_unsupported"), nil
+	}
+	open := strings.LastIndex(source[:match[1]], "(")
+	close, ok := tufClosingParen(source, open)
+	if !ok {
+		return tufObservation{}, ErrTUFSourceParse
+	}
+	if strings.TrimSpace(source[close+1:]) != "" {
+		return tufUnsupported("candidate_call_count"), nil
+	}
+	return tufInspectArguments(source[open+1:close], binding)
+}
 
-if platform.python_implementation() != "CPython" or sys.version_info[:2] not in SUPPORTED:
-    emit("error", "unsupported_runtime")
-    raise SystemExit(0)
+func tufClosingParen(value string, open int) (int, bool) {
+	depth := 0
+	for index := open; index < len(value); index++ {
+		switch value[index] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return index, true
+			}
+			if depth < 0 {
+				return 0, false
+			}
+		}
+	}
+	return 0, false
+}
 
-try:
-    source = sys.stdin.buffer.read().decode("utf-8")
-    tree = ast.parse(source, filename="<supplied-source>", mode="exec")
-except (UnicodeDecodeError, SyntaxError, ValueError, MemoryError):
-    emit("error", "syntax_error")
-    raise SystemExit(0)
+func tufInspectArguments(arguments, binding string) (tufObservation, error) {
+	parts, ok := tufSplitArguments(arguments)
+	if !ok {
+		return tufObservation{}, ErrTUFSourceParse
+	}
+	shared := []string{"metadata_dir", "metadata_base_url", "target_dir", "target_base_url", "fetcher", "config"}
+	allowed := map[string]bool{"bootstrap": true}
+	for _, name := range shared {
+		allowed[name] = true
+	}
+	bound := make(map[string]bool, len(shared)+1)
+	positionals := 0
+	seenKeyword := false
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			return tufUnsupported("call_shape_unsupported"), nil
+		}
+		if strings.HasPrefix(strings.TrimSpace(part), "*") {
+			return tufUnsupported("star_arguments"), nil
+		}
+		name, value, isKeyword := tufKeyword(part)
+		if !isKeyword {
+			if seenKeyword {
+				return tufUnsupported("positional_after_keyword"), nil
+			}
+			if positionals >= len(shared) {
+				return tufUnsupported("positional_bootstrap"), nil
+			}
 
-allowed_import = None
-binding = None
-form = None
-for statement in tree.body:
-    if isinstance(statement, ast.ImportFrom) and statement.module == "tuf.ngclient" and statement.level == 0 and len(statement.names) == 1:
-        item = statement.names[0]
-        if item.name == "Updater" and item.asname is None:
-            if allowed_import is not None:
-                emit("unsupported", "binding_ambiguous")
-                raise SystemExit(0)
-            allowed_import, binding, form = statement, "Updater", "from"
-    if isinstance(statement, ast.Import) and len(statement.names) == 1:
-        item = statement.names[0]
-        if item.name == "tuf.ngclient" and item.asname is None:
-            if allowed_import is not None:
-                emit("unsupported", "binding_ambiguous")
-                raise SystemExit(0)
-            allowed_import, binding, form = statement, "tuf", "module"
+			if !tufSimpleExpression(strings.TrimSpace(part)) {
+				return tufUnsupported("call_shape_unsupported"), nil
+			}
+			if tufContainsIdentifier(part, binding) {
+				return tufUnsupported("binding_dynamic_use"), nil
+			}
+			bound[shared[positionals]] = true
+			positionals++
+			continue
+		}
 
-if allowed_import is None:
-    emit("unsupported", "binding_missing")
-    raise SystemExit(0)
+		if name == "" || strings.TrimSpace(value) == "" || !tufSimpleExpression(strings.TrimSpace(value)) {
+			return tufUnsupported("call_shape_unsupported"), nil
+		}
+		seenKeyword = true
+		if !allowed[name] {
+			return tufUnsupported("unknown_keyword"), nil
+		}
+		if bound[name] {
+			return tufUnsupported("duplicate_argument"), nil
+		}
+		if tufContainsIdentifier(value, binding) {
+			return tufUnsupported("binding_dynamic_use"), nil
+		}
+		bound[name] = true
+	}
+	if !bound["metadata_dir"] || !bound["metadata_base_url"] {
+		return tufUnsupported("missing_required_argument"), nil
+	}
+	return tufObservation{state: "declared", bootstrap: bound["bootstrap"]}, nil
+}
 
-def imported_name(alias):
-    if alias.asname:
-        return alias.asname
-    return alias.name.split(".", 1)[0]
+func tufSplitArguments(value string) ([]string, bool) {
+	if strings.TrimSpace(value) == "" {
+		return nil, true
+	}
+	parts := []string{}
+	depth := 0
+	start := 0
+	for index := 0; index < len(value); index++ {
+		switch value[index] {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+			if depth < 0 {
+				return nil, false
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(value[start:index]))
+				start = index + 1
+			}
+		}
+	}
+	if depth != 0 {
+		return nil, false
+	}
+	last := strings.TrimSpace(value[start:])
+	if last != "" {
+		parts = append(parts, last)
+	}
+	return parts, true
+}
 
-for node in ast.walk(tree):
-    if isinstance(node, (ast.Import, ast.ImportFrom)):
-        if node is allowed_import:
-            continue
-        names = node.names
-        if any(imported_name(item) == binding or item.name == "*" or item.name.startswith("tuf") for item in names):
-            emit("unsupported", "binding_ambiguous")
-            raise SystemExit(0)
-    if isinstance(node, ast.Name) and node.id == binding and isinstance(node.ctx, (ast.Store, ast.Del)):
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, ast.arg) and node.arg == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, ast.ExceptHandler) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if isinstance(node, (ast.Global, ast.Nonlocal)) and binding in node.names:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchAs") and isinstance(node, ast.MatchAs) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchStar") and isinstance(node, ast.MatchStar) and node.name == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if hasattr(ast, "MatchMapping") and isinstance(node, ast.MatchMapping) and node.rest == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
-    if type(node).__name__ in {"TypeVar", "ParamSpec", "TypeVarTuple"} and getattr(node, "name", None) == binding:
-        emit("unsupported", "binding_rebound")
-        raise SystemExit(0)
+func tufKeyword(value string) (string, string, bool) {
+	depth := 0
+	for index := 0; index < len(value); index++ {
+		switch value[index] {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		case '=':
+			if depth == 0 {
+				name := strings.TrimSpace(value[:index])
+				if !tufIdentifier.MatchString(name) || !kubeflowSimpleIdentifier(name) {
+					return "", "", true
+				}
+				return name, strings.TrimSpace(value[index+1:]), true
+			}
+		}
+	}
+	return "", "", false
+}
 
-def candidate_func(node):
-    if form == "from":
-        return isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == "Updater"
-    return (
-        isinstance(node, ast.Attribute) and node.attr == "Updater"
-        and isinstance(node.value, ast.Attribute) and node.value.attr == "ngclient"
-        and isinstance(node.value.value, ast.Name) and isinstance(node.value.value.ctx, ast.Load)
-        and node.value.value.id == "tuf"
-    )
+func tufContainsIdentifier(line, identifier string) bool {
+	for start := 0; start < len(line); {
+		index := strings.Index(line[start:], identifier)
+		if index < 0 {
+			return false
+		}
+		index += start
+		leftOK := index == 0 || !lexicalIdentifierByte(line[index-1])
+		right := index + len(identifier)
+		rightOK := right == len(line) || !lexicalIdentifierByte(line[right])
+		if leftOK && rightOK {
+			return true
+		}
+		start = index + len(identifier)
+	}
+	return false
+}
 
-calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and candidate_func(node.func)]
-if len(calls) != 1:
-    emit("unsupported", "candidate_call_count")
-    raise SystemExit(0)
-call = calls[0]
-allowed_loads = set()
-if form == "from":
-    allowed_loads.add(id(call.func))
-else:
-    allowed_loads.add(id(call.func.value.value))
-for node in ast.walk(tree):
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == binding and id(node) not in allowed_loads:
-        emit("unsupported", "binding_dynamic_use")
-        raise SystemExit(0)
+func tufTopLevelBindingRebound(line, binding string) bool {
+	if strings.HasPrefix(line, "global ") || strings.HasPrefix(line, "nonlocal ") || strings.HasPrefix(line, "del ") || strings.HasPrefix(line, "for "+binding+" ") || strings.Contains(line, " as "+binding) || strings.HasPrefix(line, "case "+binding) {
+		return true
+	}
+	assignment := regexp.MustCompile(`^` + regexp.QuoteMeta(binding) + `[ \t]*=`)
+	return assignment.MatchString(line)
+}
 
-if any(isinstance(arg, ast.Starred) for arg in call.args) or any(keyword.arg is None for keyword in call.keywords):
-    emit("unsupported", "star_arguments")
-    raise SystemExit(0)
-if len(call.args) > len(SHARED):
-    emit("unsupported", "positional_bootstrap")
-    raise SystemExit(0)
+func tufUnsupported(category string) tufObservation {
+	return tufObservation{state: "unsupported", category: category}
+}
 
-names = [keyword.arg for keyword in call.keywords]
-if len(names) != len(set(names)):
-    emit("unsupported", "duplicate_argument")
-    raise SystemExit(0)
-if any(name not in set(SHARED + ["bootstrap"]) for name in names):
-    emit("unsupported", "unknown_keyword")
-    raise SystemExit(0)
-positional = set(SHARED[:len(call.args)])
-if positional.intersection(names):
-    emit("unsupported", "duplicate_argument")
-    raise SystemExit(0)
-bound = positional.union(name for name in names if name != "bootstrap")
-if not {"metadata_dir", "metadata_base_url"}.issubset(bound):
-    emit("unsupported", "missing_required_argument")
-    raise SystemExit(0)
-
-emit("declared", present=("bootstrap" in names))
-`
+// tufSimpleExpression mirrors the source-reader contract: values are one
+// masked string literal, one simple identifier, Python's three literal names,
+// or a decimal number. Calls and compound expressions are intentionally
+// unsupported because this is a lexical observer, not a Python parser.
+func tufSimpleExpression(value string) bool {
+	return kubeflowSimpleExpression(value)
+}
