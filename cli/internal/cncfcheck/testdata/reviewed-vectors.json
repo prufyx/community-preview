@@ -1,5 +1,5 @@
 [
-  {
+{
     "project": "argo-cd",
     "ruleId": "argo-cd.required-rbac-inheritance.3-0",
     "cases": [
@@ -217,7 +217,7 @@
       }
     ]
   },
-  {
+{
     "project": "buildpacks",
     "ruleId": "buildpacks.lifecycle-platform-api-support.0-16-5-to-0-17-7",
     "cases": [
@@ -461,7 +461,7 @@
       }
     ]
   },
-  {
+{
     "project": "cilium",
     "ruleId": "cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7",
     "cases": [
@@ -652,7 +652,7 @@
       }
     ]
   },
-  {
+{
     "project": "cilium",
     "ruleId": "cilium.nonempty-requires-rejected.1-19",
     "cases": [
@@ -780,7 +780,201 @@
       }
     ]
   },
-  {
+{
+    "project": "cloudnativepg",
+    "ruleId": "cloudnativepg.cluster-reference-immutable.1-29-to-1-30",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.29.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.30.0",
+                "facts": [
+                  {
+                    "id": "component.cloudnativepg.cluster_reference_changed",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.29.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.30.0",
+                "facts": [
+                  {
+                    "id": "component.cloudnativepg.cluster_reference_changed",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.29.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.30.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.29.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloudnative-pg/cloudnative-pg",
+                "version": "1.29.1",
+                "facts": [
+                  {
+                    "id": "component.cloudnativepg.cluster_reference_changed",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
+    "project": "container-network-interface-cni",
+    "ruleId": "cni-spec.non-list-configuration-removed.0-4-0-to-1-0-0",
+    "cases": [
+      {
+        "name": "legacy-label-is-not-target-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "declared", "enumValue": "single_plugin"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "declared", "boolValue": true}, {"id": "component.cni_spec.inspected_spec_version", "state": "declared", "enumValue": "0.4.0"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "target-label-only-edit-remains-blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "declared", "enumValue": "single_plugin"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "declared", "boolValue": true}, {"id": "component.cni_spec.inspected_spec_version", "state": "declared", "enumValue": "1.0.0"}]}]}
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "target-plugin-list-pass",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "declared", "enumValue": "plugin_list"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "declared", "boolValue": true}, {"id": "component.cni_spec.inspected_spec_version", "state": "declared", "enumValue": "1.0.0"}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "missing-migration-intent-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "declared", "enumValue": "single_plugin"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "unsupported"}, {"id": "component.cni_spec.inspected_spec_version", "state": "declared", "enumValue": "0.4.0"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "mixed-shape-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "unsupported"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "declared", "boolValue": true}, {"id": "component.cni_spec.inspected_spec_version", "state": "unsupported"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "wrong-endpoint-pair-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "0.4.1", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:generic/cni-configuration-spec", "version": "1.0.0", "facts": [{"id": "component.cni_spec.configuration_shape", "state": "declared", "enumValue": "single_plugin"}, {"id": "component.cni_spec.configuration_spec_migration_planned", "state": "declared", "boolValue": true}, {"id": "component.cni_spec.inspected_spec_version", "state": "declared", "enumValue": "0.4.0"}]}]}
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "containerd",
     "ruleId": "containerd.cri-v1alpha2-removed.2-0",
     "cases": [
@@ -908,7 +1102,135 @@
       }
     ]
   },
-  {
+{
+    "project": "contour",
+    "ruleId": "contour.gateway-v1alpha1-removed.1-19-0-to-1-20-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.19.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.20.0",
+                "facts": [
+                  {
+                    "id": "component.contour.gateway_v1alpha1_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.19.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.20.0",
+                "facts": [
+                  {
+                    "id": "component.contour.gateway_v1alpha1_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.19.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.20.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.19.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/projectcontour/contour",
+                "version": "1.19.0",
+                "facts": [
+                  {
+                    "id": "component.contour.gateway_v1alpha1_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "coredns",
     "ruleId": "coredns.federation-removed.1-7",
     "cases": [
@@ -1126,7 +1448,7 @@
       }
     ]
   },
-  {
+{
     "project": "cortex",
     "ruleId": "cortex.querier-at-modifier-flag-removed.1-21",
     "cases": [
@@ -1779,7 +2101,7 @@
       }
     ]
   },
-  {
+{
     "project": "cri-o",
     "ruleId": "cri-o.artifact-short-name-rejected.1-35",
     "cases": [
@@ -2000,7 +2322,7 @@
       }
     ]
   },
-  {
+{
     "project": "crossplane",
     "ruleId": "crossplane.composition-resources-mode-removed.1-20-2-0",
     "cases": [
@@ -2243,7 +2565,7 @@
       }
     ]
   },
-  {
+{
     "project": "cubefs",
     "ruleId": "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2",
     "cases": [
@@ -2464,7 +2786,7 @@
       }
     ]
   },
-  {
+{
     "project": "dapr",
     "ruleId": "dapr.scheduler-persisted-data-loss.1-14-to-1-15",
     "cases": [
@@ -2744,7 +3066,63 @@
       }
     ]
   },
-  {
+{
+    "project": "distribution",
+    "ruleId": "distribution.schema1-manifest-removed.2-8-3-to-3-0-0",
+    "cases": [
+      {
+        "name": "schema1-blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/distribution/distribution", "version": "2.8.3", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/distribution/distribution", "version": "3.0.0", "facts": [{"id": "component.distribution.image_manifest_format", "state": "declared", "enumValue": "docker_schema1"}]}]}
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "docker-schema2-pass",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/distribution/distribution", "version": "2.8.3", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/distribution/distribution", "version": "3.0.0", "facts": [{"id": "component.distribution.image_manifest_format", "state": "declared", "enumValue": "docker_schema2"}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "oci-image-manifest-pass",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/distribution/distribution", "version": "2.8.3", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/distribution/distribution", "version": "3.0.0", "facts": [{"id": "component.distribution.image_manifest_format", "state": "declared", "enumValue": "oci_image_manifest"}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "unsupported-manifest-kind-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/distribution/distribution", "version": "2.8.3", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/distribution/distribution", "version": "3.0.0", "facts": [{"id": "component.distribution.image_manifest_format", "state": "unsupported"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "wrong-endpoint-pair-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/distribution/distribution", "version": "2.8.2", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/distribution/distribution", "version": "3.0.0", "facts": [{"id": "component.distribution.image_manifest_format", "state": "declared", "enumValue": "docker_schema1"}]}]}
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "dragonfly",
     "ruleId": "dragonfly.manager-retained-debug.2-2-3-2-2-4",
     "cases": [
@@ -3986,7 +4364,7 @@
       }
     ]
   },
-  {
+{
     "project": "dragonfly",
     "ruleId": "dragonfly.scheduler-retained-debug.2-2-3-2-2-4",
     "cases": [
@@ -5228,7 +5606,135 @@
       }
     ]
   },
-  {
+{
+      "project": "emissary-ingress",
+      "ruleId": "emissary-ingress.metrics-endpoint-removed.3-10-to-4-0",
+      "cases": [
+        {
+          "name": "removed-metrics-option-blocked",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "3.10.0",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "4.0.1",
+                  "facts": [
+                    {
+                      "id": "component.emissary.removed_metrics_endpoint_present",
+                      "state": "declared",
+                      "boolValue": true
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "BLOCKED"
+        },
+        {
+          "name": "removed-metrics-option-absent-pass",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "3.10.0",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "4.0.1",
+                  "facts": [
+                    {
+                      "id": "component.emissary.removed_metrics_endpoint_present",
+                      "state": "declared",
+                      "boolValue": false
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "PASS"
+        },
+        {
+          "name": "missing-argv-fact-unknown",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "3.10.0",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "4.0.1",
+                  "facts": []
+                }
+              ]
+            }
+          },
+          "status": "UNKNOWN"
+        },
+        {
+          "name": "wrong-transition-unknown",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "3.9.0",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/emissary-ingress/emissary",
+                  "version": "4.0.1",
+                  "facts": [
+                    {
+                      "id": "component.emissary.removed_metrics_endpoint_present",
+                      "state": "declared",
+                      "boolValue": true
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "UNKNOWN"
+        }
+      ]
+    },
+{
     "project": "envoy",
     "ruleId": "envoy.xds-v2-removed.1-18",
     "cases": [
@@ -5356,7 +5862,7 @@
       }
     ]
   },
-  {
+{
     "project": "etcd",
     "ruleId": "etcd.v2-proxy-flags-removed.3-6",
     "cases": [
@@ -5484,7 +5990,7 @@
       }
     ]
   },
-  {
+{
     "project": "falco",
     "ruleId": "falco.deprecated-cli-flags-removed.0-40-to-0-41",
     "cases": [
@@ -5893,7 +6399,7 @@
       }
     ]
   },
-  {
+{
     "project": "falco",
     "ruleId": "falco.deprecated-cli-flags-removed.0-40-to-0-42",
     "cases": [
@@ -6466,7 +6972,7 @@
       }
     ]
   },
-  {
+{
     "project": "fluentd",
     "ruleId": "fluentd.ruby-minimum.1-16-to-1-17",
     "cases": [
@@ -6652,7 +7158,7 @@
       }
     ]
   },
-  {
+{
     "project": "flux",
     "ruleId": "flux.beta-api-removal.2-7",
     "cases": [
@@ -6780,7 +7286,7 @@
       }
     ]
   },
-  {
+{
     "project": "harbor",
     "ruleId": "harbor.installer-config-format.1-8",
     "cases": [
@@ -6998,7 +7504,7 @@
       }
     ]
   },
-  {
+{
     "project": "helm",
     "ruleId": "helm.post-renderer-argument-form.4-0",
     "cases": [
@@ -7126,7 +7632,7 @@
       }
     ]
   },
-  {
+{
     "project": "in-toto",
     "ruleId": "in-toto.run-legacy-key-argument-removed.2-2-to-3-0",
     "cases": [
@@ -7290,7 +7796,7 @@
       }
     ]
   },
-  {
+{
     "project": "istio",
     "ruleId": "istio.compatibility-profile-1-20-removed.1-24",
     "cases": [
@@ -7418,7 +7924,7 @@
       }
     ]
   },
-  {
+{
     "project": "jaeger",
     "ruleId": "jaeger.explicit-config-required-for-non-memory.1-76-2-20",
     "cases": [
@@ -7786,7 +8292,7 @@
       }
     ]
   },
-  {
+{
     "project": "karmada",
     "ruleId": "karmada.application-purge-mode-legacy-values-removed.1-19",
     "cases": [
@@ -8309,7 +8815,7 @@
       }
     ]
   },
-  {
+{
     "project": "keda",
     "ruleId": "keda.external-scaler-legacy-tls-transport.2-17",
     "cases": [
@@ -8527,7 +9033,7 @@
       }
     ]
   },
-  {
+{
     "project": "keycloak",
     "ruleId": "keycloak.oidc-fragment-response-parameter-rejected.26-7-2-to-26-7-3",
     "cases": [
@@ -8907,7 +9413,7 @@
       }
     ]
   },
-  {
+{
     "project": "knative",
     "ruleId": "knative.serving-startup-http-named-port.1-22-to-1-23",
     "cases": [
@@ -9102,7 +9608,7 @@
       }
     ]
   },
-  {
+{
     "project": "kubeedge",
     "ruleId": "kubeedge.keadm-init-profile-version-selector.1-18-to-1-19",
     "cases": [
@@ -9524,7 +10030,7 @@
       }
     ]
   },
-  {
+{
     "project": "kubeflow",
     "ruleId": "kubeflow.kfp-create-component-from-func-removed.1-8-22-to-2-0-0",
     "cases": [
@@ -9683,7 +10189,7 @@
       }
     ]
   },
-  {
+{
     "project": "kubernetes",
     "ruleId": "kubernetes.in-tree-dockershim-removed.1-24",
     "cases": [
@@ -9811,7 +10317,53 @@
       }
     ]
   },
-  {
+{
+    "project": "kubevirt",
+    "ruleId": "kubevirt.interface-binding-cardinality.1-8-4-to-1-9-0",
+    "cases": [
+      {
+        "name": "exactly-one-binding",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.8.4", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.9.0", "facts": [{"id": "component.kubevirt.interface_binding_cardinality_invalid", "state": "declared", "boolValue": false}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "zero-bindings-blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.8.4", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.9.0", "facts": [{"id": "component.kubevirt.interface_binding_cardinality_invalid", "state": "declared", "boolValue": true}]}]}
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing-native-path",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.8.4", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.9.0", "facts": []}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "wrong-version-pair",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.8.5", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/kubevirt/kubevirt", "version": "1.9.0", "facts": [{"id": "component.kubevirt.interface_binding_cardinality_invalid", "state": "declared", "boolValue": true}]}]}
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "kuma",
     "ruleId": "kuma.deprecated-exclude-uid-flags-removed.2-8-to-2-9",
     "cases": [
@@ -10220,7 +10772,7 @@
       }
     ]
   },
-  {
+{
     "project": "kyverno",
     "ruleId": "kyverno.reports-chunk-size-removed.1-13",
     "cases": [
@@ -10837,7 +11389,7 @@
       }
     ]
   },
-  {
+{
     "project": "linkerd",
     "ruleId": "linkerd.mtls-identity-selector-minitems.2-13-2-14",
     "cases": [
@@ -11431,7 +11983,7 @@
       }
     ]
   },
-  {
+{
     "project": "longhorn",
     "ruleId": "longhorn.intermediate-1-8.1-9",
     "cases": [
@@ -11585,7 +12137,135 @@
       }
     ]
   },
-  {
+{
+    "project": "metallb",
+    "ruleId": "metallb.legacy-configmap-removed.0-12-1-to-0-13-2",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.12.1",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.13.2",
+                "facts": [
+                  {
+                    "id": "component.metallb.legacy_configmap_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.12.1",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.13.2",
+                "facts": [
+                  {
+                    "id": "component.metallb.legacy_configmap_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.12.1",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.13.2",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.12.1",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/metallb/metallb",
+                "version": "0.12.1",
+                "facts": [
+                  {
+                    "id": "component.metallb.legacy_configmap_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "opa",
     "ruleId": "opa.v0-consumer-producer-option.1-0",
     "cases": [
@@ -11833,7 +12513,134 @@
       }
     ]
   },
-  {
+{
+      "project": "openfga",
+      "ruleId": "openfga.oidc-required-fields.1-17-1-to-1-18-0",
+      "cases": [
+        {
+          "name": "blocked",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.17.1",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.18.0",
+                  "facts": [
+                    {
+                      "id": "component.openfga.oidc_required_fields_missing",
+                      "state": "declared",
+                      "boolValue": true
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "BLOCKED"
+        },
+        {
+          "name": "satisfied",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.17.1",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.18.0",
+                  "facts": [
+                    {
+                      "id": "component.openfga.oidc_required_fields_missing",
+                      "state": "declared",
+                      "boolValue": false
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "PASS"
+        },
+        {
+          "name": "missing",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.17.1",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.18.0",
+                  "facts": []
+                }
+              ]
+            }
+          },
+          "status": "UNKNOWN"
+        },
+        {
+          "name": "unsupported",
+          "input": {
+            "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+            "authority": "OPERATOR_DECLARED_MINIMIZED",
+            "current": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.17.1",
+                  "facts": []
+                }
+              ]
+            },
+            "proposed": {
+              "components": [
+                {
+                  "component": "pkg:github/openfga/openfga",
+                  "version": "1.18.0",
+                  "facts": [
+                    {
+                      "id": "component.openfga.oidc_required_fields_missing",
+                      "state": "unsupported"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "status": "UNKNOWN"
+        }
+      ]
+    },
+{
     "project": "opentelemetry",
     "ruleId": "opentelemetry.logging-exporter-removed.0-111",
     "cases": [
@@ -12051,7 +12858,7 @@
       }
     ]
   },
-  {
+{
     "project": "rook",
     "ruleId": "rook.helm-intermediate-1-19-5.1-20",
     "cases": [
@@ -12205,7 +13012,7 @@
       }
     ]
   },
-  {
+{
     "project": "rook",
     "ruleId": "rook.minimum-kubernetes.1-20",
     "cases": [
@@ -12330,7 +13137,7 @@
       }
     ]
   },
-  {
+{
     "project": "spire",
     "ruleId": "spire.removed-entry-ttl.1-11",
     "cases": [
@@ -13035,7 +13842,7 @@
       }
     ]
   },
-  {
+{
     "project": "strimzi",
     "ruleId": "strimzi.kafka-v1beta2-api-removed.1-0",
     "cases": [
@@ -13919,7 +14726,7 @@
       }
     ]
   },
-  {
+{
     "project": "tekton",
     "ruleId": "tekton.metrics-protocol-prometheus.1-10",
     "cases": [
@@ -14542,7 +15349,7 @@
       }
     ]
   },
-  {
+{
     "project": "thanos",
     "ruleId": "thanos.receive-store-flags-removed.0-42",
     "cases": [
@@ -14670,7 +15477,7 @@
       }
     ]
   },
-  {
+{
     "project": "the-update-framework-tuf",
     "ruleId": "tuf.updater-bootstrap-keyword.6-to-7",
     "cases": [
@@ -14829,7 +15636,7 @@
       }
     ]
   },
-  {
+{
     "project": "velero",
     "ruleId": "velero.crd-update-order.1-18",
     "cases": [
@@ -14957,7 +15764,7 @@
       }
     ]
   },
-  {
+{
     "project": "velero",
     "ruleId": "velero.intermediate-1-17.1-18",
     "cases": [
@@ -15035,7 +15842,7 @@
       }
     ]
   },
-  {
+{
     "project": "vitess",
     "ruleId": "vitess.multi-statement-dba-rpc-rejected.23-0",
     "cases": [

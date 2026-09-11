@@ -14,7 +14,7 @@ completed packet locally:
 
 ```sh
 cd cli
-python3 -B scripts/contribution_packet.py validate \
+go run ./cmd/prufyx-maintainer contribution validate \
   --packet examples/contributions/synthetic-new-identity-packet.json
 ```
 
@@ -22,7 +22,7 @@ For a new packet, scaffold the closed object shape from the identifiers and
 versions you already reviewed:
 
 ```sh
-python3 -B scripts/contribution_packet.py scaffold \
+go run ./cmd/prufyx-maintainer contribution scaffold \
   --kind existing_project_transition --project-slug PROJECT \
   --display-name 'PROJECT' --repository https://github.com/OWNER/REPOSITORY \
   --current-version X.Y.Z --proposed-version A.B.C \
@@ -39,7 +39,7 @@ The sole target-only scaffold is fixed to the reviewed TiKV component, target
 and operation:
 
 ```sh
-python3 -B scripts/contribution_packet.py scaffold \
+go run ./cmd/prufyx-maintainer contribution scaffold \
   --kind existing_project_target_preflight \
   --project-slug tikv --display-name TiKV \
   --repository https://github.com/tikv/tikv \
@@ -66,7 +66,7 @@ under `SOURCE_ROOT/sha256/<declared-file-digest>`:
 
 ```sh
 cd cli
-python3 -B scripts/contribution_packet.py verify-sources \
+go run ./cmd/prufyx-maintainer contribution verify-sources \
   --packet PRIVATE-packet.json --source-root SOURCE_ROOT
 ```
 
@@ -81,11 +81,9 @@ claim or license, admit support, or authorize a rule, signing, or publication.
 
 ## Self-service project intake
 
-Open the [**Propose a project or transition** issue form](../../.github/ISSUE_TEMPLATE/new-project.yml)
+Open the [**Propose a project or transition** issue form](https://github.com/prufyx/community-preview/issues/new?template=new-project.yml)
 before preparing a packet. In GitHub, use **Issues → New issue → Propose a
-project or transition**. If this repository is private, repository access is
-required to open or submit the form; public submissions remain closed until the
-maintainer enables them. It collects the stable project identity, canonical
+project or transition**. It collects the stable project identity, canonical
 repository, exact endpoint versions, immutable source references, requested
 support kind, a bounded claim and its `UNKNOWN` boundary, sanitized test
 expectations, and the declared license/attribution disposition. The form is an
@@ -98,7 +96,7 @@ Run the offline validator from `cli/` and attach its receipt to the issue or
 review record:
 
 ```sh
-python3 -B scripts/contribution_packet.py validate \
+go run ./cmd/prufyx-maintainer contribution validate \
   --packet examples/contributions/karmada-1.18.3-to-1.19.0-candidate.json
 ```
 
@@ -121,7 +119,7 @@ Run that check locally with:
 
 ```sh
 cd cli
-python3 -B scripts/check_contribution_candidates.py
+go run ./cmd/prufyx-maintainer contribution-candidates
 ```
 
 Candidate names are deterministic, regular non-symlink JSON files. The gate
@@ -223,7 +221,7 @@ references and short line excerpts for the `purgeMode` enum change; it does not
 add or promote a rule. Validate it from `cli/` with:
 
 ```sh
-python3 -B scripts/contribution_packet.py validate \
+go run ./cmd/prufyx-maintainer contribution validate \
   --packet examples/contributions/karmada-1.18.3-to-1.19.0-candidate.json
 ```
 
@@ -245,7 +243,7 @@ tag authenticity, approve the scoped rule, or prove registry, store, request,
 ordinary-image or runtime behavior. Validate it from `cli/` with:
 
 ```sh
-python3 -B scripts/contribution_packet.py validate \
+go run ./cmd/prufyx-maintainer contribution validate \
   --packet examples/contributions/cri-o-artifact-named-reference-1.34.0-to-1.35.0-candidate.json
 ```
 
@@ -261,11 +259,10 @@ python3 -B scripts/contribution_packet.py validate \
    an appropriate bounded rule candidate where one is justified.
 3. A maintainer records technical acceptance for the reviewed candidate in the
    same record, with the implementation and test evidence identified there.
-4. Metadata-only rules can use existing facts and rule operators when those
-   facts are manually declared by an operator; follow the [knowledge-update
-   handoff](knowledge-updates.md#assemble-an-already-signed-package). New fact
-   types or engine behavior require a CLI release, while extending native-input
-   preparation can also require a CLI update. Any rule/data change still passes
+4. Metadata-only rules can reuse existing canonical facts and admitted raw input
+   formats after review; follow the [knowledge-update handoff](knowledge-updates.md#assemble-an-already-signed-package).
+   New fact types or engine behavior require a CLI release, while extending
+   native-input preparation can also require a CLI update. Any rule/data change still passes
    compiled-registry admission, vectors, source-expiry checks, and a future
    maintainer signing/publication gate. The current assembler/import-update path
    is not a production publisher.

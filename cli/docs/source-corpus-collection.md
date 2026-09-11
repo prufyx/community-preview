@@ -1,6 +1,6 @@
 # Private source-corpus collections
 
-`source_corpus_collection.py` is a maintainer-only, offline verifier for a
+`source-corpus verify-collection` is a maintainer-only, offline verifier for a
 bounded collection of already retained public-source shards. It reads only
 manifests and content-addressed objects named by a local collection index. It
 does not fetch URLs, authenticate upstream ownership or tags, evaluate rules,
@@ -12,7 +12,7 @@ that root:
 ```sh
 cd cli
 umask 077
-python3 -B scripts/source_corpus_collection.py verify \
+go run ./cmd/prufyx-maintainer source-corpus verify-collection \
   --root /private/prufyx/source-corpus \
   --index collection-index.json > /private/prufyx/collection-receipt.json
 chmod 0600 /private/prufyx/collection-receipt.json
@@ -70,7 +70,7 @@ root=$(cd "$root" && pwd -P)
 cp -R examples/source-corpus-collection/. "$root"/
 find "$root" -type d -exec chmod 0700 {} +
 find "$root" -type f -exec chmod 0600 {} +
-python3 -B scripts/source_corpus_collection.py verify \
+go run ./cmd/prufyx-maintainer source-corpus verify-collection \
   --root "$root" --index collection-index.json
 rm -rf "$root"
 ```
@@ -80,7 +80,7 @@ identities while sharing one retained object, demonstrating collection-level
 byte deduplication. This fixture is not an upstream source, compatibility
 rule, or release claim.
 
-For each shard, the existing `source_corpus.py` contract remains authoritative,
-including exact LF-split span hashing without a trailing separator. The
-collection layer composes those verified receipts and adds only bounded
-cross-shard identity and count checks.
+For each shard, the single-shard `source-corpus` verifier contract remains
+authoritative, including exact LF-split span hashing without a trailing
+separator. The collection layer composes those verified receipts and adds only
+bounded cross-shard identity and count checks.

@@ -41,7 +41,7 @@ set +e
 code=$?
 set -e
 [ "$code" -eq 11 ]
-python3 -m json.tool demo.json
+cat demo.json
 ```
 
 `demo-prometheus-mode` takes no flags, files, time, credentials, or cluster
@@ -71,8 +71,8 @@ collection step invokes local `kubectl` against the context you name. It reads
 the already disclosed component-configuration workload surfaces and adds no
 Kubernetes verb or resource beyond the v2 component profile. A kubeconfig may
 invoke credential plugins; the acknowledgement flag is required. The collector
-also requires Bash, Python 3, `kubectl`, `jq` 1.7 or newer, `shasum`, `mktemp`,
-`find`, `cp`, and `chmod`.
+requires the native `prufyx-collector` executable and caller-trusted `kubectl`;
+no Python, jq, or shell projection runtime participates.
 
 Review the [collector request and data scope](local-collection.md)
 before running it. Then collect the producer-v3 profile into a new private
@@ -80,7 +80,7 @@ directory:
 
 ```sh
 mkdir -m 700 /absolute/private/prometheus-observation
-bash cli/scripts/kubeconfig-api-snapshot.sh \
+cli/bin/prufyx-collector collect \
   /absolute/private/prometheus-observation \
   --kubeconfig /absolute/private/kubeconfig \
   --acknowledge-kubeconfig-exec-risk \
@@ -88,9 +88,9 @@ bash cli/scripts/kubeconfig-api-snapshot.sh \
   --component-configuration-profile v3 \
   my-context
 
-observation_root="$(find /absolute/private/prometheus-observation \
-  -mindepth 1 -maxdepth 1 -type d -print -quit)"
-captured_at="$(jq -er '.generatedAt' "$observation_root/index.json")"
+observation_root="/absolute/private/prometheus-observation/<capture-directory>"
+# Copy generatedAt from the collector's JSON index before evaluating.
+captured_at="<index-generatedAt>"
 evaluation_now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
@@ -152,10 +152,7 @@ code=$?
 set -e
 
 [ "$code" -eq 11 ] || exit 1
-printf '%s\n' "$report" | jq '{aggregate: .result.decision,
-  scopedStatus: .data.claim.status,
-  reason: .data.claim.reason,
-  nextAction: .data.claim.nextAction}'
+printf '%s\n' "$report"
 ```
 
 The command reads only the named local observation and proposed file. It does

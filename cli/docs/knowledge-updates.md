@@ -114,7 +114,7 @@ preparation can require a CLI update even without a new fact type.
 
 ## Assemble an already signed package
 
-Maintainers can use `python3 cli/scripts/package-knowledge.py --help` to assemble
+Maintainers can use `go run ./cli/cmd/prufyx-maintainer package-knowledge --help` to assemble
 an operator-prepared tree of signed metadata and content-addressed target bytes
 into the bounded canonical archive. The helper is offline. It does not sign,
 validate signatures, change review dates, or establish that source rules are

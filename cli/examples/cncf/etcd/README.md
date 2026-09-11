@@ -9,12 +9,12 @@ etcd process, cluster, or customer configuration.
 Run it with an already-built Community executable from this source checkout:
 
 ```sh
-./examples/cncf/etcd/run.sh /absolute/path/to/prufyx-community
+prufyx community-preview example cncf-etcd
 ```
 
-The script creates all temporary input and output files with mode `0600`, uses
-no network, removes its temporary directory, and checks that the executable is
-unchanged. The input contains the known atom `--enable-v2=false`. The value
+The Go command creates all temporary input and output files with mode `0600`,
+uses no network, and removes its temporary directory. The retained `run.sh`
+entrypoint is a compatibility shim for an already-built Community executable. The input contains the known atom `--enable-v2=false`. The value
 `false` does not mean that the removed option is absent: the atom itself is
 present in the complete effective argv, so preparation emits
 `component.etcd.removed_v2_proxy_flags_present=true`. The subsequent check

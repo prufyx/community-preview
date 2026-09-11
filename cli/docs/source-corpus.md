@@ -5,13 +5,13 @@ source bytes. It retains exact bytes for repeatable review across projects. It
 is not a changelog downloader, a client knowledge package, a source of
 compatibility authority, or a training dataset.
 
-The verifier uses only Python's standard library. It never fetches a URL,
-starts a subprocess, invokes a model, evaluates a customer change, signs data,
-or publishes a rule or package.
+The `source-corpus` maintainer command is implemented in Go. It never fetches a
+URL, starts a subprocess, invokes a model, evaluates a customer change, signs
+data, or publishes a rule or package.
 
 ```sh
 cd cli
-python3 -B scripts/source_corpus.py verify \
+go run ./cmd/prufyx-maintainer source-corpus verify \
   --manifest examples/corpus/synthetic-corpus.json \
   --object-root examples/corpus/objects
 ```

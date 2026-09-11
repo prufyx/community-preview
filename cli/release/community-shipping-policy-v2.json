@@ -273,24 +273,12 @@
       "role": "community-governance"
     },
     {
-      "path": ".github/workflows/_community-build.yml",
-      "role": "ci"
+      "path": ".github/ISSUE_TEMPLATE/new-project.yml",
+      "role": "community-governance"
     },
     {
-      "path": ".github/workflows/community-ci.yml",
-      "role": "ci"
-    },
-    {
-      "path": ".github/workflows/community-release.yml",
-      "role": "ci"
-    },
-    {
-      "path": ".github/workflows/community-publish.yml",
-      "role": "ci"
-    },
-    {
-      "path": ".github/workflows/community-source-gate.yml",
-      "role": "ci"
+      "path": ".github/ISSUE_TEMPLATE/source-preview-feedback.md",
+      "role": "community-governance"
     },
     {
       "path": "CHANGELOG.md",
@@ -305,6 +293,10 @@
       "role": "documentation"
     },
     {
+      "path": "SOURCE-PREVIEW.json",
+      "role": "release-metadata"
+    },
+    {
       "path": "SECURITY.md",
       "role": "documentation"
     },
@@ -317,6 +309,26 @@
       "role": "build-tool"
     },
     {
+      "path": "cli/cmd/prufyx-collector",
+      "recursive": true,
+      "role": "operator-tool"
+    },
+    {
+      "path": "cli/internal/localcollector",
+      "recursive": true,
+      "role": "operator-tool"
+    },
+    {
+      "path": "cli/cmd/prufyx-offline-boundary",
+      "recursive": true,
+      "role": "operator-test"
+    },
+    {
+      "path": "cli/internal/offlineboundary",
+      "recursive": true,
+      "role": "operator-test"
+    },
+    {
       "path": "cli/docs/community-checks.md",
       "role": "documentation"
     },
@@ -326,6 +338,30 @@
     },
     {
       "path": "cli/docs/local-collection.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/offline-boundary.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/native-format-preflights.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/openfga-oidc-upgrade.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/cloudevents-structured-json.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/spiffe-x509-svid.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/tikv-gcp-v2-wif-backup.md",
       "role": "documentation"
     },
     {
@@ -345,49 +381,13 @@
       "role": "documentation"
     },
     {
-      "path": "cli/release/community-release-gate.py",
-      "role": "release-tool"
-    },
-    {
-      "path": "cli/release/community-staging-receipt.py",
-      "role": "release-tool"
-    },
-    {
       "path": "cli/release/community-shipping-policy-v1.json",
       "role": "release-policy"
-    },
-    {
-      "path": "cli/release/test_community_release_gate.py",
-      "role": "release-test"
-    },
-    {
-      "path": "cli/release/test_community_staging_receipt.py",
-      "role": "release-test"
-    },
-    {
-      "path": "cli/release/test_community_publisher_contract.py",
-      "role": "release-test"
     },
     {
       "path": "cli/examples/community",
       "recursive": true,
       "role": "example"
-    },
-    {
-      "path": "cli/scripts/cert-manager-projection.jq",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/classify-kubectl-stderr.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/component-configuration-adapter-v3.jq",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/component-configuration-adapter.jq",
-      "role": "operator-tool"
     },
     {
       "path": "cli/scripts/component-configuration-adapters-v3.json",
@@ -398,35 +398,7 @@
       "role": "operator-data"
     },
     {
-      "path": "cli/scripts/component-configuration-aggregate-v3.jq",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/component-configuration-aggregate.jq",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/crd-final-merge.jq",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/crd-page-projection.jq",
-      "role": "operator-tool"
-    },
-    {
       "path": "cli/scripts/kubeconfig-api-snapshot.sh",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/reject-duplicate-json.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/run-kubectl-bounded.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/run-local-json-stage-bounded.py",
       "role": "operator-tool"
     },
     {
@@ -486,30 +458,6 @@
       "role": "documentation"
     },
     {
-      "path": "cli/scripts/package-knowledge.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_package_knowledge.py",
-      "role": "operator-test"
-    },
-    {
-      "path": "cli/scripts/contribution_packet.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_contribution_packet.py",
-      "role": "operator-test"
-    },
-    {
-      "path": "cli/scripts/check_contribution_candidates.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_contribution_candidates.py",
-      "role": "operator-test"
-    },
-    {
       "path": "cli/docs/upstream-contributions.md",
       "role": "documentation"
     },
@@ -521,22 +469,6 @@
     {
       "path": ".github/ISSUE_TEMPLATE/upstream-evidence-contribution.md",
       "role": "community-governance"
-    },
-    {
-      "path": "cli/scripts/source_corpus.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/source_corpus_collection.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_source_corpus_collection.py",
-      "role": "operator-test"
-    },
-    {
-      "path": "cli/scripts/test_source_corpus.py",
-      "role": "operator-test"
     },
     {
       "path": "cli/docs/source-corpus.md",
@@ -555,14 +487,6 @@
       "path": "cli/examples/source-corpus-collection",
       "recursive": true,
       "role": "example"
-    },
-    {
-      "path": "cli/scripts/public_source_capture.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_public_source_capture.py",
-      "role": "operator-test"
     },
     {
       "path": "cli/docs/public-source-capture.md",
@@ -594,16 +518,14 @@
       "role": "documentation"
     },
     {
-      "path": "cli/scripts/generate_support_inventory.py",
-      "role": "operator-tool"
+      "path": "cli/cmd/prufyx-maintainer",
+      "recursive": true,
+      "role": "maintainer-tool"
     },
     {
-      "path": "cli/scripts/import_selected_source_records.py",
-      "role": "operator-tool"
-    },
-    {
-      "path": "cli/scripts/test_support_inventory.py",
-      "role": "operator-test"
+      "path": "cli/internal/maintainer",
+      "recursive": true,
+      "role": "maintainer-tool"
     }
   ],
   "schemaVersion": "prufyx.io/community-shipping-policy/v2",

@@ -2,21 +2,21 @@ package currentbundle
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/prufyx/prufyx-cli/internal/localcollector"
 	"github.com/prufyx/prufyx-cli/internal/observation"
 )
 
@@ -150,51 +150,27 @@ func TestBuildPartialUnauthorizedObservationPreservesUnknownKubernetes(t *testin
 }
 
 func TestBuildFromActualOfflineCollectorOutputs(t *testing.T) {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("could not locate test source")
-	}
-	repo := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", ".."))
-	script := filepath.Join(repo, "cli", "scripts", "kubeconfig-api-snapshot.sh")
-	fake := filepath.Join(repo, "cli", "scripts", "testdata", "fake-kubectl.sh")
 	for _, mode := range []string{"component-success", "unauthorized", "server-version-boringcrypto", "server-version-clean", "server-version-malicious-suffix", "server-version-malicious-core-suffix", "server-version-malicious-core-suffix-boringcrypto", "server-version-malicious-build-suffix", "server-version-malicious-fourth-segment", "server-version-malicious-boringcrypto-suffix", "server-version-newline", "server-version-nul", "server-version-long"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
-			bin := filepath.Join(root, "bin")
-			if err := os.Mkdir(bin, 0o700); err != nil {
-				t.Fatal(err)
-			}
-			kubectl := filepath.Join(bin, "kubectl")
-			data, err := os.ReadFile(fake)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(kubectl, data, 0o700); err != nil {
-				t.Fatal(err)
-			}
 			kubeconfig := filepath.Join(root, "kubeconfig")
 			if err := os.WriteFile(kubeconfig, []byte("synthetic kubeconfig\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			output := filepath.Join(root, "output")
-			command := exec.Command("bash", script, output, "--kubeconfig", kubeconfig, "--acknowledge-kubeconfig-exec-risk", "--include-component-configuration", "--allow-partial", "--exec-env", "FAKE_KUBECTL_MODE", "synthetic-context")
-			command.Env = []string{
-				"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"),
-				"HOME=" + os.Getenv("HOME"),
-				"TMPDIR=" + os.TempDir(),
-				"FAKE_KUBECTL_MODE=" + mode,
+			for _, name := range testProxyNames {
+				t.Setenv(name, "")
 			}
-			if user := os.Getenv("USER"); user != "" {
-				command.Env = append(command.Env, "USER="+user)
+			var collectorOut, collectorErr bytes.Buffer
+			observationPath, code := (localcollector.Collector{Runner: collectorBridgeRunner{mode: mode}}).Collect(context.Background(), localcollector.Options{
+				OutputRoot: output, Kubeconfig: kubeconfig, Contexts: []string{"synthetic-context"}, AcknowledgeExecRisk: true,
+				IncludeComponentConfiguration: true, ComponentConfigurationProfile: "v2", AllowPartial: true, Kubectl: "/not-executed",
+				ExecEnv: testProxyNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("k", 32)),
+			}, &collectorOut, &collectorErr)
+			if code != 0 {
+				t.Fatalf("offline collector exit=%d stdout=%q stderr=%q", code, collectorOut.String(), collectorErr.String())
 			}
-			if combined, err := command.CombinedOutput(); err != nil {
-				t.Fatalf("offline collector failed: %v\n%s", err, combined)
-			}
-			entries, err := os.ReadDir(output)
-			if err != nil || len(entries) != 1 {
-				t.Fatalf("collector output directories = %v, %v", entries, err)
-			}
-			artifact, err := buildTestPath(t, filepath.Join(output, entries[0].Name()), Options{})
+			artifact, err := buildTestPath(t, observationPath, Options{})
 			invalidGoRuntime := strings.HasPrefix(mode, "server-version-malicious-") || mode == "server-version-newline" || mode == "server-version-nul" || mode == "server-version-long"
 			if invalidGoRuntime {
 				if !errors.Is(err, observation.ErrInvalid) {
@@ -226,6 +202,54 @@ func TestBuildFromActualOfflineCollectorOutputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+var testProxyNames = []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy"}
+
+type collectorBridgeRunner struct{ mode string }
+
+func (r collectorBridgeRunner) Run(_ context.Context, argv, _ []string, _ time.Duration) (localcollector.CommandResult, error) {
+	if r.mode == "unauthorized" {
+		return localcollector.CommandResult{Exit: 42, Class: "unauthorized"}, nil
+	}
+	joined := strings.Join(argv, " ")
+	var value any = map[string]any{"items": []any{}}
+	if strings.Contains(joined, "--raw=/version") {
+		goVersion := map[string]string{
+			"server-version-boringcrypto": "go1.25.11 X:boringcrypto", "server-version-clean": "go1.25.11",
+			"server-version-malicious-suffix": "go1.25.11 X:evil", "server-version-malicious-core-suffix": "go1.25.11evil",
+			"server-version-malicious-core-suffix-boringcrypto": "go1.25.11evil X:boringcrypto", "server-version-malicious-build-suffix": "go1.25.11+evil",
+			"server-version-malicious-fourth-segment": "go1.25.11.4", "server-version-malicious-boringcrypto-suffix": "go1.25.11 X:boringcrypto:evil",
+			"server-version-newline": "go1.25.11\nX:boringcrypto", "server-version-nul": "go1.25.11\x00X:boringcrypto",
+		}[r.mode]
+		if r.mode == "server-version-long" {
+			goVersion = "go1.25.11" + strings.Repeat("a", 4096)
+		}
+		if goVersion == "" {
+			goVersion = "go1.24"
+		}
+		value = map[string]any{"gitVersion": "v1.34.0", "goVersion": goVersion, "compiler": "gc", "platform": "linux/amd64"}
+	} else if strings.Contains(joined, "--raw=/api") {
+		if strings.Contains(joined, "customresourcedefinitions") {
+			value = map[string]any{"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinitionList", "metadata": map[string]any{"resourceVersion": "1", "continue": ""}, "items": []any{}}
+		} else if strings.Contains(joined, "--raw=/apis") {
+			value = map[string]any{"groups": []any{}}
+		} else {
+			value = map[string]any{"versions": []any{"v1"}}
+		}
+	} else if r.mode == "component-success" && strings.Contains(joined, "get deployments.apps") {
+		container := map[string]any{"image": "quay.io/argoproj/workflow-controller:v4.1.2", "args": []any{"--managed-namespace=customer-secret"}}
+		value = bridgeWorkload(container)
+	}
+	raw, _ := json.Marshal(value)
+	return localcollector.CommandResult{Stdout: raw, Exit: 0}, nil
+}
+
+func bridgeWorkload(container map[string]any) any {
+	podSpec := map[string]any{"containers": []any{container}, "initContainers": []any{}}
+	template := map[string]any{"spec": podSpec}
+	item := map[string]any{"kind": "Deployment", "spec": map[string]any{"template": template}}
+	return map[string]any{"items": []any{item}}
 }
 
 func TestBuildCanonicalizesKubernetesVendorBuildVersion(t *testing.T) {

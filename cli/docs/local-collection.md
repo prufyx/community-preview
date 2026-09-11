@@ -1,24 +1,38 @@
 # Local kubeconfig collection
 
-`scripts/kubeconfig-api-snapshot.sh` creates a local, unsigned observation for
+`prufyx-collector collect` creates a local, unsigned observation for
 one or more explicitly selected kubeconfig contexts. Collection is optional,
 read-only, and does not install or change cluster resources.
 
-The supported local execution surface is Bash on macOS or Linux with
-`kubectl`, jq 1.7 or newer, Python 3, `shasum`, and standard BSD or GNU command
-line tools. The kubeconfig must be a regular, non-symlink file owned by the
+The supported collector is a native Go executable on macOS or Linux. Its only
+runtime command dependency is the caller-trusted `kubectl` executable. It does
+not invoke Python, jq, or a shell projection pipeline. Build it from a reviewed
+source checkout with `cd cli && go build -o bin/prufyx-collector ./cmd/prufyx-collector`,
+or use the matching packaged executable. The kubeconfig must be a regular,
+non-symlink file owned by the
 invoking user with no group or other permission bits. A v3 collection can be
 run as follows; replace the paths and context with local values, and add
 `--exec-env NAME` only for variables the reviewed auth plugin requires.
 
 ```sh
-cli/scripts/kubeconfig-api-snapshot.sh /secure/output \
+cli/bin/prufyx-collector collect /secure/output \
   --kubeconfig /secure/kubeconfig \
   --acknowledge-kubeconfig-exec-risk \
   --include-component-configuration \
   --component-configuration-profile v3 \
   reviewed-context
 ```
+
+The compatibility script `cli/scripts/kubeconfig-api-snapshot.sh` only locates
+the native executable (or uses `go run` in a source checkout) and forwards its
+arguments. New automation should invoke `prufyx-collector` directly.
+
+Persisted collector `*Digest` fields identify canonical, versioned behavioral
+contracts for the native JSON validator, kubectl runner, and projection stages.
+They are not source-file or executable hashes; source review and packaged
+binary provenance bind those artifacts separately. The observation importer
+admits the closed `crd-pagination-policy-v2-go` identity while retaining the
+earlier policy identity for historical observations.
 
 The collector stores exact registry-bound public component summaries for every
 workload projection. Unrecognized and private workload image references,

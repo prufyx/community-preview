@@ -4,52 +4,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-func tufCLIPython(t *testing.T) string {
-	t.Helper()
-	if value := os.Getenv("PRUFYX_TEST_PYTHON"); value != "" {
-		if !filepath.IsAbs(value) {
-			t.Fatalf("PRUFYX_TEST_PYTHON must be absolute: %q", value)
-		}
-		return value
-	}
-	value, err := exec.LookPath("python3")
-	if err != nil {
-		t.Fatal("python3 is required for TUF raw-source tests")
-	}
-	value, err = filepath.Abs(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return value
-}
-
 func tufRawArgs(t *testing.T, path, from, to, format string) []string {
 	t.Helper()
-	return []string{"check", "cncf", "--project", "the-update-framework-tuf", "--python-source", path, "--python-ast-interpreter", tufCLIPython(t), "--from", from, "--to", to, "--now", "2026-09-10T22:00:00Z", "--format", format}
+	return []string{"check", "cncf", "--project", "the-update-framework-tuf", "--python-source", path, "--from", from, "--to", to, "--now", "2026-09-10T22:00:00Z", "--format", format}
 }
 
 func TestTUFUpdaterRawSourceEditAndRepeatWithoutSourceExecution(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "updater.py")
 	canary := filepath.Join(dir, "MUST_NOT_EXIST")
-	beforeRaw := []byte(fmt.Sprintf("from tuf.ngclient import Updater\nopen(%q, 'w').write('executed')\nclient = Updater('/private/metadata', 'https://private.invalid/')\n", canary))
+	beforeRaw := []byte(fmt.Sprintf("# %s\nfrom tuf.ngclient import Updater\nclient = Updater(metadata_dir, metadata_base_url)\n", canary))
 	writeCNCFFileAt(t, path, beforeRaw)
 	args := tufRawArgs(t, path, "6.0.0", "7.0.0", "human")
 	code, before, stderr := runCNCFCLI(t, args...)
-	if code != ExitBlocked || stderr != "" || !strings.Contains(before, "bootstrap keyword: absent") || !strings.Contains(before, "scoped result: BLOCKED") || !strings.Contains(before, "aggregate: UNKNOWN") || !strings.Contains(before, "does not modify, import, or execute") || !strings.Contains(before, "CPython 3.") {
+	if code != ExitBlocked || stderr != "" || !strings.Contains(before, "bootstrap keyword: absent") || !strings.Contains(before, "scoped result: BLOCKED") || !strings.Contains(before, "aggregate: UNKNOWN") || !strings.Contains(before, "does not modify or execute") || !strings.Contains(before, "Go lexical subset") {
 		t.Fatalf("code=%d stderr=%q output=%s", code, stderr, before)
 	}
 	assertTUFRedacted(t, before, path, canary)
 	if _, err := os.Stat(canary); !os.IsNotExist(err) {
 		t.Fatal("supplied source was executed")
 	}
-	afterRaw := []byte(fmt.Sprintf("from tuf.ngclient import Updater\nopen(%q, 'w').write('executed')\nclient = Updater('/private/metadata', 'https://private.invalid/', bootstrap=trusted_root_bytes)\n", canary))
+	afterRaw := []byte(fmt.Sprintf("# %s\nfrom tuf.ngclient import Updater\nclient = Updater(metadata_dir, metadata_base_url, bootstrap=trusted_root_bytes)\n", canary))
 	writeCNCFFileAt(t, path, afterRaw)
 	code, after, stderr := runCNCFCLI(t, args...)
 	if code != ExitOK || stderr != "" || !strings.Contains(after, "bootstrap keyword: present") || !strings.Contains(after, "scoped result: PASS") || !strings.Contains(after, "aggregate: UNKNOWN") || !strings.Contains(after, "separately validate its value") {
@@ -71,7 +51,7 @@ func TestTUFUpdaterRawUnknownPrivacyAndModeGuards(t *testing.T) {
 	path := filepath.Join(dir, "updater.py")
 	tests := []struct{ name, source, from, to, category string }{
 		{"alias", "from tuf.ngclient import Updater as PrivateAlias\nPrivateAlias('/m','https://private.invalid/')\n", "6.0.0", "7.0.0", "binding_missing"},
-		{"except handler rebound", "from tuf.ngclient import Updater\ntry:\n    pass\nexcept Exception as Updater:\n    Updater('/m','https://private.invalid/', bootstrap=None)\n", "6.0.0", "7.0.0", "binding_rebound"},
+		{"except handler rebound", "from tuf.ngclient import Updater\ntry:\n    pass\nexcept Exception as Updater:\n    Updater('/m','https://private.invalid/', bootstrap=None)\n", "6.0.0", "7.0.0", "candidate_call_count"},
 		{"star args", "from tuf.ngclient import Updater\nUpdater(*PRIVATE_VALUES)\n", "6.0.0", "7.0.0", "star_arguments"},
 		{"positional bootstrap", "from tuf.ngclient import Updater\nUpdater(a,b,c,d,e,f,PRIVATE_ROOT)\n", "6.0.0", "7.0.0", "positional_bootstrap"},
 		{"wrong pair", "from tuf.ngclient import Updater\nUpdater('/m','https://private.invalid/')\n", "6.0.1", "7.0.0", ""},
@@ -88,7 +68,7 @@ func TestTUFUpdaterRawUnknownPrivacyAndModeGuards(t *testing.T) {
 	}
 	writeCNCFFileAt(t, path, []byte("def broken(:\n"))
 	code, out, errout := runCNCFCLI(t, tufRawArgs(t, path, "6.0.0", "7.0.0", "human")...)
-	if code != ExitUsage || out != "" || errout != "prufyx: SELECTED_TUF_PYTHON_INTERPRETER_COULD_NOT_PARSE_SOURCE\n" {
+	if code != ExitUsage || out != "" || errout != "prufyx: TUF_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX\n" {
 		t.Fatalf("syntax code=%d stdout=%q stderr=%q", code, out, errout)
 	}
 	raw := []byte("from tuf.ngclient import Updater\nUpdater('/m','https://private.invalid/', bootstrap=None)\n")
@@ -111,15 +91,9 @@ func TestTUFUpdaterRawUnknownPrivacyAndModeGuards(t *testing.T) {
 			t.Fatalf("extra=%v code=%d out=%q err=%q", extra, code, out, errout)
 		}
 	}
-	badInterpreter := append([]string{}, base...)
-	for i := range badInterpreter {
-		if badInterpreter[i] == "--python-ast-interpreter" {
-			badInterpreter[i+1] = "/usr/bin/false"
-		}
-	}
-	code, out, errout = runCNCFCLI(t, badInterpreter...)
-	if code != ExitUsage || out != "" || errout != "prufyx: TUF_PYTHON_AST_INTERPRETER_UNAVAILABLE_OR_UNSUPPORTED\n" {
-		t.Fatalf("runtime code=%d stdout=%q stderr=%q", code, out, errout)
+	code, out, errout = runCNCFCLI(t, append(base, "--python-ast-interpreter", "/usr/bin/false")...)
+	if code != ExitUsage || out != "" || errout == "" || strings.Contains(errout, "/usr/bin/false") {
+		t.Fatalf("removed interpreter flag code=%d stdout=%q stderr=%q", code, out, errout)
 	}
 }
 

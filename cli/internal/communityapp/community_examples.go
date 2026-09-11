@@ -1,0 +1,337 @@
+package communityapp
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/prufyx/prufyx-cli/internal/knowledgefixture"
+)
+
+// communityExample runs a public synthetic walkthrough inside the Community
+// binary. It never contacts a cluster or network and removes its private input
+// directory before returning. The examples exercise only declared input and
+// scoped rule results; they do not claim runtime or whole-upgrade safety.
+func (r runtime) communityExample(args []string) int {
+	if hasHelp(args) || len(args) != 1 {
+		fmt.Fprintln(r.stdout, "Usage: prufyx community-preview example <cncf-etcd|cncf-opentelemetry|knowledge-cert-manager|knowledge-cncf>")
+		return ExitOK
+	}
+	var result communityExampleResult
+	var err error
+	switch args[0] {
+	case "cncf-etcd":
+		result, err = r.runEtcdExample()
+	case "cncf-opentelemetry":
+		result, err = r.runOpenTelemetryExample()
+	case "knowledge-cert-manager":
+		result, err = r.runKnowledgeCertManagerExample()
+	case "knowledge-cncf":
+		result, err = r.runKnowledgeCNCFExample()
+	default:
+		return r.usage("unknown Community example; use prufyx community-preview example --help")
+	}
+	if err != nil {
+		return r.fail("synthetic Community example failed", ExitIntegrity)
+	}
+	return r.writeEnvelope(envelope{
+		SchemaVersion: legacyEnvelopeAPIVersion,
+		Command:       "community-preview example " + args[0],
+		Result: envelopeResult{
+			Status:   "OK",
+			Decision: "SYNTHETIC_RESULT",
+			Scope:    "local declared input only",
+			Reason:   "synthetic_example_completed",
+			Messages: []string{"No network, process, cluster, or runtime behavior was observed."},
+		},
+		Data: result,
+	}, ExitOK)
+}
+
+type communityExampleResult struct {
+	Example         string `json:"example"`
+	BlockedExit     int    `json:"blockedExit"`
+	CleanExit       int    `json:"cleanExit,omitempty"`
+	UnknownExit     int    `json:"unknownExit"`
+	Aggregate       string `json:"aggregate"`
+	NetworkUsed     bool   `json:"networkUsed"`
+	ClusterUsed     bool   `json:"clusterUsed"`
+	PrivateRetained bool   `json:"privateInputsRetained"`
+	RuntimeObserved bool   `json:"runtimeObserved"`
+	ProcessExecuted bool   `json:"processExecuted"`
+	ScopedClaimOnly bool   `json:"scopedClaimOnly"`
+}
+
+func (r runtime) runKnowledgeCertManagerExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-knowledge-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private knowledge example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	packages, store := filepath.Join(work, "packages"), filepath.Join(work, "store")
+	if err := os.Mkdir(packages, 0o700); err != nil {
+		return communityExampleResult{}, fmt.Errorf("create package directory: %w", err)
+	}
+	artifacts, err := knowledgefixture.Generate(time.Now().UTC())
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("generate synthetic knowledge: %w", err)
+	}
+	for _, file := range []struct {
+		name string
+		raw  []byte
+	}{
+		{knowledgefixture.RootName, artifacts.Root}, {knowledgefixture.Revision1Name, artifacts.Revision1}, {knowledgefixture.Revision2Name, artifacts.Revision2}, {knowledgefixture.ManifestName, artifacts.Manifest},
+	} {
+		if err := os.WriteFile(filepath.Join(packages, file.name), file.raw, 0o600); err != nil {
+			return communityExampleResult{}, fmt.Errorf("write synthetic knowledge: %w", err)
+		}
+	}
+	var manifest knowledgefixture.Manifest
+	if err := json.Unmarshal(artifacts.Manifest, &manifest); err != nil || len(manifest.Revisions) < 2 || manifest.PrivateKeysPersisted {
+		return communityExampleResult{}, fmt.Errorf("decode synthetic knowledge manifest")
+	}
+	values := []byte(`{"syntheticCanary":"PRIVATE-SYNTHETIC-CANARY","prometheus":{"servicemonitor":{"path":"PRIVATE-SYNTHETIC-CANARY"}}}`)
+	valuesPath := filepath.Join(work, "values.json")
+	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
+		return communityExampleResult{}, fmt.Errorf("write private values: %w", err)
+	}
+	importOne, receiptOne, err := r.importSyntheticKnowledge(packages, store, manifest, 0, true, "cert-manager")
+	if err != nil || importOne != ExitOK {
+		return communityExampleResult{}, fmt.Errorf("import synthetic revision one: %w", err)
+	}
+	reportOnePath := filepath.Join(work, "report-one.json")
+	codeOne, reportOne, err := r.checkSyntheticCertManager(valuesPath, store, manifest.Revisions[0], receiptOne, "")
+	if err != nil || codeOne != ExitUnknown || !strings.Contains(reportOne, `"UNKNOWN"`) || strings.Contains(reportOne, "PRIVATE-SYNTHETIC-CANARY") {
+		return communityExampleResult{}, fmt.Errorf("revision one did not remain redacted UNKNOWN")
+	}
+	if err := os.WriteFile(reportOnePath, []byte(reportOne), 0o600); err != nil {
+		return communityExampleResult{}, fmt.Errorf("write revision one report: %w", err)
+	}
+	importTwo, receiptTwo, err := r.importSyntheticKnowledge(packages, store, manifest, 1, false, "cert-manager")
+	if err != nil || importTwo != ExitOK {
+		return communityExampleResult{}, fmt.Errorf("import synthetic revision two: %w", err)
+	}
+	codeTwo, reportTwo, err := r.checkSyntheticCertManager(valuesPath, store, manifest.Revisions[1], receiptTwo, "")
+	if err != nil || codeTwo != ExitBlocked || !strings.Contains(reportTwo, `"BLOCKED"`) || strings.Contains(reportTwo, "PRIVATE-SYNTHETIC-CANARY") {
+		return communityExampleResult{}, fmt.Errorf("revision two did not remain redacted BLOCKED")
+	}
+	codeReplay, replay, err := r.checkSyntheticCertManager(valuesPath, store, manifest.Revisions[0], receiptOne, reportOnePath)
+	if err != nil || codeReplay != ExitUnknown || !strings.Contains(replay, `"MATCH"`) || strings.Contains(replay, "PRIVATE-SYNTHETIC-CANARY") {
+		return communityExampleResult{}, fmt.Errorf("historical replay did not match")
+	}
+	return communityExampleResult{Example: "knowledge-cert-manager", BlockedExit: codeTwo, UnknownExit: codeOne, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) importSyntheticKnowledge(packages, store string, manifest knowledgefixture.Manifest, index int, bootstrap bool, profile string) (int, string, error) {
+	revision := manifest.Revisions[index]
+	args := []string{"import", filepath.Join(packages, revision.PackagePath), "--db-root", store, "--profile", profile, "--expected-revision", revision.Revision, "--expected-bundle-digest", revision.BundleDigest, "--format", "json"}
+	if bootstrap {
+		args = append(args, "--bootstrap-root", filepath.Join(packages, knowledgefixture.RootName), "--bootstrap-root-digest", manifest.BootstrapRoot.Digest)
+	}
+	var stdout bytes.Buffer
+	child := r
+	child.stdout = &stdout
+	code := child.database(context.Background(), args)
+	var receipt struct {
+		TrustReceiptDigest string `json:"trustReceiptDigest"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &receipt); err != nil || receipt.TrustReceiptDigest == "" {
+		return code, "", fmt.Errorf("decode synthetic import receipt")
+	}
+	return code, receipt.TrustReceiptDigest, nil
+}
+
+func (r runtime) checkSyntheticCertManager(values, store string, revision knowledgefixture.Revision, receipt, replay string) (int, string, error) {
+	args := []string{"--from", "1.20.3", "--to", "1.21.1", "--values", values, "--knowledge-db", store, "--knowledge-revision", revision.Revision, "--knowledge-bundle-digest", revision.BundleDigest, "--knowledge-trust-receipt-digest", receipt, "--format", "json"}
+	if replay != "" {
+		args = append(args, "--values-digest", communityDigest(mustReadExample(values)), "--replay-receipt", replay)
+	}
+	var stdout bytes.Buffer
+	child := r
+	child.stdout = &stdout
+	code := child.certManager(args)
+	if !json.Valid(stdout.Bytes()) {
+		return code, "", fmt.Errorf("decode synthetic cert-manager result")
+	}
+	return code, stdout.String(), nil
+}
+
+func mustReadExample(path string) []byte {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	return raw
+}
+
+func (r runtime) runKnowledgeCNCFExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-cncf-knowledge-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private CNCF knowledge example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	packages, store := filepath.Join(work, "packages"), filepath.Join(work, "store")
+	if err := os.Mkdir(packages, 0o700); err != nil {
+		return communityExampleResult{}, fmt.Errorf("create package directory: %w", err)
+	}
+	artifacts, err := knowledgefixture.GenerateConstraints(time.Now().UTC())
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("generate synthetic CNCF knowledge: %w", err)
+	}
+	for _, file := range []struct {
+		name string
+		raw  []byte
+	}{
+		{knowledgefixture.RootName, artifacts.Root}, {knowledgefixture.Revision1Name, artifacts.Revision1}, {knowledgefixture.Revision2Name, artifacts.Revision2}, {knowledgefixture.ManifestName, artifacts.Manifest},
+	} {
+		if err := os.WriteFile(filepath.Join(packages, file.name), file.raw, 0o600); err != nil {
+			return communityExampleResult{}, fmt.Errorf("write synthetic CNCF knowledge: %w", err)
+		}
+	}
+	var manifest knowledgefixture.Manifest
+	if err := json.Unmarshal(artifacts.Manifest, &manifest); err != nil || len(manifest.Revisions) < 2 || manifest.PrivateKeysPersisted {
+		return communityExampleResult{}, fmt.Errorf("decode synthetic CNCF knowledge manifest")
+	}
+	input := []byte(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/kyverno/kyverno","version":"1.12.5","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/kyverno/kyverno","version":"1.13.0","facts":[{"id":"component.kyverno.distribution","state":"declared","enumValue":"official_upstream"},{"id":"component.kyverno.execution_surface","state":"declared","enumValue":"reports_controller"},{"id":"component.kyverno.reports_chunk_size_flag_present","state":"declared","boolValue":true}]}]}}`)
+	inputPath := filepath.Join(work, "input.json")
+	if err := os.WriteFile(inputPath, input, 0o600); err != nil {
+		return communityExampleResult{}, fmt.Errorf("write private CNCF input: %w", err)
+	}
+	codeImportOne, receiptOne, err := r.importSyntheticKnowledge(packages, store, manifest, 0, true, "cncf")
+	if err != nil || codeImportOne != ExitOK {
+		return communityExampleResult{}, fmt.Errorf("import synthetic CNCF revision one: %w", err)
+	}
+	codeOne, reportOne, err := r.checkSyntheticCNCF(inputPath, store, manifest.Revisions[0], receiptOne, "")
+	if err != nil || codeOne != ExitUnknown || !strings.Contains(reportOne, `"UNKNOWN"`) || strings.Contains(reportOne, "kyverno") && strings.Contains(reportOne, "PRIVATE") {
+		return communityExampleResult{}, fmt.Errorf("CNCF revision one did not remain UNKNOWN")
+	}
+	reportOnePath := filepath.Join(work, "report-one.json")
+	if err := os.WriteFile(reportOnePath, []byte(reportOne), 0o600); err != nil {
+		return communityExampleResult{}, fmt.Errorf("write CNCF report one: %w", err)
+	}
+	codeImportTwo, receiptTwo, err := r.importSyntheticKnowledge(packages, store, manifest, 1, false, "cncf")
+	if err != nil || codeImportTwo != ExitOK {
+		return communityExampleResult{}, fmt.Errorf("import synthetic CNCF revision two: %w", err)
+	}
+	codeTwo, reportTwo, err := r.checkSyntheticCNCF(inputPath, store, manifest.Revisions[1], receiptTwo, "")
+	if err != nil || codeTwo != ExitBlocked || !strings.Contains(reportTwo, `"BLOCKED"`) {
+		return communityExampleResult{}, fmt.Errorf("CNCF revision two did not become BLOCKED")
+	}
+	codeReplay, replay, err := r.checkSyntheticCNCF(inputPath, store, manifest.Revisions[0], receiptOne, reportOnePath)
+	if err != nil || codeReplay != ExitUnknown || !strings.Contains(replay, `"MATCH"`) {
+		return communityExampleResult{}, fmt.Errorf("CNCF historical replay did not match")
+	}
+	return communityExampleResult{Example: "knowledge-cncf", BlockedExit: codeTwo, UnknownExit: codeOne, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) checkSyntheticCNCF(input, store string, revision knowledgefixture.Revision, receipt, replay string) (int, string, error) {
+	args := []string{"--project", "kyverno", "--input", input, "--knowledge-db", store, "--knowledge-revision", revision.Revision, "--knowledge-bundle-digest", revision.BundleDigest, "--knowledge-trust-receipt-digest", receipt, "--format", "json"}
+	if replay != "" {
+		args = append(args, "--input-digest", communityDigest(mustReadExample(input)), "--replay-report", replay)
+	}
+	var stdout bytes.Buffer
+	child := r
+	child.stdout = &stdout
+	code := child.cncf(args)
+	if !json.Valid(stdout.Bytes()) {
+		return code, "", fmt.Errorf("decode synthetic CNCF result")
+	}
+	return code, stdout.String(), nil
+}
+
+func (r runtime) runEtcdExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-etcd-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	blocked := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--name=synthetic-private-node","--enable-v2=false"]}`)
+	unknown := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--initial-cluster","--enable-v2=true"]}`)
+	blockedCode, blockedReport, err := r.prepareThenCheck(work, "etcd", "3.5.17", "3.6.0", blocked)
+	if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+		return communityExampleResult{}, fmt.Errorf("etcd removed-v2 witness did not produce scoped BLOCKED")
+	}
+	unknownCode, unknownReport, err := r.prepareThenCheck(work, "etcd", "3.5.17", "3.6.0", unknown)
+	if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+		return communityExampleResult{}, fmt.Errorf("etcd incomplete argv did not produce scoped UNKNOWN")
+	}
+	return communityExampleResult{Example: "cncf-etcd", BlockedExit: blockedCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) runOpenTelemetryExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-opentelemetry-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	blocked := []byte(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.110.0","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.111.0","facts":[{"id":"component.opentelemetry.distribution","state":"declared","enumValue":"official"},{"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true}]}]}}`)
+	clean := []byte(strings.Replace(string(blocked), `"boolValue":true`, `"boolValue":false`, 1))
+	unknown := []byte(strings.Replace(string(blocked), `,{"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true}`, "", 1))
+	blockedCode, blockedReport, err := r.checkPrepared(work, "opentelemetry", blocked)
+	if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+		return communityExampleResult{}, fmt.Errorf("OpenTelemetry logging exporter witness did not produce scoped BLOCKED")
+	}
+	cleanCode, cleanReport, err := r.checkPrepared(work, "opentelemetry", clean)
+	if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+		return communityExampleResult{}, fmt.Errorf("OpenTelemetry corrected witness did not produce scoped PASS")
+	}
+	unknownCode, unknownReport, err := r.checkPrepared(work, "opentelemetry", unknown)
+	if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+		return communityExampleResult{}, fmt.Errorf("OpenTelemetry missing fact did not produce scoped UNKNOWN")
+	}
+	return communityExampleResult{Example: "cncf-opentelemetry", BlockedExit: blockedCode, CleanExit: cleanCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) prepareThenCheck(work, project, from, to string, raw []byte) (int, map[string]any, error) {
+	input := filepath.Join(work, project+"-input.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		return 0, nil, fmt.Errorf("write private %s input: %w", project, err)
+	}
+	var prepared bytes.Buffer
+	child := r
+	child.stdout = &prepared
+	code := child.prepareCNCF([]string{"--project", project, "--input", input, "--from", from, "--to", to, "--input-digest", communityDigest(raw), "--format", "input"})
+
+	if (code != ExitOK && code != ExitUnknown) || !json.Valid(prepared.Bytes()) {
+		return code, nil, fmt.Errorf("prepare %s returned %d", project, code)
+	}
+	return r.checkPrepared(work, project, prepared.Bytes())
+}
+
+func (r runtime) checkPrepared(work, project string, raw []byte) (int, map[string]any, error) {
+	input := filepath.Join(work, project+"-prepared.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		return 0, nil, fmt.Errorf("write private %s prepared input: %w", project, err)
+	}
+	var stdout bytes.Buffer
+	child := r
+	child.stdout = &stdout
+	code := child.cncf([]string{"--project", project, "--input", input, "--input-digest", communityDigest(raw), "--now", "2026-09-10T00:00:00Z", "--format", "json"})
+	var report map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		return code, nil, fmt.Errorf("decode %s report: %w", project, err)
+	}
+	return code, report, nil
+}
+
+func communityClaim(report map[string]any, want string) bool {
+	check, _ := report["check"].(map[string]any)
+	claims, _ := check["claims"].([]any)
+	if len(claims) != 1 {
+		return false
+	}
+	claim, _ := claims[0].(map[string]any)
+	return report["assessment"] == "UNKNOWN" && claim["status"] == want && report["networkUsed"] == false && report["runtimeReproduced"] == float64(0)
+}
+
+func communityDigest(raw []byte) string {
+	digest := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(digest[:])
+}

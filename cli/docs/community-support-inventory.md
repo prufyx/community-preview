@@ -19,11 +19,11 @@ whole upgrade as safe.
 Generate from a clean checkout:
 
 ```sh
-python3 cli/scripts/generate_support_inventory.py \
+go run ./cli/cmd/prufyx-maintainer support-inventory \
   --selected-source-manifest cli/docs/data/selected-source-records-v1.json \
   --json-output cli/docs/generated/community-support-inventory.json \
   --markdown-output cli/docs/generated/community-support-inventory.md
-python3 cli/scripts/generate_support_inventory.py \
+go run ./cli/cmd/prufyx-maintainer support-inventory \
   --selected-source-manifest cli/docs/data/selected-source-records-v1.json \
   --json-output cli/docs/generated/community-support-inventory.json \
   --markdown-output cli/docs/generated/community-support-inventory.md --check
@@ -38,10 +38,10 @@ freshness is derived from normalized committed inputs rather than the current
 Git revision or clock.
 
 ```sh
-python3 cli/scripts/import_selected_source_records.py \
+go run ./cli/cmd/prufyx-maintainer selected-source-import \
   --corpus-root <private-reviewed-corpus-root> \
   --collection-index <private-reviewed-collection-index.json> \
-  --expected-index-digest sha256:90046886ad4903d0e938d1d5c4cb42cca0d034153dc293682c1503cec79e3de9 \
+  --expected-index-digest sha256:63a2c5a0c34dd03d6d0ad23796895afdb3c765e47f5027cf6b36a55f9ec2ba2d \
   --output cli/docs/data/selected-source-records-v1.json --check
 ```
 

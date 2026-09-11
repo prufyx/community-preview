@@ -129,7 +129,7 @@
   },
   "limitations": [
     "Tag bindings, source bytes, digests, exact spans, attribution and semantic scope require independent review.",
-    "The local adapter parses one private caller-supplied Python source file with a fixed helper under a caller-selected CPython 3.12 or 3.14 executable; it does not authenticate the interpreter, installed package, process or version provenance.",
+    "The local adapter reads one private caller-supplied Python source file with a closed Go lexical parser; it does not authenticate the installed package, process or version provenance.",
     "Only one conservatively bound direct tuf.ngclient.Updater call in either documented unaliased import form is admitted. Unsupported syntax, bindings and call shapes remain UNKNOWN.",
     "PASS establishes only explicit bootstrap keyword presence. The value, root or cache trust, metadata, updates, network, runtime behavior and whole-upgrade safety remain UNKNOWN.",
     "The checker does not import or execute supplied source, load bootstrap/root/cache data, access the network, or modify the input file."

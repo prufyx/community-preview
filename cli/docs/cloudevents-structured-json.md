@@ -118,6 +118,6 @@ go run ./examples/community/knowledge/generate-synthetic-packages.go \
 Those packages use ephemeral fixture keys, synthetic review dates, and
 `synthetic_test_only` purpose. They demonstrate import, selection, and replay
 mechanics only. They are not reviewed CloudEvents authority or a production
-signing/publication path. The offline `package-knowledge.py` assembler accepts
+signing/publication path. The offline `prufyx-maintainer package-knowledge` assembler accepts
 an already signed target for this closed profile; assembly does not sign or
 approve it.

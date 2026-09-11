@@ -1698,7 +1698,7 @@ func validateSnapshotMetadata(metadata metadataFile) error {
 			return fmt.Errorf("metadata CRD pagination policy is not closed: %w", ErrInvalid)
 		}
 		var version, endpoint, profile string
-		if json.Unmarshal(policy["version"], &version) != nil || version != "crd-pagination-policy-v1" || json.Unmarshal(policy["endpoint"], &endpoint) != nil || endpoint != "/apis/apiextensions.k8s.io/v1/customresourcedefinitions" || json.Unmarshal(policy["profile"], &profile) != nil || profile != "raw-v1-continue" {
+		if json.Unmarshal(policy["version"], &version) != nil || (version != "crd-pagination-policy-v1" && version != "crd-pagination-policy-v2-go") || json.Unmarshal(policy["endpoint"], &endpoint) != nil || endpoint != "/apis/apiextensions.k8s.io/v1/customresourcedefinitions" || json.Unmarshal(policy["profile"], &profile) != nil || profile != "raw-v1-continue" {
 			return fmt.Errorf("metadata CRD pagination policy identity is invalid: %w", ErrInvalid)
 		}
 		for _, key := range []string{"localJsonStageDigest", "pageProjectionDigest", "finalMergeDigest"} {

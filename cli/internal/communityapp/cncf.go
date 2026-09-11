@@ -10,6 +10,7 @@ import (
 	"io"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
@@ -66,11 +67,17 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project argo-cd --config-map FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] --now RFC3339 [--config-map-digest SHA256] [--format human|json]
    or: prufyx check cncf --project knative --service FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--service-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project in-toto --in-toto-run-argv FILE --from 2.2.0 --to 3.0.0 (--now RFC3339 | --knowledge-db DIR) [--in-toto-run-argv-digest SHA256] [--replay-report FILE] [--format human|json]
-   or: prufyx check cncf --project the-update-framework-tuf --python-source FILE --python-ast-interpreter /absolute/path/to/python3 --from 6.0.0 --to 7.0.0 (--now RFC3339 | --knowledge-db DIR) [--python-source-digest SHA256] [--replay-report FILE] [--format human|json]
-   or: prufyx check cncf --project kubeflow --python-source FILE --python-ast-interpreter /absolute/path/to/python3 --from 1.8.22 --to 2.0.0 (--now RFC3339 | --knowledge-db DIR) [--python-source-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project the-update-framework-tuf --python-source FILE --from 6.0.0 --to 7.0.0 (--now RFC3339 | --knowledge-db DIR) [--python-source-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project kubeflow --python-source FILE --from 1.8.22 --to 2.0.0 (--now RFC3339 | --knowledge-db DIR) [--python-source-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cubefs --metanode-config FILE --from 3.2.1 --to 3.3.2 [--phase metanode-upgrade] (--now RFC3339 | --knowledge-db DIR) [--metanode-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cri-o --image-status-request FILE --artifact-operation named-reference-resolution --from 1.34.0 --to 1.35.0 (--now RFC3339 | --knowledge-db DIR) [--image-status-request-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project distribution --image-manifest FILE --from 2.8.3 --to 3.0.0 (--now RFC3339 | --knowledge-db DIR) [--image-manifest-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project container-network-interface-cni --cni-configuration FILE --from 0.4.0 --to 1.0.0 [--operation configuration-spec-migration] (--now RFC3339 | --knowledge-db DIR) [--cni-configuration-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project emissary-ingress --diagd-argv FILE --from 3.10.0 --to 4.0.1 (--now RFC3339 | --knowledge-db DIR) [--diagd-argv-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] (--now RFC3339 | --knowledge-db DIR) [--effective-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project buildpacks --current-lifecycle-config FILE --proposed-lifecycle-config FILE --from 0.16.5 --to 0.17.7 --current-platform-api 0.11 --proposed-platform-api 0.12|0.13 (--now RFC3339 | --knowledge-db DIR) [--current-lifecycle-config-digest SHA256] [--proposed-lifecycle-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project metallb|contour|kubevirt --native-resource FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
 
 Optional, local source-constraint preview using minimized operator declarations.
 Inspect inputs with: prufyx catalog cncf --project SLUG --format json
@@ -105,15 +112,15 @@ in-toto-run prefix before the first valid -- delimiter. Everything after it is
 opaque. Embedded knowledge covers Python CLI 2.2.0 -> 3.0.0. A PASS clears
 only removal of -k/--key; it does not load or convert keys or run the command.
 Historical replay requires the raw argv digest and all three knowledge pins.
-The TUF mode runs a fixed AST helper under the explicitly selected CPython
-3.12 or 3.14 interpreter with -I -S and sends the private Python source over
-stdin as data. The helper parses but never imports or executes supplied source.
-The interpreter is caller-trusted, not authenticated; other CNCF modes do not
-discover or require it. Embedded knowledge covers Updater 6.0.0 -> 7.0.0 and
-checks only explicit bootstrap keyword presence in one admitted direct call.
-Historical replay requires the raw source digest and all three knowledge pins.
-The Kubeflow mode uses the same isolated AST boundary to recognize only one
-unaliased bare create_component_from_func or dsl.component decorator.
+The TUF mode uses a Go lexical parser that admits one unaliased direct import
+and one top-level direct Updater call. It reads private Python source as data
+and never imports or executes it. Source outside that narrow grammar remains
+UNKNOWN. Embedded knowledge covers Updater 6.0.0 -> 7.0.0 and checks only
+explicit bootstrap keyword presence in one admitted direct call. Historical
+replay requires the raw source digest and all three knowledge pins.
+The Kubeflow mode uses a Go lexical parser to recognize only one
+unaliased bare create_component_from_func or dsl.component decorator. It never
+imports or executes supplied Python source and does not require an interpreter.
 Embedded knowledge covers KFP Python SDK 1.8.22 -> 2.0.0 and checks only the
 removed authoring API. PASS does not validate component inputs, outputs,
 dependencies, compilation, backend, installed package, or runtime behavior.
@@ -132,6 +139,22 @@ exact CRI-O 1.34.0 -> 1.35.0. PASS clears only the target short-name guard;
 registry aliases, store contents, request routing, access and runtime remain
 UNKNOWN. Historical replay requires the raw request digest and all three
 knowledge pins.
+The Distribution mode reads one private image manifest and classifies only its
+bounded schema1, Docker schema2, or OCI image-manifest form for the exact
+2.8.3 -> 3.0.0 source plan. It never contacts a registry or validates content,
+storage, pull, platform, or runtime behavior. The CNI mode reads one private
+configuration for specification 0.4.0 -> 1.0.0 and keeps library/plugin/runtime
+identity separate. It requires caller-declared configuration-spec-migration
+intent for a scoped result; missing or unsupported intent stays UNKNOWN.
+The Emissary-Ingress mode reads one private direct diagd JSON argv array for
+the exact 3.10.0 -> 4.0.1 reviewed option removal. The OpenFGA mode reads one
+private, strictly parsed nested effective-configuration JSON file for 1.17.1
+-> 1.18.0. effective-config-complete is optional: omitted or false keeps
+the scoped claim UNKNOWN, while true declares file, environment, and flag
+precedence resolved. Neither mode runs a process, reads a cluster, or validates
+runtime behavior. Optional raw-input digests bind supplied bytes.
+Selected-store checks have no embedded fallback. Historical replay requires
+the matching raw native-input digest and all three knowledge pins.
 Exit 0: all selected nonempty claims PASS; 10: at least one claim BLOCKED;
 11: UNKNOWN or no rules; 2: invalid input; 3: integrity failure.
 Whole-upgrade compatibility remains UNKNOWN in every case.`)
@@ -156,13 +179,28 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	inTotoRunArgvPin := fs.String("in-toto-run-argv-digest", "", "optional exact argv file SHA-256")
 	pythonSource := fs.String("python-source", "", "private Python source for a supported source-call check")
 	pythonSourcePin := fs.String("python-source-digest", "", "optional exact Python source file SHA-256")
-	pythonASTInterpreter := fs.String("python-ast-interpreter", "", "absolute caller-selected CPython 3.12 or 3.14 executable")
 	metanodeConfig := fs.String("metanode-config", "", "private planned CubeFS MetaNode JSON config")
 	metanodeConfigPin := fs.String("metanode-config-digest", "", "optional exact MetaNode config SHA-256")
 	phase := fs.String("phase", "", "caller-declared upgrade phase")
 	imageStatusRequest := fs.String("image-status-request", "", "private CRI ImageStatusRequest JSON")
 	imageStatusRequestPin := fs.String("image-status-request-digest", "", "optional exact ImageStatusRequest SHA-256")
 	artifactOperation := fs.String("artifact-operation", "", "caller-declared artifact operation")
+	imageManifest := fs.String("image-manifest", "", "private Distribution image manifest JSON")
+	imageManifestPin := fs.String("image-manifest-digest", "", "optional exact image manifest SHA-256")
+	cniConfiguration := fs.String("cni-configuration", "", "private CNI configuration JSON")
+	cniConfigurationPin := fs.String("cni-configuration-digest", "", "optional exact CNI configuration SHA-256")
+	diagdArgv := fs.String("diagd-argv", "", "private direct Emissary diagd JSON argv array")
+	diagdArgvPin := fs.String("diagd-argv-digest", "", "optional exact diagd argv SHA-256")
+	effectiveConfig := fs.String("effective-config", "", "private resolved OpenFGA effective configuration JSON")
+	effectiveConfigPin := fs.String("effective-config-digest", "", "optional exact effective configuration SHA-256")
+	effectiveConfigComplete := fs.Bool("effective-config-complete", false, "caller declaration that OpenFGA file, environment, and flag precedence is resolved")
+	operation := fs.String("operation", "", "caller-declared scoped operation")
+	nativeResource := fs.String("native-resource", "", "private selected native Kubernetes JSON resource")
+	nativeResourcePin := fs.String("native-resource-digest", "", "optional exact native resource SHA-256")
+	currentResource := fs.String("current-resource", "", "private current native Kubernetes JSON resource")
+	currentResourcePin := fs.String("current-resource-digest", "", "optional exact current resource SHA-256")
+	resource := fs.String("resource", "", "private proposed native Kubernetes JSON resource")
+	resourcePin := fs.String("resource-digest", "", "optional exact proposed resource SHA-256")
 	from := fs.String("from", "", "actual declared current component version")
 	to := fs.String("to", "", "actual declared proposed component version")
 	requiresInheritedPermissions := fs.String("requires-inherited-application-permissions", "", "explicit Argo CD v2 inheritance access intent: true or false")
@@ -174,55 +212,78 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
-	rawArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
-	rawKnativeRequested := *project == "knative" && anyFlagProvided(args, "service", "service-digest", "from", "to")
-	rawBuildpacksRequested := *project == "buildpacks" && anyFlagProvided(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "from", "to")
-	rawInTotoRequested := *project == "in-toto" && anyFlagProvided(args, "in-toto-run-argv", "in-toto-run-argv-digest", "from", "to")
-	rawTUFRequested := *project == "the-update-framework-tuf" && anyFlagProvided(args, "python-source", "python-source-digest", "python-ast-interpreter", "from", "to")
-	rawKubeflowRequested := *project == "kubeflow" && anyFlagProvided(args, "python-source", "python-source-digest", "python-ast-interpreter", "from", "to")
-	rawCubeFSRequested := *project == "cubefs" && anyFlagProvided(args, "metanode-config", "metanode-config-digest", "phase", "from", "to")
-	rawCRIORequested := *project == "cri-o" && anyFlagProvided(args, "image-status-request", "image-status-request-digest", "artifact-operation", "from", "to")
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
 		if flagProvided(args, name) && fs.Lookup(name).Value.String() == "" {
 			return r.usage("invalid external CNCF knowledge selection; use --help")
 		}
 	}
-	if rawArgoRequested {
-		if *configMap == "" || flagProvided(args, "service") || flagProvided(args, "service-digest") || anyFlagProvided(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation") || *input != "" || flagProvided(args, "input") || flagProvided(args, "input-digest") || *from == "" || *to == "" || *nowText == "" || flagProvided(args, "knowledge-db") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest") || flagProvided(args, "replay-report") || (flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false") {
+	nativeFlags := anyFlagProvided(args, "native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest")
+	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "cloudnativepg"
+	if nativeFlags && !nativeProject {
+		return r.usage("native resource flags require metallb, contour, kubevirt, or cloudnativepg; use --help")
+	}
+	if nativeProject && nativeFlags {
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, args)
+	}
+	rawArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
+	rawKnativeRequested := *project == "knative" && anyFlagProvided(args, "service", "service-digest", "from", "to")
+	rawBuildpacksRequested := *project == "buildpacks" && anyFlagProvided(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "from", "to")
+	rawInTotoRequested := *project == "in-toto" && anyFlagProvided(args, "in-toto-run-argv", "in-toto-run-argv-digest", "from", "to")
+	rawTUFRequested := *project == "the-update-framework-tuf" && anyFlagProvided(args, "python-source", "python-source-digest", "from", "to")
+	rawKubeflowRequested := *project == "kubeflow" && anyFlagProvided(args, "python-source", "python-source-digest", "from", "to")
+	rawCubeFSRequested := *project == "cubefs" && anyFlagProvided(args, "metanode-config", "metanode-config-digest", "phase", "from", "to")
+	rawCRIORequested := *project == "cri-o" && anyFlagProvided(args, "image-status-request", "image-status-request-digest", "artifact-operation", "from", "to")
+	rawDistributionRequested := *project == "distribution" && anyFlagProvided(args, "image-manifest", "image-manifest-digest", "from", "to")
+	rawCNISpecRequested := *project == "container-network-interface-cni" && anyFlagProvided(args, "cni-configuration", "cni-configuration-digest", "operation", "from", "to")
+	rawEmissaryRequested := *project == "emissary-ingress" && anyFlagProvided(args, "diagd-argv", "diagd-argv-digest", "from", "to")
+	rawOpenFGARequested := *project == "openfga" && anyFlagProvided(args, "effective-config", "effective-config-digest", "effective-config-complete", "from", "to")
+	formatFlagsProvided := anyFlagProvided(args, "image-manifest", "image-manifest-digest", "cni-configuration", "cni-configuration-digest", "operation", "diagd-argv", "diagd-argv-digest", "effective-config", "effective-config-digest", "effective-config-complete")
+	if formatFlagsProvided && !rawDistributionRequested && !rawCNISpecRequested && !rawEmissaryRequested && !rawOpenFGARequested {
+		return r.usage("invalid native format check arguments; use --help")
+	}
+	if rawDistributionRequested || rawCNISpecRequested || rawEmissaryRequested || rawOpenFGARequested {
+		if *from == "" || *to == "" || (*knowledgeDB == "" && flagProvided(args, "replay-report")) || (rawDistributionRequested && (*imageManifest == "" || cncfUnexpectedModeFlag(args, "image-manifest", "image-manifest-digest"))) || (rawCNISpecRequested && (*cniConfiguration == "" || cncfUnexpectedModeFlag(args, "cni-configuration", "cni-configuration-digest", "operation"))) || (rawEmissaryRequested && (*diagdArgv == "" || cncfUnexpectedModeFlag(args, "diagd-argv", "diagd-argv-digest"))) || (rawOpenFGARequested && (*effectiveConfig == "" || cncfUnexpectedModeFlag(args, "effective-config", "effective-config-digest", "effective-config-complete"))) {
+			return r.usage("invalid native format check arguments; use --help")
+		}
+	}
+	if rawDistributionRequested || rawCNISpecRequested || rawEmissaryRequested || rawOpenFGARequested {
+		// The closed selector checks above admitted the selected format route.
+	} else if rawArgoRequested {
+		if *configMap == "" || cncfUnexpectedModeFlag(args, "config-map", "config-map-digest", "requires-inherited-application-permissions") || *from == "" || *to == "" || *nowText == "" || flagProvided(args, "knowledge-db") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest") || flagProvided(args, "replay-report") || (flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false") {
 			return r.usage("invalid Argo CD ConfigMap check arguments; use --help")
 		}
 	} else if rawKnativeRequested {
-		if *service == "" || flagProvided(args, "config-map") || flagProvided(args, "config-map-digest") || anyFlagProvided(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation") || flagProvided(args, "requires-inherited-application-permissions") || *input != "" || flagProvided(args, "input") || flagProvided(args, "input-digest") || *from == "" || *to == "" || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *service == "" || cncfUnexpectedModeFlag(args, "service", "service-digest") || *from == "" || *to == "" || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid Knative Serving Service check arguments; use --help")
 		}
 	} else if rawBuildpacksRequested {
-		if *currentLifecycleConfig == "" || *proposedLifecycleConfig == "" || *currentPlatformAPI == "" || *proposedPlatformAPI == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *currentLifecycleConfig == "" || *proposedLifecycleConfig == "" || *currentPlatformAPI == "" || *proposedPlatformAPI == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid Buildpacks Lifecycle check arguments; use --help")
 		}
 	} else if rawInTotoRequested {
-		if *inTotoRunArgv == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *inTotoRunArgv == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "in-toto-run-argv", "in-toto-run-argv-digest") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid in-toto-run argv check arguments; use --help")
 		}
 	} else if rawTUFRequested {
-		if *pythonSource == "" || *pythonASTInterpreter == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *pythonSource == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "python-source", "python-source-digest") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid TUF Updater Python source check arguments; use --help")
 		}
 	} else if rawKubeflowRequested {
-		if *pythonSource == "" || *pythonASTInterpreter == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *pythonSource == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "python-source", "python-source-digest") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid KFP Python source check arguments; use --help")
 		}
 	} else if rawCubeFSRequested {
-		if *metanodeConfig == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "image-status-request", "image-status-request-digest", "artifact-operation", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *metanodeConfig == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "metanode-config", "metanode-config-digest", "phase") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid CubeFS MetaNode config check arguments; use --help")
 		}
 	} else if rawCRIORequested {
-		if *imageStatusRequest == "" || *from == "" || *to == "" || anyFlagProvided(args, "input", "input-digest", "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "requires-inherited-application-permissions") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
+		if *imageStatusRequest == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "image-status-request", "image-status-request-digest", "artifact-operation") || (*knowledgeDB == "" && (*nowText == "" || flagProvided(args, "replay-report") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest"))) {
 			return r.usage("invalid CRI-O ImageStatusRequest check arguments; use --help")
 		}
-	} else if *input == "" || anyFlagProvided(args, "config-map", "config-map-digest", "service", "service-digest", "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "in-toto-run-argv", "in-toto-run-argv-digest", "python-source", "python-source-digest", "python-ast-interpreter", "metanode-config", "metanode-config-digest", "phase", "image-status-request", "image-status-request-digest", "artifact-operation", "from", "to", "requires-inherited-application-permissions") {
+	} else if *input == "" || cncfUnexpectedModeFlag(args, "input", "input-digest") || anyFlagProvided(args, "from", "to") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	var now time.Time
@@ -235,7 +296,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if err != nil || now.Nanosecond() != 0 || now.Format(time.RFC3339) != *nowText {
 			return r.usage("CNCF check time must be explicit canonical UTC with whole seconds")
 		}
-	} else if flagProvided(args, "now") || (*replay != "" && ((!rawKnativeRequested && !rawBuildpacksRequested && !rawInTotoRequested && !rawTUFRequested && !rawKubeflowRequested && !rawCubeFSRequested && !rawCRIORequested && *pin == "") || (rawKnativeRequested && *servicePin == "") || (rawBuildpacksRequested && (*currentLifecyclePin == "" || *proposedLifecyclePin == "")) || (rawInTotoRequested && *inTotoRunArgvPin == "") || ((rawTUFRequested || rawKubeflowRequested) && *pythonSourcePin == "") || (rawCubeFSRequested && *metanodeConfigPin == "") || (rawCRIORequested && *imageStatusRequestPin == "") || *knowledgeRevision == "" || *knowledgeBundleDigest == "" || *knowledgeTrustReceiptDigest == "")) {
+	} else if flagProvided(args, "now") || (*replay != "" && ((!rawKnativeRequested && !rawBuildpacksRequested && !rawInTotoRequested && !rawTUFRequested && !rawKubeflowRequested && !rawCubeFSRequested && !rawCRIORequested && !rawDistributionRequested && !rawCNISpecRequested && !rawEmissaryRequested && !rawOpenFGARequested && *pin == "") || (rawKnativeRequested && *servicePin == "") || (rawBuildpacksRequested && (*currentLifecyclePin == "" || *proposedLifecyclePin == "")) || (rawInTotoRequested && *inTotoRunArgvPin == "") || ((rawTUFRequested || rawKubeflowRequested) && *pythonSourcePin == "") || (rawCubeFSRequested && *metanodeConfigPin == "") || (rawCRIORequested && *imageStatusRequestPin == "") || (rawDistributionRequested && *imageManifestPin == "") || (rawCNISpecRequested && *cniConfigurationPin == "") || (rawEmissaryRequested && *diagdArgvPin == "") || (rawOpenFGARequested && *effectiveConfigPin == "") || *knowledgeRevision == "" || *knowledgeBundleDigest == "" || *knowledgeTrustReceiptDigest == "")) {
 		return r.usage("external CNCF checks use verifier time; historical replay requires complete input and knowledge pins")
 	}
 	if _, err := cncfcheck.Catalog(false, *project); err != nil {
@@ -270,14 +331,14 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *knowledgeDB != "" {
 			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
 		}
-		return r.cncfTUFUpdater(*pythonSource, *pythonSourcePin, *pythonASTInterpreter, *from, *to, now, *format, selection, *replay)
+		return r.cncfTUFUpdater(*pythonSource, *pythonSourcePin, *from, *to, now, *format, selection, *replay)
 	}
 	if rawKubeflowRequested {
 		var selection *knowledge.SelectionRequest
 		if *knowledgeDB != "" {
 			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
 		}
-		return r.cncfKubeflowKFP(*pythonSource, *pythonSourcePin, *pythonASTInterpreter, *from, *to, now, *format, selection, *replay)
+		return r.cncfKubeflowKFP(*pythonSource, *pythonSourcePin, *from, *to, now, *format, selection, *replay)
 	}
 	if rawCubeFSRequested {
 		var selection *knowledge.SelectionRequest
@@ -292,6 +353,38 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
 		}
 		return r.cncfCRIOArtifactName(*imageStatusRequest, *imageStatusRequestPin, *from, *to, *artifactOperation, now, *format, selection, *replay)
+	}
+	if rawDistributionRequested {
+		var selection *knowledge.SelectionRequest
+		if *knowledgeDB != "" {
+			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
+		}
+		return r.cncfNativeFormat("distribution", *imageManifest, *imageManifestPin, *from, *to, "", now, *format, selection, *replay)
+	}
+	if rawCNISpecRequested {
+		var selection *knowledge.SelectionRequest
+		if *knowledgeDB != "" {
+			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
+		}
+		return r.cncfNativeFormat("container-network-interface-cni", *cniConfiguration, *cniConfigurationPin, *from, *to, *operation, now, *format, selection, *replay)
+	}
+	if rawEmissaryRequested {
+		var selection *knowledge.SelectionRequest
+		if *knowledgeDB != "" {
+			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
+		}
+		return r.cncfNativeFormat("emissary-ingress", *diagdArgv, *diagdArgvPin, *from, *to, "", now, *format, selection, *replay)
+	}
+	if rawOpenFGARequested {
+		var selection *knowledge.SelectionRequest
+		if *knowledgeDB != "" {
+			selection = &knowledge.SelectionRequest{StoreRoot: *knowledgeDB, ExpectedRevision: *knowledgeRevision, ExpectedBundleDigest: *knowledgeBundleDigest, ExpectedTrustReceiptDigest: *knowledgeTrustReceiptDigest}
+		}
+		complete := ""
+		if flagProvided(args, "effective-config-complete") {
+			complete = strconv.FormatBool(*effectiveConfigComplete)
+		}
+		return r.cncfNativeFormat("openfga", *effectiveConfig, *effectiveConfigPin, *from, *to, complete, now, *format, selection, *replay)
 	}
 	raw, err := readCNCFPrivate(*input, 1<<20)
 	if err != nil {
@@ -352,6 +445,48 @@ func anyFlagProvided(args []string, names ...string) bool {
 	return false
 }
 
+// cncfUnexpectedModeFlag rejects an explicitly supplied input selector that
+// belongs to another CNCF check mode. Keep this complete when adding a new
+// check input flag: otherwise a later route can parse a supplied selector and
+// silently ignore it. Common selection, replay, output, and time flags do not
+// belong here because their validation is shared by the selected mode.
+func cncfUnexpectedModeFlag(args []string, allowed ...string) bool {
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, name := range allowed {
+		allowedSet[name] = struct{}{}
+	}
+	for _, name := range cncfModeInputFlags {
+		if flagProvided(args, name) {
+			if _, ok := allowedSet[name]; !ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cncfModeInputFlags is the closed set of input selectors admitted by check
+// cncf. Some names are reserved for accepted upcoming format adapters so their
+// eventual FlagSet registration cannot create an ignored cross-mode input.
+var cncfModeInputFlags = []string{
+	"input", "input-digest",
+	"config-map", "config-map-digest", "requires-inherited-application-permissions",
+	"service", "service-digest",
+	"current-lifecycle-config", "proposed-lifecycle-config",
+	"current-lifecycle-config-digest", "proposed-lifecycle-config-digest",
+	"current-platform-api", "proposed-platform-api",
+	"in-toto-run-argv", "in-toto-run-argv-digest",
+	"python-source", "python-source-digest",
+	"metanode-config", "metanode-config-digest", "phase",
+	"image-status-request", "image-status-request-digest", "artifact-operation",
+	"native-resource", "native-resource-digest",
+	"current-resource", "current-resource-digest", "resource", "resource-digest",
+	"image-manifest", "image-manifest-digest",
+	"cni-configuration", "cni-configuration-digest", "operation",
+	"effective-config", "effective-config-complete",
+	"effective-config-digest", "diagd-argv", "diagd-argv-digest",
+}
+
 func (r runtime) knativeInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
@@ -377,14 +512,8 @@ func (r runtime) tufInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	if errors.Is(err, cncfprepare.ErrTUFInterpreter) {
-		return r.fail("TUF_PYTHON_AST_INTERPRETER_UNAVAILABLE_OR_UNSUPPORTED", ExitUsage)
-	}
 	if errors.Is(err, cncfprepare.ErrTUFSourceParse) {
-		return r.fail("SELECTED_TUF_PYTHON_INTERPRETER_COULD_NOT_PARSE_SOURCE", ExitUsage)
-	}
-	if errors.Is(err, cncfprepare.ErrTUFProtocol) {
-		return r.knativeIntegrityFailure()
+		return r.fail("TUF_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX", ExitUsage)
 	}
 	return r.fail("TUF_UPDATER_SOURCE_PREPARATION_INPUT_INVALID", ExitUsage)
 }
@@ -393,14 +522,8 @@ func (r runtime) kubeflowKFPInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	if errors.Is(err, cncfprepare.ErrKubeflowKFPInterpreter) {
-		return r.fail("KUBEFLOW_KFP_PYTHON_AST_INTERPRETER_UNAVAILABLE_OR_UNSUPPORTED", ExitUsage)
-	}
 	if errors.Is(err, cncfprepare.ErrKubeflowKFPSourceParse) {
-		return r.fail("SELECTED_KUBEFLOW_KFP_PYTHON_INTERPRETER_COULD_NOT_PARSE_SOURCE", ExitUsage)
-	}
-	if errors.Is(err, cncfprepare.ErrKubeflowKFPProtocol) {
-		return r.knativeIntegrityFailure()
+		return r.fail("KUBEFLOW_KFP_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX", ExitUsage)
 	}
 	return r.fail("KUBEFLOW_KFP_SOURCE_PREPARATION_INPUT_INVALID", ExitUsage)
 }
