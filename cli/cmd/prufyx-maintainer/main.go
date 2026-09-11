@@ -338,6 +338,8 @@ func runSupportInventory(args []string, stderr io.Writer) error {
 	flags.StringVar(&cfg.CloudEventsProfile, "cloudevents-profile", filepath.Join(root, "internal/cloudeventsstructuredjson/data/profile.json"), "CloudEvents profile")
 	flags.StringVar(&cfg.TiKVProfile, "tikv-profile", filepath.Join(root, "internal/tikvgcpv2/data/profile.json"), "TiKV profile")
 	flags.StringVar(&cfg.CNCFPrepareSource, "cncf-prepare-source", filepath.Join(root, "internal/communityapp/cncf_prepare.go"), "CNCF preparer dispatch source")
+	flags.StringVar(&cfg.ProjectRules, "community-project-rules", filepath.Join(root, "internal/projectcheck/data/rules.json"), "community-project rule pack")
+	flags.StringVar(&cfg.ProjectRegistry, "community-project-registry", filepath.Join(root, "internal/projectcheck/data/projects.json"), "community-project identity registry")
 	selected := flags.String("selected-source-manifest", "", "reviewed selected-source manifest")
 	jsonOutput := flags.String("json-output", "", "generated canonical JSON output")
 	markdownOutput := flags.String("markdown-output", "", "generated Markdown output")

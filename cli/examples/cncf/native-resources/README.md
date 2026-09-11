@@ -47,3 +47,71 @@ check compares only same-object identity and `spec.cluster.name`. With an
 external signed knowledge store, that store is authoritative and has no
 embedded fallback; historical replay requires every raw digest and all selected
 knowledge pins.
+
+## Thanos Receive and Store argv
+
+Thanos `0.41.0` -> `0.42.0` accepts one supplied **proposed target** Kubernetes
+workload JSON file. It selects exactly one container named `thanos`, requires
+an explicit `command: ["thanos"]`, an admitted Thanos image tagged
+`v0.42.0`, and literal args beginning `receive` or `store`. Global arguments
+before the subcommand, shell/default entrypoints, expansion syntax, argument
+delimiters, custom images, and ambiguous containers stay `UNKNOWN`.
+
+```sh
+cp examples/cncf/native-resources/thanos/broken.json "$work/thanos.json"
+chmod 600 "$work/thanos.json"
+./prufyx-community check cncf --project thanos \
+  --native-resource "$work/thanos.json" \
+  --from 0.41.0 --to 0.42.0 --now 2026-09-11T19:16:43Z --format human
+```
+
+`broken.json` retains the removed Receive option and is a scoped blocker.
+`fixed.json` clears only that literal-argv predicate. `unknown.json` uses a
+custom image and remains unresolved. The check does not prove that the image
+was pulled or deployed, nor Query compatibility, storage, compaction,
+discovery, generated configuration, runtime, or whole-upgrade behavior.
+
+## Cortex literal querier argv
+
+Cortex `1.17.2` → `1.21.1` checks a caller-supplied proposed workload for the
+removed `querier.at-modifier-enabled` option. The admitted input has one named
+`cortex` container, the reviewed target image, explicit `command:
+["/bin/cortex"]`, and literal argv. It does not infer an image entrypoint or
+resolve configuration files, environment, or shell syntax.
+
+```sh
+cp examples/cncf/native-resources/cortex/broken.json "$work/cortex.json"
+chmod 600 "$work/cortex.json"
+./prufyx-community check cncf --project cortex \
+  --native-resource "$work/cortex.json" \
+  --from 1.17.2 --to 1.21.1 --now 2026-09-11T19:16:43Z --format human
+```
+
+`broken.json` is BLOCKED because it retains the removed option. `fixed.json`
+is a scoped PASS for its literal argv. `unknown.json` omits the explicit
+command and remains UNKNOWN. The check does not establish query semantics,
+storage, tenancy, runtime behavior, or whole-upgrade compatibility.
+
+## NATS selected literal names
+
+NATS `2.10.0` → `2.11.0` rejects ASCII spaces in explicitly supplied
+`server_name`, `cluster.name`, or `gateway.name`. The direct route accepts a
+small JSON-only configuration subset and does not resolve NATS includes,
+variables, defaults, or classic block syntax.
+
+```sh
+cp examples/cncf/native-resources/nats/broken.json "$work/nats.json"
+chmod 600 "$work/nats.json"
+./prufyx-community check cncf --project nats \
+  --nats-config "$work/nats.json" \
+  --from 2.10.0 --to 2.11.0 --now 2026-09-11T20:22:53Z --format human
+```
+
+`broken.json` is BLOCKED because a supplied selected name contains an ASCII
+space. `fixed.json` is a scoped PASS for the supplied names. `unknown.json`
+uses an unresolved include and remains UNKNOWN. Missing selected names,
+case-colliding keys, relevant dotted descendants, dynamic values, and
+unsupported parent shapes also remain UNKNOWN; the check never infers a
+default name, enabled gateway, or runtime configuration. It also rejects JSON
+escape forms that the reviewed NATS lexer does not admit, including `\\u` and
+`\\/`, rather than decoding them into apparent literal names.

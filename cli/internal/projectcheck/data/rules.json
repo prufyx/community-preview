@@ -1,0 +1,141 @@
+{
+  "schema": "prufyx.io/community-project-source-rule-pack/v1alpha1",
+  "revision": "community-project-rules-2026-09-11.3",
+  "policyId": "community-project-source-preview-v1",
+  "policyDigest": "sha256:16b3a461dfc639f997c6f048d4dc6f0cf5bda3c02c12fdc4f390bf52fc2ff144",
+  "entries": [
+    {
+      "project": "argo-workflows",
+      "description": "Argo Workflows 3.6 renames the argo server --basehref option to --base-href; this checks only literal argv for one explicitly bound argo-server container in a caller-supplied Deployment.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.argo-workflows.server_legacy_basehref_flag_present",
+          "component": "pkg:github/argoproj/argo-workflows",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed exact-image argo-server container argv retains literal --basehref after conservative command and environment admission."
+        }
+      ],
+      "rule": {
+        "id": "argo-workflows.server-basehref.3-5-to-3-6",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/argoproj/argo-workflows", "from": "3.5.0", "to": "3.6.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/argoproj/argo-workflows", "factId": "component.argo-workflows.server_legacy_basehref_flag_present", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T20:30:00Z",
+          "validUntil": "2026-12-10T20:30:00Z",
+          "sources": [
+            {"id": "argo-workflows-v3-5-server-basehref", "url": "https://github.com/argoproj/argo-workflows/blob/bf735a2e861d6b1c686dd4a076afc3468aa89c4a/cmd/argo/commands/server.go", "revision": "bf735a2e861d6b1c686dd4a076afc3468aa89c4a", "contentDigest": "sha256:0eae669e00e9aa71c2f3bce8252b67f7cb36b7ee95dc4512c31f4464b7065ca0", "startLine": 208, "endLine": 221},
+            {"id": "argo-workflows-v3-6-argo-server-deployment", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/manifests/base/argo-server/argo-server-deployment.yaml", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:18ce29181a99e29a9eaeb75a7b2eb569b5590a4fa9f9f4d1abd80a477e1cbbc2", "startLine": 14, "endLine": 26},
+            {"id": "argo-workflows-v3-6-argocli-entrypoint", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/Dockerfile", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:9901aee7d93552cdab4dc179f9e718654556f3de128cdff9c6b3de39c6d52ea0", "startLine": 114, "endLine": 116},
+            {"id": "argo-workflows-v3-6-release-image-render", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/Makefile", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:94d39b9b7fb3335ab2fcd8133b37a5311d8ca3c08b0daae37725e5127a3bb27d", "startLine": 447, "endLine": 449},
+            {"id": "argo-workflows-v3-6-release-version", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/Makefile", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:94d39b9b7fb3335ab2fcd8133b37a5311d8ca3c08b0daae37725e5127a3bb27d", "startLine": 23, "endLine": 28},
+            {"id": "argo-workflows-v3-6-server-base-href", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/cmd/argo/commands/server.go", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:dc187ed0c58628ca38c9b002c3323339687730694301ec72850e022dd382ccb1", "startLine": 192, "endLine": 197},
+            {"id": "argo-workflows-v3-6-upgrade-guide", "url": "https://github.com/argoproj/argo-workflows/blob/b26ed4aa4dee395844531efa4a76a022183bec22/docs/upgrading.md", "revision": "b26ed4aa4dee395844531efa4a76a022183bec22", "contentDigest": "sha256:f56dfdc66915a7e80c345b86834a2c0ffefad891e44563ec4c61ee8199967778", "startLine": 19, "endLine": 27}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace literal --basehref with --base-href in the caller-owned argo-server workload, then recheck the same private file."
+      }
+    },
+    {
+      "project": "ceph",
+      "description": "Ceph Reef no longer supports FileStore; this checks only whether one explicitly selected caller-supplied current Quincy OSD metadata object reports the FileStore backend.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.ceph.selected_current_osd_filestore",
+          "component": "pkg:github/ceph/ceph",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller-selected current Quincy OSD metadata object reports osd_objectstore=filestore for the explicitly matching numeric OSD id."
+        }
+      ],
+      "rule": {
+        "id": "ceph.selected-osd-filestore.17-2-to-18-2",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/ceph/ceph", "from": "17.2.7", "to": "18.2.0"},
+        "condition": {"side": "current", "component": "pkg:github/ceph/ceph", "factId": "component.ceph.selected_current_osd_filestore", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T21:00:00Z",
+          "validUntil": "2026-12-10T21:00:00Z",
+          "sources": [
+            {"id": "ceph-quincy-objectstore-filestore-construction", "url": "https://github.com/ceph/ceph/blob/b12291d110049b2f35e32e0de30d70e9a4c060d2/src/os/ObjectStore.cc", "revision": "b12291d110049b2f35e32e0de30d70e9a4c060d2", "contentDigest": "sha256:a2311b6221805ab60256b09632cb9c70ba7422a0b1f107104b48e57619ea5fa9", "startLine": 49, "endLine": 64},
+            {"id": "ceph-quincy-osd-current-backend-metadata", "url": "https://github.com/ceph/ceph/blob/b12291d110049b2f35e32e0de30d70e9a4c060d2/src/osd/OSD.cc", "revision": "b12291d110049b2f35e32e0de30d70e9a4c060d2", "contentDigest": "sha256:69c30396b47d4987f184ec728d5e7ca90854cf71e272e1b80f84ea4d58438b55", "startLine": 6896, "endLine": 6913},
+            {"id": "ceph-quincy-selected-osd-metadata-object", "url": "https://github.com/ceph/ceph/blob/b12291d110049b2f35e32e0de30d70e9a4c060d2/src/mon/OSDMonitor.cc", "revision": "b12291d110049b2f35e32e0de30d70e9a4c060d2", "contentDigest": "sha256:e7372f9c65fa3cc3d9c1c60c913e19ac355e399b2154eaf3942fd11850b2bdb8", "startLine": 5758, "endLine": 5793},
+            {"id": "ceph-reef-objectstore-filestore-rejection", "url": "https://github.com/ceph/ceph/blob/5dd24139a1eada541a3bc16b6941c5dde975e26d/src/os/ObjectStore.cc", "revision": "5dd24139a1eada541a3bc16b6941c5dde975e26d", "contentDigest": "sha256:dafddc3e1865fe65c747efc83e7ff57ca0f851f21790e8b185de7e715ec600d4", "startLine": 46, "endLine": 63}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the explicitly selected current FileStore OSD to BlueStore using Ceph's documented procedure before the Reef upgrade; assess every other OSD separately."
+      }
+    },
+    {
+      "project": "grafana",
+      "description": "Grafana 11 removes legacy alerting; this checks only whether a complete, precedence-resolved proposed grafana.ini explicitly enables the removed subsystem and does not establish alert-data migration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.grafana.legacy_alerting_explicitly_enabled",
+          "component": "pkg:github/grafana/grafana",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed effective grafana.ini explicitly sets [alerting] enabled=true after environment and CLI precedence is resolved."
+        }
+      ],
+      "rule": {
+        "id": "grafana.legacy-alerting-config.10-4-to-11-0",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/grafana/grafana", "from": "10.4.0", "to": "11.0.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/grafana/grafana", "factId": "component.grafana.legacy_alerting_explicitly_enabled", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T19:30:00Z",
+          "validUntil": "2026-12-10T19:30:00Z",
+          "sources": [
+            {"id": "grafana-v10-4-defaults-legacy-alerting-key", "url": "https://github.com/grafana/grafana/blob/03f502a94d17f7dc4e6c34acdf8428aedd986e4c/conf/defaults.ini", "revision": "03f502a94d17f7dc4e6c34acdf8428aedd986e4c", "contentDigest": "sha256:4d836af3389e42952ca11b37359f480930568bc37c63233757dfc7b4a13efd42", "startLine": 1332, "endLine": 1335},
+            {"id": "grafana-v11-legacy-alerting-removal", "url": "https://github.com/grafana/grafana/blob/277ef258d4b9a5acdf2932347c6a4ca72d739b28/docs/sources/breaking-changes/breaking-changes-v11-0.md", "revision": "277ef258d4b9a5acdf2932347c6a4ca72d739b28", "contentDigest": "sha256:5c4471891e232882d61fab65412b1946a82636578ad8821b946eaf392547a586", "startLine": 86, "endLine": 93},
+            {"id": "grafana-v11-setting-startup-call", "url": "https://github.com/grafana/grafana/blob/277ef258d4b9a5acdf2932347c6a4ca72d739b28/pkg/setting/setting.go", "revision": "277ef258d4b9a5acdf2932347c6a4ca72d739b28", "contentDigest": "sha256:fa74b26705d2376323afba6188e4455ac0d72550f4273bcc7ebd71d0f8fb2d70", "startLine": 1147, "endLine": 1149},
+            {"id": "grafana-v11-setting-startup-guard", "url": "https://github.com/grafana/grafana/blob/277ef258d4b9a5acdf2932347c6a4ca72d739b28/pkg/setting/setting.go", "revision": "277ef258d4b9a5acdf2932347c6a4ca72d739b28", "contentDigest": "sha256:fa74b26705d2376323afba6188e4455ac0d72550f4273bcc7ebd71d0f8fb2d70", "startLine": 1743, "endLine": 1751}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove the explicit legacy-alerting enablement and complete Grafana's documented alert migration before upgrading; recheck the precedence-resolved config."
+      }
+    },
+    {
+      "project": "kibana",
+      "description": "Kibana 9 ignores reporting roles settings and removes xpack.reporting.roles.allow; this checks only a complete, precedence-resolved kibana.yml for that key.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kibana.reporting_roles_allow_present",
+          "component": "pkg:github/elastic/kibana",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed effective kibana.yml contains xpack.reporting.roles.allow in dotted or nested mapping form."
+        }
+      ],
+      "rule": {
+        "id": "kibana.reporting-roles-allow.8-18-to-9-0",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/elastic/kibana", "from": "8.18.0", "to": "9.0.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/elastic/kibana", "factId": "component.kibana.reporting_roles_allow_present", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T19:30:00Z",
+          "validUntil": "2026-12-10T19:30:00Z",
+          "sources": [
+            {"id": "kibana-v8-18-reporting-roles-settings", "url": "https://github.com/elastic/kibana/blob/c220d2938cd718bb332afb07baaf95999eb28759/docs/settings/reporting-settings.asciidoc", "revision": "c220d2938cd718bb332afb07baaf95999eb28759", "contentDigest": "sha256:f2ea9bde4ba6ff14bccfd942615940093fa9ebf1a1195372c09fdf96157801cf", "startLine": 71, "endLine": 96},
+            {"id": "kibana-v9-reporting-roles-removal", "url": "https://github.com/elastic/kibana/blob/504d6bfa94cca17fabb76e06152c30c4f0c3efdd/docs/release-notes/breaking-changes.md", "revision": "504d6bfa94cca17fabb76e06152c30c4f0c3efdd", "contentDigest": "sha256:80ec4be6a4daae30fc12706c3e1d4d939357f983fdbf22ca7c2d6112afc42688", "startLine": 346, "endLine": 361}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove xpack.reporting.roles.allow and grant reporting access through Kibana feature privileges, then recheck the precedence-resolved config."
+      }
+    }
+  ]
+}

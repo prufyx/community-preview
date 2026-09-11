@@ -25,6 +25,7 @@ func TestCNCFNativeResourceExamplesUseDirectRawFiles(t *testing.T) {
 		{"metallb", "0.12.1", "0.13.2", "metallb", ExitBlocked},
 		{"contour", "1.19.0", "1.20.0", "contour", ExitBlocked},
 		{"kubevirt", "1.8.4", "1.9.0", "kubevirt", ExitBlocked},
+		{"thanos", "0.41.0", "0.42.0", "thanos", ExitBlocked},
 	} {
 		t.Run(test.project, func(t *testing.T) {
 			for name, want := range map[string]int{"broken.json": test.want, "fixed.json": ExitOK, "unknown.json": ExitUnknown} {
@@ -178,7 +179,7 @@ func TestCNCFNativeResourceExternalKnowledgeHasNoEmbeddedFallbackAndReplayPinsRa
 
 func TestCNCFModeAdmissionRejectsEveryForeignSelector(t *testing.T) {
 	nativeAllowed := []string{"native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest"}
-	for _, name := range []string{"input", "config-map", "python-source", "image-manifest", "image-manifest-digest", "cni-configuration", "cni-configuration-digest", "operation", "effective-config", "effective-config-digest", "effective-config-complete", "diagd-argv", "diagd-argv-digest"} {
+	for _, name := range []string{"input", "config-map", "python-source", "nats-config", "nats-config-digest", "image-manifest", "image-manifest-digest", "cni-configuration", "cni-configuration-digest", "operation", "effective-config", "effective-config-digest", "effective-config-complete", "diagd-argv", "diagd-argv-digest"} {
 		if !cncfUnexpectedModeFlag([]string{"--native-resource=resource.json", "--" + name + "=other"}, nativeAllowed...) {
 			t.Fatalf("native route accepted foreign %q", name)
 		}

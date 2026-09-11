@@ -81,6 +81,7 @@ func compiledDefinitions() []constraintengine.FactDefinition {
 		{ID: "component.linkerd.mtls_identity_selector_empty", Component: "pkg:github/linkerd/linkerd2", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.linkerd.schema_validation_required", Component: "pkg:github/linkerd/linkerd2", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.metallb.legacy_configmap_present", Component: "pkg:github/metallb/metallb", Type: constraintengine.FactBool, EnumTokens: nil},
+		{ID: "component.nats.selected_name_has_ascii_space", Component: "pkg:github/nats-io/nats-server", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.longhorn.upgrade_path_check_enabled", Component: "pkg:github/longhorn/longhorn", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.opa.modules_use_rego_v1_import", Component: "pkg:github/open-policy-agent/opa", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.opa.producer_v0_compatible", Component: "pkg:github/open-policy-agent/opa", Type: constraintengine.FactBool, EnumTokens: nil},

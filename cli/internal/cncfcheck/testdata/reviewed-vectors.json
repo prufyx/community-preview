@@ -12265,8 +12265,54 @@
       }
     ]
   },
-{
-    "project": "opa",
+  {
+    "project": "nats",
+    "ruleId": "nats.names-with-ascii-spaces-rejected.2-10-0-to-2-11-0",
+    "cases": [
+      {
+        "name": "literal-selected-names-without-space",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.10.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.11.0", "facts": [{"id": "component.nats.selected_name_has_ascii_space", "state": "declared", "boolValue": false}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "literal-selected-name-with-space",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.10.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.11.0", "facts": [{"id": "component.nats.selected_name_has_ascii_space", "state": "declared", "boolValue": true}]}]}
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "unresolved-selected-name",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.10.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.11.0", "facts": [{"id": "component.nats.selected_name_has_ascii_space", "state": "unsupported"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "unreviewed-pair",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.11.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/nats-io/nats-server", "version": "2.12.0", "facts": [{"id": "component.nats.selected_name_has_ascii_space", "state": "declared", "boolValue": true}]}]}
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+      "project": "opa",
     "ruleId": "opa.v0-consumer-producer-option.1-0",
     "cases": [
       {

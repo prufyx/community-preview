@@ -358,9 +358,12 @@ The Cortex fact covers only declared presence of the exact
 `querier.at-modifier-enabled` option in effective proposed arguments for the
 official upstream `cortex` command. The option was already nonfunctional at
 the reviewed current endpoint, so this rule checks input compatibility and
-does not claim a query-behavior change. There is no Cortex argv parser.
-Missing or unresolved arguments, custom builds, other executables, and
-unreviewed endpoint pairs remain `UNKNOWN`.
+does not claim a query-behavior change. The Go native-input adapter admits
+only one caller-supplied `apps/v1` workload container named `cortex`, the exact
+reviewed target image, explicit `command: ["/bin/cortex"]`, and a narrow
+literal argv subset. Missing or unresolved arguments, default entrypoints,
+custom builds, other executables, and unreviewed endpoint pairs remain
+`UNKNOWN`.
 
 The Strimzi fact covers only rendered resources with `kind: Kafka` and
 `apiVersion: kafka.strimzi.io/v1beta2`. The

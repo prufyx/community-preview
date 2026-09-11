@@ -24,7 +24,7 @@ type reviewedVector struct {
 
 func reviewClock(t *testing.T) time.Time {
 	t.Helper()
-	v, err := time.Parse(time.RFC3339, "2026-09-11T16:00:00Z")
+	v, err := time.Parse(time.RFC3339, "2026-09-11T21:00:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 55 || len(vectors) != 55 {
+	if len(b.pack.Entries) != 56 || len(vectors) != 56 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 407 {
+	if caseCount != 411 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -361,7 +361,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 50 || all.RuntimeReproduced != 0 {
+	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 51 || all.RuntimeReproduced != 0 {
 		t.Fatalf("unexpected inventory: %+v", all)
 	}
 	priority, err := Catalog(true, "")
@@ -375,6 +375,10 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 	linkerd, err := Catalog(false, "linkerd")
 	if err != nil || len(linkerd.Projects) != 1 || linkerd.Projects[0].SourceRuleCount != 1 || linkerd.Projects[0].GenericCoverage != "source_rule_preview" || linkerd.Projects[0].RuntimeReproduced != 0 {
 		t.Fatal("Linkerd source preview coverage missing or overstated")
+	}
+	nats, err := Catalog(false, "nats")
+	if err != nil || len(nats.Projects) != 1 || nats.Projects[0].SourceRuleCount != 1 || nats.Projects[0].GenericCoverage != "source_rule_preview" || nats.Projects[0].RuntimeReproduced != 0 {
+		t.Fatal("NATS source preview coverage missing or overstated")
 	}
 	for _, want := range []struct {
 		slug  string

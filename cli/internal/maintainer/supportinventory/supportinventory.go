@@ -34,6 +34,7 @@ type Config struct {
 	Rules, Landscape, CertContract, PrometheusContract string
 	SPIFFEProfile, CloudEventsProfile, TiKVProfile     string
 	CNCFPrepareSource, SelectedSourceManifest          string
+	ProjectRules, ProjectRegistry                      string
 }
 
 type loaded struct {
@@ -554,9 +555,134 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 			return grouped[project][i].(map[string]any)["ruleID"].(string) < grouped[project][j].(map[string]any)["ruleID"].(string)
 		})
 		capability := map[string]any{"kind": "embedded_cncf_source_rule", "command": []any{"check", "cncf", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack"}
-		if preparers[project] {
+		if native, ok := nativeCNCFInputMetadata[project]; ok {
+			capability["localPreparer"] = native
+		} else if preparers[project] {
 			capability["localPreparer"] = map[string]any{"command": []any{"prepare", "cncf", "--project", project}, "metadataState": "implemented_local_minimizing_adapter", "limit": "The adapter prepares only a bounded operator declaration from one local private input; it does not inspect a cluster, run an upgrade, or establish runtime behavior."}
 		}
+		projects = append(projects, map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}})
+	}
+	return projects, len(entries), nil
+}
+
+// nativeCNCFInputMetadata describes direct check routes that intentionally do
+// not use the generic prepare command. Each route minimizes one caller-supplied
+// local input in memory; none inspects a cluster or proves runtime behavior.
+var nativeCNCFInputMetadata = map[string]map[string]any{
+	"thanos": {
+		"command":       []any{"check", "cncf", "--project", "thanos", "--native-resource", "FILE"},
+		"metadataState": "implemented_native_kubernetes_workload_minimizer",
+		"limit":         "Checks one selected Thanos Receive or Store container in a caller-supplied Kubernetes workload with an exact reviewed image and literal argv; unresolved entrypoints, arguments, images, runtime behavior, storage, Query behavior, and whole-upgrade safety remain UNKNOWN.",
+	},
+	"cortex": {
+		"command":       []any{"check", "cncf", "--project", "cortex", "--native-resource", "FILE"},
+		"metadataState": "implemented_native_kubernetes_workload_minimizer",
+		"limit":         "Checks one selected Cortex container in a caller-supplied Kubernetes workload with the exact reviewed image, explicit command, and literal argv; unresolved entrypoints or arguments, custom builds, query semantics, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+	},
+	"nats": {
+		"command":       []any{"check", "cncf", "--project", "nats", "--nats-config", "FILE"},
+		"metadataState": "implemented_native_json_configuration_minimizer",
+		"limit":         "Checks only supplied literal server_name, cluster.name, and gateway.name in a bounded native JSON configuration subset; includes, variables, defaults, startup behavior, connectivity, and whole-upgrade safety remain UNKNOWN.",
+	},
+}
+
+func communityProjects(rules, registry map[string]any) ([]map[string]any, int, error) {
+	if rules["schema"] != "prufyx.io/community-project-source-rule-pack/v1alpha1" || registry["schema"] != "prufyx.io/community-project-registry/v1alpha1" {
+		return nil, 0, invalid("invalid community-project source schema")
+	}
+	rawIdentities, ok := array(registry["projects"])
+	if !ok || len(rawIdentities) == 0 {
+		return nil, 0, invalid("missing community-project registry")
+	}
+	identities := map[string]identity{}
+	components := map[string]string{}
+	for _, raw := range rawIdentities {
+		item, ok := object(raw)
+		if !ok || item["identityAuthority"] != "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY" || item["cncfMembership"] != "NOT_ASSERTED" {
+			return nil, 0, invalid("invalid community-project identity authority")
+		}
+		slug, _ := stringValue(item["slug"])
+		name, err := validText(item["name"], 240)
+		repository, _ := stringValue(item["repositoryURL"])
+		component, componentErr := validText(item["component"], 240)
+		if err != nil || componentErr != nil || !projectRE.MatchString(slug) || identities[slug].name != "" || repository == "" {
+			return nil, 0, invalid("invalid community-project identity")
+		}
+		if _, err := httpsURL(repository, true); err != nil {
+			return nil, 0, err
+		}
+		identities[slug], components[slug] = identity{name, repository}, component
+	}
+	entries, ok := array(rules["entries"])
+	if !ok || len(entries) == 0 {
+		return nil, 0, invalid("missing community-project rules")
+	}
+	grouped := map[string][]any{}
+	seen := map[string]bool{}
+	for _, raw := range entries {
+		entry, ok := object(raw)
+		if !ok {
+			return nil, 0, invalid("invalid community-project rule entry")
+		}
+		project, _ := stringValue(entry["project"])
+		if identities[project].name == "" {
+			return nil, 0, invalid("community-project rule identity missing")
+		}
+		rule, ok := object(entry["rule"])
+		if !ok {
+			return nil, 0, invalid("invalid community-project rule")
+		}
+		id, _ := stringValue(rule["id"])
+		if !idRE.MatchString(id) || seen[id] {
+			return nil, 0, invalid("duplicate community-project rule")
+		}
+		seen[id] = true
+		tr, err := transition(rule)
+		if err != nil || tr["component"] != components[project] {
+			return nil, 0, invalid("community-project transition identity mismatch")
+		}
+		evidence, ok := object(rule["evidence"])
+		if !ok || evidence["state"] != "active" {
+			return nil, 0, invalid("inactive community-project evidence")
+		}
+		sources, ok := array(evidence["sources"])
+		if !ok || len(sources) == 0 {
+			return nil, 0, invalid("missing community-project evidence")
+		}
+		normalized := make([]any, 0, len(sources))
+		for _, source := range sources {
+			v, err := sourceRecord(source, project)
+			if err != nil {
+				return nil, 0, err
+			}
+			normalized = append(normalized, v)
+		}
+		limit := "Scoped native effective-configuration constraint; it does not assert CNCF membership, whole-upgrade safety, or runtime behavior."
+		if project == "argo-workflows" {
+			limit = "Scoped literal argv constraint for one selected native Kubernetes workload container; it does not assert CNCF membership, whole-upgrade safety, or runtime behavior."
+		} else if project == "ceph" {
+			limit = "Scoped current-backend constraint for one explicitly selected caller-supplied OSD metadata object; it does not assert other OSDs, cluster inventory, target deployment, whole-upgrade safety, or runtime behavior."
+		}
+		grouped[project] = append(grouped[project], map[string]any{"ruleID": id, "transition": tr, "evidence": normalized, "evidenceState": "active", "limit": limit})
+	}
+	names := make([]string, 0, len(grouped))
+	for name := range grouped {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	projects := make([]map[string]any, 0, len(names))
+	for _, project := range names {
+		sort.Slice(grouped[project], func(i, j int) bool {
+			return grouped[project][i].(map[string]any)["ruleID"].(string) < grouped[project][j].(map[string]any)["ruleID"].(string)
+		})
+		preparer := map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_effective_config_minimizer", "limit": "Requires caller-declared complete configuration with environment and CLI precedence resolved; unsupported syntax remains UNKNOWN."}
+		if project == "argo-workflows" {
+			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_kubernetes_workload_minimizer", "limit": "Requires a caller-declared complete selected-container argv, exact reviewed image, and explicit command or the reviewed exact-image ENTRYPOINT default; unsupported context remains UNKNOWN."}
+		} else if project == "ceph" {
+			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_selected_current_osd_metadata_minimizer", "limit": "Requires one caller-selected current OSD metadata object, an exact matching numeric OSD id, and explicit object completeness; it does not inspect a cluster or target deployment."}
+		}
+		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
+		id := identities[project]
 		projects = append(projects, map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}})
 	}
 	return projects, len(entries), nil
@@ -777,7 +903,7 @@ func canonicalString(value any) string { raw, _ := canonical(value); return stri
 
 // Generate derives canonical JSON and the human-readable Markdown inventory.
 func Generate(cfg Config) ([]byte, string, error) {
-	paths := []string{cfg.Rules, cfg.Landscape, cfg.CertContract, cfg.PrometheusContract, cfg.SPIFFEProfile, cfg.CloudEventsProfile, cfg.TiKVProfile, cfg.SelectedSourceManifest}
+	paths := []string{cfg.Rules, cfg.Landscape, cfg.CertContract, cfg.PrometheusContract, cfg.SPIFFEProfile, cfg.CloudEventsProfile, cfg.TiKVProfile, cfg.SelectedSourceManifest, cfg.ProjectRules, cfg.ProjectRegistry}
 	inputs := make([]loaded, len(paths))
 	for i, name := range paths {
 		v, err := load(name)
@@ -816,6 +942,10 @@ func Generate(cfg Config) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	community, communityRuleCount, err := communityProjects(inputs[8].value, inputs[9].value)
+	if err != nil {
+		return nil, "", err
+	}
 	cert, err := namedProject(inputs[2].value, inputs[2].digest, identities, "cert-manager-values")
 	if err != nil {
 		return nil, "", err
@@ -839,6 +969,13 @@ func Generate(cfg Config) ([]byte, string, error) {
 	projects := map[string]map[string]any{}
 	for _, item := range generic {
 		projects[item["projectID"].(string)] = item
+	}
+	for _, item := range community {
+		id := item["projectID"].(string)
+		if projects[id] != nil {
+			return nil, "", invalid("community-project capability overlaps CNCF identity")
+		}
+		projects[id] = item
 	}
 	for _, item := range []map[string]any{cert, prom, spiffe, cloud, tikv} {
 		id := item["projectID"].(string)
@@ -885,7 +1022,7 @@ func Generate(cfg Config) ([]byte, string, error) {
 	for _, id := range names {
 		projectList = append(projectList, projects[id])
 	}
-	inventory := map[string]any{"schema": Schema, "inputDigests": map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "selectedSourceManifest": inputs[7].digest}, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfRuleProjects": len(generic), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active source-rule pack; exact declared endpoints only", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "wholeUpgrade": "UNKNOWN"}, "projects": projectList}
+	inventory := map[string]any{"schema": Schema, "inputDigests": map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "selectedSourceManifest": inputs[7].digest, "communityProjectRules": inputs[8].digest, "communityProjectRegistry": inputs[9].digest}, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfRuleProjects": len(generic), "communityProjectSourceRules": communityRuleCount, "communityProjectRuleProjects": len(community), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active CNCF source-rule pack; exact declared endpoints only", "communityProjectRules": "separate embedded maintainer-reviewed external-project registry; CNCF membership is not asserted and external updates are unavailable", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "wholeUpgrade": "UNKNOWN"}, "projects": projectList}
 	raw, err := canonical(inventory)
 	if err != nil {
 		return nil, "", err
@@ -924,7 +1061,7 @@ func uniqueSorted(items []string) []string {
 func renderMarkdown(inventory map[string]any) string {
 	counts := inventory["counts"].(map[string]any)
 	n := func(k string) int { return counts[k].(int) }
-	lines := []string{"# Community support inventory", "", "Generated by `cmd/prufyx-maintainer`; do not edit by hand.", "", "This inventory separates executable scoped checks from selected public-source records. Catalogue discovery identities are not support entries. A scoped result never proves a whole upgrade safe or runtime behavior.", "", fmt.Sprintf("- CNCF embedded source rules: **%d** across **%d** projects.", n("cncfSourceRules"), n("cncfRuleProjects")), fmt.Sprintf("- Named local checks: **%d** across **%d** projects.", n("namedChecks"), n("namedCheckProjects")), fmt.Sprintf("- Standards-conformance profiles: **%d** across **%d** projects; these are not version-transition checks.", n("conformanceProfiles"), n("conformanceProjects")), fmt.Sprintf("- Target-preflight profiles: **%d** across **%d** projects; these are not version-transition checks.", n("targetPreflightProfiles"), n("targetPreflightProjects")), fmt.Sprintf("- Executable-project union: **%d** projects.", n("executableProjects")), fmt.Sprintf("- Selected retained public-source records: **%d** across **%d** projects; **%d** are source-only and have no executable-support capability.", n("selectedSourceRecords"), n("selectedSourceProjects"), n("selectedSourceOnlyProjects")), "", "## Executable projects", "", "| Project | Executable capability | Exact reviewed transition(s) | Pinned evidence | Local preparer | Limits |", "| --- | --- | --- | --- | --- |"}
+	lines := []string{"# Community support inventory", "", "Generated by `cmd/prufyx-maintainer`; do not edit by hand.", "", "This inventory separates executable scoped checks from selected public-source records. Catalogue discovery identities are not support entries. A scoped result never proves a whole upgrade safe or runtime behavior.", "", fmt.Sprintf("- CNCF embedded source rules: **%d** across **%d** projects.", n("cncfSourceRules"), n("cncfRuleProjects")), fmt.Sprintf("- Community-project embedded source rules: **%d** across **%d** projects; CNCF membership is not asserted.", n("communityProjectSourceRules"), n("communityProjectRuleProjects")), fmt.Sprintf("- Named local checks: **%d** across **%d** projects.", n("namedChecks"), n("namedCheckProjects")), fmt.Sprintf("- Standards-conformance profiles: **%d** across **%d** projects; these are not version-transition checks.", n("conformanceProfiles"), n("conformanceProjects")), fmt.Sprintf("- Target-preflight profiles: **%d** across **%d** projects; these are not version-transition checks.", n("targetPreflightProfiles"), n("targetPreflightProjects")), fmt.Sprintf("- Executable-project union: **%d** projects.", n("executableProjects")), fmt.Sprintf("- Selected retained public-source records: **%d** across **%d** projects; **%d** are source-only and have no executable-support capability.", n("selectedSourceRecords"), n("selectedSourceProjects"), n("selectedSourceOnlyProjects")), "", "## Executable projects", "", "| Project | Executable capability | Exact reviewed transition(s) | Pinned evidence | Local preparer | Limits |", "| --- | --- | --- | --- | --- |"}
 	projects := inventory["projects"].([]any)
 	for _, rawProject := range projects {
 		project := rawProject.(map[string]any)

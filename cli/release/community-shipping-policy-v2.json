@@ -333,6 +333,15 @@
       "role": "documentation"
     },
     {
+      "path": "cli/docs/community-project-checks.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/examples/projects",
+      "recursive": true,
+      "role": "example"
+    },
+    {
       "path": "cli/docs/data-handling.md",
       "role": "documentation"
     },
