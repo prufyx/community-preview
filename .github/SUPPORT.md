@@ -1,6 +1,6 @@
 # Support
 
-Use [GitHub issues](https://github.com/prufyx/prufyx-cli/issues) for reproducible
+Use [GitHub issues](https://github.com/prufyx/community-preview/issues) for reproducible
 bugs, supported-scope questions, and proposed public rules. Include the CLI
 version, a minimal synthetic reproduction, expected result, and actual result.
 
