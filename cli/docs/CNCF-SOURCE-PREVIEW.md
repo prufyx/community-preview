@@ -24,6 +24,9 @@ prufyx prepare cncf --project jaeger --input FILE \
   [--non-memory-storage-required true|false] \
   [--official-jaeger-distribution true|false] \
   [--input-digest sha256:<digest>] [--format human|json|input]
+prufyx prepare cncf --project opencost --input FILE \
+  --from 1.119.0 --to 1.120.0 \
+  [--input-digest sha256:<digest>] [--format human|json|input]
 prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]
 prufyx check cncf --project SLUG --input FILE --now RFC3339 \
   [--input-digest SHA256] [--replay-report FILE] [--format human|json]
@@ -183,6 +186,7 @@ these narrow source constraints:
 | Tekton Pipelines `1.9.0` → `1.10.0` | `distribution=official_upstream`, `config_observability_identity_bound=true`, `proposed_config_observability_complete_effective=true`, `retain_prometheus_metrics_required=true`, `proposed_metrics_protocol_prometheus` | `false` is `BLOCKED`; exact `true` is `PASS`; missing, unsupported, conflict, partial overlay, non-Prometheus, or wrong-pair declarations remain `UNKNOWN` |
 | Dragonfly `2.2.3` → `2.2.4` | `distribution=official_upstream`, `execution_surface=manager_config` or `scheduler_config`, `legacy_verbose_debug_intent`, `retain_debug_logging_required`, `debug_logging_enabled` | `false` effective debug state is `BLOCKED` only for the matching sibling surface and all declared intents; declared `debug_logging_enabled=true` is scoped `PASS` only for the matching sibling surface with all guards satisfied |
 | Cortex `1.17.2` → `1.21.1` | `distribution=official_upstream`, `execution_surface=cortex`, `removed_at_modifier_flag_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with both guards |
+| OpenCost `1.119.0` → `1.120.0` | caller-declared current and proposed cloud-cost enablement, complete source selection, current provider-derived reliance, and proposed cloud-integration source selection with declared file presence | provider-only target selection is `BLOCKED`; an explicitly selected, declared-present cloud-integration file is scoped `PASS`; disabled, incomplete, ambiguous, API-managed, contradictory, or other-pair declarations remain `UNKNOWN` |
 | CRI-O `1.34.0` → `1.35.0` | caller-declared `named-reference-resolution` operation plus strict short-reference classification from one supplied CRI `ImageStatusRequest` JSON document | a short explicit-tag reference is `BLOCKED`; a fully-qualified explicit-tag reference in the reviewed grammar is scoped `PASS`; unsupported intent, grammar, input shape, ambiguity or other pairs remain `UNKNOWN` |
 | Strimzi `0.51.0` → `1.0.0` | `distribution=official_upstream`, `execution_surface=kafka_custom_resource`, `target_kafka_crd_admission_required=true`, `kafka_v1beta2_api_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with all three guards |
 | Keycloak `26.7.2` → `26.7.3` | `server_allow_oidc_params_in_redirect_uris`, `client_allow_oidc_params_in_redirect_uris`, `oidc_response_parameter_in_redirect_fragment` for one selected authorization redirect URI | with both allowances explicitly `false`, fragment `true` is `BLOCKED` and fragment `false` is scoped `PASS`; facts must stay bound to that one context, while missing, mixed, conflicting, or opt-in evidence is represented as `UNKNOWN` |

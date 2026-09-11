@@ -31,7 +31,7 @@ no hosted account requirement or model invocation. See the [quickstart](../READM
 [CloudEvents structured JSON core-envelope subset](docs/cloudevents-structured-json.md),
 [TiKV 8.5.8 GCS WIF full-backup planned-operation preflight](docs/tikv-gcp-v2-wif-backup.md),
 [Distribution and CNI native format preflights](docs/native-format-preflights.md),
-[community-project native configuration and workload checks](docs/community-project-checks.md),
+[community-project native configuration and workload checks](docs/community-project-checks.md). For Fluent Bit, use `check project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled --now RFC3339`; those three declarations are required for a scoped conclusion. See the
 [product contract](docs/product-contract.md) and
 [data handling](docs/data-handling.md).
 

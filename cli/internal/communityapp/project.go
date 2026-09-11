@@ -16,7 +16,7 @@ var projectDigestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type projectArguments struct {
 	project, config, workload, osdMetadata, selectedOSDID, from, to, configPin, workloadPin, osdMetadataPin, now, format string
-	complete, precedenceResolved, workloadComplete, osdMetadataComplete                                                  bool
+	complete, precedenceResolved, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled     bool
 }
 
 func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
@@ -37,6 +37,8 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.StringVar(&result.format, "format", "human", "human, json, or input")
 	fs.BoolVar(&result.complete, "effective-config-complete", false, "declare complete effective configuration")
 	fs.BoolVar(&result.precedenceResolved, "precedence-resolved", false, "declare environment and CLI precedence resolved")
+	fs.BoolVar(&result.currentDefaultWasUsed, "current-default-was-used", false, "declare that the reviewed current default was used")
+	fs.BoolVar(&result.preserveHTTP2Enabled, "preserve-http2-enabled", false, "declare intent to preserve an enabled HTTP/2 setting")
 	fs.BoolVar(&result.workloadComplete, "workload-complete", false, "declare complete selected workload argv")
 	fs.BoolVar(&result.osdMetadataComplete, "selected-osd-metadata-complete", false, "declare complete selected current OSD metadata object")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
@@ -64,6 +66,9 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 			return projectArguments{}, false
 		}
 	}
+	if result.project != projectprepare.FluentBitProject && anyFlagProvided(args, "current-default-was-used", "preserve-http2-enabled") {
+		return projectArguments{}, false
+	}
 	if check {
 		if result.now == "" || (result.format != "human" && result.format != "json") {
 			return projectArguments{}, false
@@ -77,6 +82,7 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 func (r runtime) prepareProject(args []string) int {
 	if hasHelp(args) {
 		fmt.Fprintln(r.stdout, "Usage: prufyx prepare project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled [--effective-config-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
 		return ExitOK
@@ -120,6 +126,7 @@ func (r runtime) prepareProject(args []string) int {
 func (r runtime) project(args []string) int {
 	if hasHelp(args) {
 		fmt.Fprintln(r.stdout, "Usage: prufyx check project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "This preview is embedded-only. --knowledge-db, --profile, and replay flags are not supported for community projects.")
@@ -189,7 +196,11 @@ func (r runtime) prepareProjectInput(request projectArguments) (projectprepare.P
 	} else if request.osdMetadata != "" {
 		prepared, err = projectprepare.PrepareSelectedOSDMetadata(request.project, raw, request.selectedOSDID, request.from, request.to, request.osdMetadataComplete)
 	} else {
-		prepared, err = projectprepare.PrepareEffectiveConfig(request.project, raw, request.from, request.to, request.complete, request.precedenceResolved)
+		if request.project == projectprepare.FluentBitProject {
+			prepared, err = projectprepare.PrepareFluentBit(raw, request.from, request.to, request.complete, request.currentDefaultWasUsed, request.preserveHTTP2Enabled)
+		} else {
+			prepared, err = projectprepare.PrepareEffectiveConfig(request.project, raw, request.from, request.to, request.complete, request.precedenceResolved)
+		}
 	}
 	if err != nil {
 		return projectprepare.Prepared{}, r.fail("community project native input unsupported or invalid", ExitUsage)

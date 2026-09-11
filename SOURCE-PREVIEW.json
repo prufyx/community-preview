@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:2590c24a76385a95ac8b0b931eb51050bf48482551107bc35170be4b1d714770",
+    "inventorySha256": "sha256:7c7bd71e0c96b0740a988f8ca04243a8b92ad80b8ae3d1ac9f81761a0d436bee",
     "counts": {
-      "executableProjects": 60,
+      "executableProjects": 62,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 13
+      "newExecutableScenarios": 15
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
@@ -37,6 +37,14 @@
       "to": "1.30.0",
       "rule": "cluster reference immutability",
       "input": "paired native Kubernetes JSON objects"
+    },
+    {
+      "project": "fluent-bit",
+      "repository": "https://github.com/fluent/fluent-bit",
+      "from": "3.2.0",
+      "to": "4.0.0",
+      "rule": "an intended enabled OpenTelemetry HTTP/2 setting must remain explicitly enabled",
+      "input": "caller-declared complete native classic configuration with current-default and preservation declarations"
     },
     {
       "project": "metallb",
@@ -110,6 +118,14 @@
       "to": "1.9.0",
       "rule": "interfaces with no or multiple bindings are rejected",
       "input": "native VM or VMI JSON"
+    },
+    {
+      "project": "opencost",
+      "repository": "https://github.com/opencost/opencost",
+      "from": "1.119.0",
+      "to": "1.120.0",
+      "rule": "enabled cloud-cost collection moves from provider-derived configuration to an explicitly selected cloud-integration file",
+      "input": "caller-declared complete source selection; file presence is declared, not observed"
     },
     {
       "project": "openfga",

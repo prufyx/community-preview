@@ -62,6 +62,48 @@ func TestSupportInventory_ArgoWorkflowsUsesWorkloadPreparerMetadata(t *testing.T
 	t.Fatal("Argo Workflows inventory entry missing")
 }
 
+func TestSupportInventory_FluentBitUsesDeclaredClassicConfigurationMetadata(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "fluent-bit" {
+			continue
+		}
+		if len(project.Capabilities) != 1 {
+			t.Fatalf("incorrect Fluent Bit capability count: %#v", project.Capabilities)
+		}
+		preparer := project.Capabilities[0].LocalPreparer
+		for _, flag := range []string{"--effective-config-complete", "--current-default-was-used", "--preserve-http2-enabled"} {
+			if !slices.Contains(preparer.Command, flag) {
+				t.Fatalf("Fluent Bit declaration flag missing from discovery command %q: %#v", flag, preparer.Command)
+			}
+		}
+		if preparer.MetadataState != "implemented_native_classic_configuration_minimizer" || strings.Contains(preparer.Limit, "environment and CLI precedence") || !strings.Contains(preparer.Limit, "only that setting") {
+			t.Fatalf("incorrect Fluent Bit inventory metadata: %#v", preparer)
+		}
+		return
+	}
+	t.Fatal("Fluent Bit inventory entry missing")
+}
+
 func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 	cfg, _ := repositoryConfig(t)
 	raw, _, err := Generate(cfg)
@@ -90,6 +132,7 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 		"thanos": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
 		"cortex": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
 		"nats":   {"--nats-config", "implemented_native_json_configuration_minimizer"},
+		"flux":   {"--native-resource", "implemented_native_rendered_resource_minimizer"},
 	}
 	for _, project := range document.Projects {
 		expected, ok := want[project.ProjectID]

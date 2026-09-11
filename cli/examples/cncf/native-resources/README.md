@@ -115,3 +115,25 @@ unsupported parent shapes also remain UNKNOWN; the check never infers a
 default name, enabled gateway, or runtime configuration. It also rejects JSON
 escape forms that the reviewed NATS lexer does not admit, including `\\u` and
 `\\/`, rather than decoding them into apparent literal names.
+
+## Flux selected rendered resources
+
+Flux `2.6.4` → `2.7.0` removes five beta API versions. The direct route reads
+one caller-selected JSON Kubernetes object or `v1` `List`; it does not parse
+YAML, contact a cluster, or establish stored-version migration or reconciliation.
+
+```sh
+cp examples/cncf/native-resources/flux/broken.json "$work/flux.json"
+chmod 600 "$work/flux.json"
+./prufyx-community check cncf --project flux \
+  --native-resource "$work/flux.json" \
+  --from 2.6.4 --to 2.7.0 --now 2026-09-11T21:00:00Z --format human
+```
+
+`broken.json` has an admitted removed API and is a scoped blocker even without
+completeness. `fixed.json` can produce a scoped PASS only with
+`--resource-scope-complete`; that declaration says the supplied nonempty,
+non-paginated list is the selected rendered-resource set. `unknown.json` has a
+pagination token and remains UNKNOWN. These results never establish stored CRD
+versions, full cluster inventory, schema validation, reconciliation, runtime,
+or whole-upgrade safety.

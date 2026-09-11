@@ -55,13 +55,13 @@ this example as proof that a cluster was converted or that traffic is safe.
 
 ## What is covered
 
-The current generated inventory reports **60 executable projects**, **110
+The current generated inventory reports **62 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
-contains the exact capabilities and source bindings. The thirteen newly reviewed
+contains the exact capabilities and source bindings. The fifteen newly reviewed
 scenarios are:
 
-| Project | Scoped scenario | Native input |
+| Project | Scoped scenario | Local input |
 | --- | --- | --- |
 | Argo Workflows | 3.5.0 → 3.6.0 renames server `--basehref` to `--base-href` | native Kubernetes Deployment JSON |
 | Ceph | Quincy 17.2.7 → Reef 18.2.0 rejects a selected current FileStore OSD | private native per-OSD metadata JSON output |
@@ -72,13 +72,17 @@ scenarios are:
 | CNI | spec 0.4.0 → 1.0.0 removes non-List configuration | plugin configuration JSON |
 | Distribution | 2.8.3 → 3.0.0 removes schema 1 manifests | manifest JSON |
 | Emissary-Ingress | 3.10.0 → 4.0.1 removes `diagd --metrics-endpoint` | caller-selected argv JSON |
+| Fluent Bit | 3.2.0 → 4.0.0 requires an intended OpenTelemetry HTTP/2 setting to stay enabled | complete classic configuration plus current-default and preservation declarations |
 | Grafana | 10.4.0 → 11.0.0 rejects explicit legacy alerting enablement | complete, precedence-resolved `grafana.ini` |
 | Kibana | 8.18.0 → 9.0.0 removes `xpack.reporting.roles.allow` | complete, precedence-resolved `kibana.yml` |
 | KubeVirt | 1.8.4 → 1.9.0 rejects interfaces with no or multiple bindings | VM/VMI JSON |
+| OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 
-Use `prufyx check cncf --project PROJECT` with the input contract documented
-in [community checks](cli/docs/community-checks.md). Version arguments select
+Use `prufyx check cncf --project PROJECT` for CNCF scenarios and `prufyx check
+project --project PROJECT` for the separately scoped community-project scenarios
+(Argo Workflows, Ceph, Fluent Bit, Grafana, and Kibana), with the input contract
+documented in [community checks](cli/docs/community-checks.md). Version arguments select
 an exact reviewed source contract. They do not identify a running installation.
 CNI numbers are specification editions, not a library release claim. OpenFGA's
 JSON is a caller-declared, already-resolved effective configuration; it does
