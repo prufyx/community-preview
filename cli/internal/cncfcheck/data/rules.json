@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-11.2",
+  "revision": "cncf-2026-09-11.4",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:2ba4cfcbbf6f120526d4a734a7051741b80d0ce8f8dcb1dd60adf0780b2fbda3",
+  "registryDigest": "sha256:d420addae41fe7abc46115303dcc8f2fe5e74cbe5dc194edbb444e3ca2e26a4d",
   "entries": [
 {
       "project": "argo-cd",
@@ -3874,6 +3874,156 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Use --v0-compatible for this declared producer scenario, or review the rego.v1 alternative; independently check v0 policy compliance."
+      }
+    },
+{
+      "project": "opencost",
+      "description": "OpenCost v1.120.0 no longer passes provider-derived configuration into cloud-cost initialization; this checks one caller-declared complete source selection for an enabled cloud-cost migration.",
+      "requiredFacts": [
+        {
+          "side": "current",
+          "id": "component.opencost.current_cloud_cost_enabled",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether cloud-cost initialization is enabled in the caller-declared current scope. This is not a live process observation."
+        },
+        {
+          "side": "current",
+          "id": "component.opencost.current_provider_derived_source_selected",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete caller declaration identifies provider-derived configuration as the selected current cloud-cost source; unrelated pricing configuration is not this fact."
+        },
+        {
+          "side": "current",
+          "id": "component.opencost.current_source_selection_complete",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller declares the current cloud-cost source selection complete and already resolved."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opencost.proposed_cloud_cost_enabled",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether cloud-cost initialization is enabled in the caller-declared proposed scope. This is not a target startup observation."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opencost.proposed_source_selection_complete",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller declares target cloud-cost source precedence complete and already resolved."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opencost.target_cloud_integration_source_selected_and_declared_present",
+          "component": "pkg:github/opencost/opencost",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete target declaration selects cloud-integration configuration and declares its file present. Presence is caller-declared; content, schema, credentials, mounts and cloud access are not checked."
+        }
+      ],
+      "rule": {
+        "id": "opencost.cloud-cost-source-migration.1-119-to-1-120",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/opencost/opencost",
+          "from": "1.119.0",
+          "to": "1.120.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/opencost/opencost",
+          "factId": "component.opencost.target_cloud_integration_source_selected_and_declared_present",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "current",
+            "component": "pkg:github/opencost/opencost",
+            "factId": "component.opencost.current_cloud_cost_enabled",
+            "boolValue": true
+          },
+          {
+            "side": "current",
+            "component": "pkg:github/opencost/opencost",
+            "factId": "component.opencost.current_source_selection_complete",
+            "boolValue": true
+          },
+          {
+            "side": "current",
+            "component": "pkg:github/opencost/opencost",
+            "factId": "component.opencost.current_provider_derived_source_selected",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/opencost/opencost",
+            "factId": "component.opencost.proposed_cloud_cost_enabled",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/opencost/opencost",
+            "factId": "component.opencost.proposed_source_selection_complete",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T21:22:55Z",
+          "validUntil": "2026-12-10T21:22:55Z",
+          "sources": [
+            {
+              "id": "opencost-v1-119-memory-controller-provider-config",
+              "url": "https://github.com/opencost/opencost/blob/75253e9ce35acfece35484b271f744ab4d9c8c6f/pkg/costmodel/router.go",
+              "revision": "75253e9ce35acfece35484b271f744ab4d9c8c6f",
+              "contentDigest": "sha256:48b5bc756ac233dc5208c9d4ce0ecfbc82aa95d17bf87443d5aad71cfff03f28",
+              "startLine": 582,
+              "endLine": 586
+            },
+            {
+              "id": "opencost-v1-119-provider-config-initialization",
+              "url": "https://github.com/opencost/opencost/blob/75253e9ce35acfece35484b271f744ab4d9c8c6f/pkg/cmd/costmodel/costmodel.go",
+              "revision": "75253e9ce35acfece35484b271f744ab4d9c8c6f",
+              "contentDigest": "sha256:f8ec15515675b878b4903a573f13784bc38adf4611df5daf849c667da0d96e1a",
+              "startLine": 65,
+              "endLine": 72
+            },
+            {
+              "id": "opencost-v1-120-cloud-cost-initialization",
+              "url": "https://github.com/opencost/opencost/blob/22da667c047765788a5cb8b01c1e8ad4cb87fc0a/pkg/cmd/costmodel/costmodel.go",
+              "revision": "22da667c047765788a5cb8b01c1e8ad4cb87fc0a",
+              "contentDigest": "sha256:0ff58686dd61f0beecc846e249575793b69f53bd969eb17afb6cb9af4341e511",
+              "startLine": 63,
+              "endLine": 67
+            },
+            {
+              "id": "opencost-v1-120-memory-controller-nil-config",
+              "url": "https://github.com/opencost/opencost/blob/22da667c047765788a5cb8b01c1e8ad4cb87fc0a/pkg/costmodel/router.go",
+              "revision": "22da667c047765788a5cb8b01c1e8ad4cb87fc0a",
+              "contentDigest": "sha256:f8e885fc5bf134ff97911fa3a7ea8025952405fb54b5587aabaca9e2bd3b3f99",
+              "startLine": 609,
+              "endLine": 613
+            },
+            {
+              "id": "opencost-v1-120-multicloud-source-paths",
+              "url": "https://github.com/opencost/opencost/blob/22da667c047765788a5cb8b01c1e8ad4cb87fc0a/pkg/cloud/config/watcher.go",
+              "revision": "22da667c047765788a5cb8b01c1e8ad4cb87fc0a",
+              "contentDigest": "sha256:c2c6f0c3609d0bc9c29a745d7f50097095a177fd5e574e2720072c1704d3dfea",
+              "startLine": 229,
+              "endLine": 307
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For an enabled cloud-cost deployment that relied on provider-derived configuration, select and separately validate a target-supported cloud-integration JSON source before the exact transition; do not put credentials or provider values in this declaration."
       }
     },
 {

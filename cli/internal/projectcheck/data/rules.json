@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-source-rule-pack/v1alpha1",
-  "revision": "community-project-rules-2026-09-11.3",
+  "revision": "community-project-rules-2026-09-11.4",
   "policyId": "community-project-source-preview-v1",
   "policyDigest": "sha256:16b3a461dfc639f997c6f048d4dc6f0cf5bda3c02c12fdc4f390bf52fc2ff144",
   "entries": [
@@ -71,6 +71,43 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Migrate the explicitly selected current FileStore OSD to BlueStore using Ceph's documented procedure before the Reef upgrade; assess every other OSD separately."
+      }
+    },
+    {
+      "project": "fluent-bit",
+      "description": "Fluent Bit 4.0 changes the OpenTelemetry output http2 default from on to off; this checks only a complete caller-selected classic OUTPUT section and an explicit intent to preserve the previously enabled setting. It does not establish protocol negotiation, TLS, connectivity, collector behavior, or whole-upgrade compatibility.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.fluent_bit.proposed_http2_enabled",
+          "component": "pkg:github/fluent/fluent-bit",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed effective OpenTelemetry output setting enables http2 (on or force) after strict bounded classic-config admission and explicit current-default/preservation declarations."
+        }
+      ],
+      "rule": {
+        "id": "fluent-bit.http2-setting.3-2-to-4-0",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/fluent/fluent-bit", "from": "3.2.0", "to": "4.0.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/fluent/fluent-bit", "factId": "component.fluent_bit.proposed_http2_enabled", "boolValue": false},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T22:23:16Z",
+          "validUntil": "2026-12-10T22:23:16Z",
+          "sources": [
+            {"id": "fluent-bit-v3-2-classic-native-fixture", "url": "https://github.com/fluent/fluent-bit/blob/50512ed56aad32f07d98a723cb217f0251bb52e8/tests/internal/data/config_format/classic/fluent-bit.conf", "revision": "50512ed56aad32f07d98a723cb217f0251bb52e8", "contentDigest": "sha256:403dcade6ab9645d0de6db4370bdfa77d7d874da3adc867db5b0f719a3973a97", "startLine": 30, "endLine": 32},
+            {"id": "fluent-bit-v3-2-classic-parser", "url": "https://github.com/fluent/fluent-bit/blob/50512ed56aad32f07d98a723cb217f0251bb52e8/src/config_format/flb_cf_fluentbit.c", "revision": "50512ed56aad32f07d98a723cb217f0251bb52e8", "contentDigest": "sha256:ad8931dba32e5454a8df11b37ec845d89ab9451418646a87d0f64f415ae6f4e3", "startLine": 553, "endLine": 718},
+            {"id": "fluent-bit-v3-2-opentelemetry-config-consumer", "url": "https://github.com/fluent/fluent-bit/blob/50512ed56aad32f07d98a723cb217f0251bb52e8/plugins/out_opentelemetry/opentelemetry_conf.c", "revision": "50512ed56aad32f07d98a723cb217f0251bb52e8", "contentDigest": "sha256:a3c9341e2aca33651aec02fdc856274a203a3f3e38b3716d818de6609d1a4432", "startLine": 545, "endLine": 562},
+            {"id": "fluent-bit-v3-2-opentelemetry-http2-default", "url": "https://github.com/fluent/fluent-bit/blob/50512ed56aad32f07d98a723cb217f0251bb52e8/plugins/out_opentelemetry/opentelemetry.c", "revision": "50512ed56aad32f07d98a723cb217f0251bb52e8", "contentDigest": "sha256:f47090834ebbcf1e87c54f83b763222dda4a55f11d2aa1732e61d2a3ecb4e21d", "startLine": 666, "endLine": 678},
+            {"id": "fluent-bit-v4-0-classic-native-fixture", "url": "https://github.com/fluent/fluent-bit/blob/712b48d7c387c87c922075aa5556afe648e36c4b/tests/internal/data/config_format/classic/fluent-bit.conf", "revision": "712b48d7c387c87c922075aa5556afe648e36c4b", "contentDigest": "sha256:403dcade6ab9645d0de6db4370bdfa77d7d874da3adc867db5b0f719a3973a97", "startLine": 30, "endLine": 32},
+            {"id": "fluent-bit-v4-0-classic-parser", "url": "https://github.com/fluent/fluent-bit/blob/712b48d7c387c87c922075aa5556afe648e36c4b/src/config_format/flb_cf_fluentbit.c", "revision": "712b48d7c387c87c922075aa5556afe648e36c4b", "contentDigest": "sha256:75a1f3aa48f393e8b16c89d1487b4846af155e79f5f2c58cd8dccf5c27e5b414", "startLine": 558, "endLine": 723},
+            {"id": "fluent-bit-v4-0-opentelemetry-config-consumer", "url": "https://github.com/fluent/fluent-bit/blob/712b48d7c387c87c922075aa5556afe648e36c4b/plugins/out_opentelemetry/opentelemetry_conf.c", "revision": "712b48d7c387c87c922075aa5556afe648e36c4b", "contentDigest": "sha256:89a8b925b27c3f7eba6e8ded97854156ef22ce3f94d1f891d57de2fcaaafd259", "startLine": 563, "endLine": 596},
+            {"id": "fluent-bit-v4-0-opentelemetry-http2-default", "url": "https://github.com/fluent/fluent-bit/blob/712b48d7c387c87c922075aa5556afe648e36c4b/plugins/out_opentelemetry/opentelemetry.c", "revision": "712b48d7c387c87c922075aa5556afe648e36c4b", "contentDigest": "sha256:181741166d765bfe4b9a36717092b12a62c1caf56f38306f880b4fb6fa82b6c4", "startLine": 814, "endLine": 826}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "If preserving the previously enabled OpenTelemetry HTTP/2 setting, provide a complete effective classic OUTPUT section with http2 on or force; off or omission is blocked under that intent, while unsupported syntax remains UNKNOWN."
       }
     },
     {

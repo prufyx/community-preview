@@ -30,6 +30,7 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project kubevirt --input FILE --from 1.8.4 --to 1.9.0 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project emissary-ingress --input FILE --from 3.10.0 --to 4.0.1 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project openfga --input FILE --from 1.17.1 --to 1.18.0 --effective-config-complete [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project opencost --input FILE --from 1.119.0 --to 1.120.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project distribution --input FILE --from 2.8.3 --to 3.0.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project container-network-interface-cni --input FILE --from 0.4.0 --to 1.0.0 --operation configuration-spec-migration [--input-digest SHA256] [--format human|json|input]
 
@@ -82,6 +83,12 @@ accepts strictly parsed nested authn effective-configuration JSON only when the
 caller explicitly declares file, environment, and flag precedence complete.
 Both retain only reviewed facts; wrappers, custom behavior, and runtime remain UNKNOWN.
 
+OpenCost accepts one Prufyx operator declaration of enabled cloud-cost source
+selection. It is not an OpenCost native config parser. The caller declares
+selection completeness and whether a target cloud-integration file is selected
+and present; file contents, credentials, mounts, startup, and cloud access are
+not inspected.
+
 etcd accepts one private EtcdEffectiveArguments JSON object containing a complete
 direct arguments-only vector. The first slice accepts only self-contained
 --name=value atoms and recognizes the eight removed v2/proxy options. It never
@@ -112,7 +119,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	fs := flag.NewFlagSet("prepare cncf", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, openfga, distribution, or container-network-interface-cni")
+	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, openfga, opencost, distribution, or container-network-interface-cni")
 	input := fs.String("input", "", "private proposed input JSON")
 	container := fs.String("container", "", "explicit local Kyverno container selector")
 	from := fs.String("from", "", "actual declared current component version")
@@ -143,6 +150,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "jaeger" {
 			return r.fail("JAEGER_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "opencost" {
+			return r.fail("OPENCOST_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 	}
@@ -206,6 +216,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "metallb", "contour", "cloudnativepg", "kubevirt", "emissary-ingress":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
 			return r.fail("NATIVE_MIGRATION_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "opencost":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("OPENCOST_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "distribution":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || cncfOptionProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -298,6 +312,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareEmissary(raw, *from, *to)
 	case "openfga":
 		prepared, err = cncfprepare.PrepareOpenFGAOIDC(raw, *from, *to, effectiveConfigComplete)
+	case "opencost":
+		prepared, err = cncfprepare.PrepareOpenCostCloudSource(raw, *from, *to)
 	}
 	if err != nil {
 		if *project == "linkerd" {
@@ -391,6 +407,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Emissary-Ingress"
 	} else if label == "openfga" {
 		label = "OpenFGA"
+	} else if label == "opencost" {
+		label = "OpenCost"
 	} else if label == "distribution" {
 		label = "Distribution"
 	} else if label == "container-network-interface-cni" {
@@ -426,7 +444,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "openfga" || project == "distribution" || project == "container-network-interface-cni"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "openfga" || project == "opencost" || project == "distribution" || project == "container-network-interface-cni"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {

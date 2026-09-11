@@ -584,6 +584,11 @@ var nativeCNCFInputMetadata = map[string]map[string]any{
 		"metadataState": "implemented_native_json_configuration_minimizer",
 		"limit":         "Checks only supplied literal server_name, cluster.name, and gateway.name in a bounded native JSON configuration subset; includes, variables, defaults, startup behavior, connectivity, and whole-upgrade safety remain UNKNOWN.",
 	},
+	"flux": {
+		"command":       []any{"check", "cncf", "--project", "flux", "--native-resource", "FILE"},
+		"metadataState": "implemented_native_rendered_resource_minimizer",
+		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for five removed beta API versions; absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+	},
 }
 
 func communityProjects(rules, registry map[string]any) ([]map[string]any, int, error) {
@@ -680,6 +685,8 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_kubernetes_workload_minimizer", "limit": "Requires a caller-declared complete selected-container argv, exact reviewed image, and explicit command or the reviewed exact-image ENTRYPOINT default; unsupported context remains UNKNOWN."}
 		} else if project == "ceph" {
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_selected_current_osd_metadata_minimizer", "limit": "Requires one caller-selected current OSD metadata object, an exact matching numeric OSD id, and explicit object completeness; it does not inspect a cluster or target deployment."}
+		} else if project == "fluent-bit" {
+			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "3.2.0", "--to", "4.0.0", "--effective-config-complete", "--current-default-was-used", "--preserve-http2-enabled"}, "metadataState": "implemented_native_classic_configuration_minimizer", "limit": "Requires one caller-selected complete classic [OUTPUT] configuration and caller declarations that the current default was used and HTTP/2 must remain enabled; it evaluates only that setting. Unsupported syntax remains UNKNOWN."}
 		}
 		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
 		id := identities[project]

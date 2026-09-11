@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-registry/v1alpha1",
-  "revision": "community-projects-2026-09-11.3",
+  "revision": "community-projects-2026-09-11.4",
   "projects": [
     {
       "slug": "argo-workflows",
@@ -15,6 +15,14 @@
       "name": "Ceph",
       "repositoryURL": "https://github.com/ceph/ceph",
       "component": "pkg:github/ceph/ceph",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    },
+    {
+      "slug": "fluent-bit",
+      "name": "Fluent Bit",
+      "repositoryURL": "https://github.com/fluent/fluent-bit",
+      "component": "pkg:github/fluent/fluent-bit",
       "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
       "cncfMembership": "NOT_ASSERTED"
     },

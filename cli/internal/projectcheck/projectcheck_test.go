@@ -13,7 +13,7 @@ import (
 
 func TestClosedRegistryAndScopedResults(t *testing.T) {
 	projects, err := Projects()
-	if err != nil || len(projects) != 4 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "grafana" || projects[3] != "kibana" {
+	if err != nil || len(projects) != 5 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" {
 		t.Fatalf("projects=%v err=%v", projects, err)
 	}
 	now := time.Date(2026, 9, 11, 20, 0, 0, 0, time.UTC)
@@ -47,6 +47,53 @@ func TestClosedRegistryAndScopedResults(t *testing.T) {
 		if report.Assessment != "UNKNOWN" || report.KnowledgeOrigin != "embedded_only" || report.RuntimeReproduced != 0 || report.NetworkUsed {
 			t.Fatalf("authority fields=%+v", report)
 		}
+	}
+}
+
+func TestFluentBitHTTP2SettingScope(t *testing.T) {
+	now := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		raw                                  string
+		complete, current, preserve, blocked bool
+	}{
+		{"[OUTPUT]\n  Name opentelemetry\n  http2 on\n", true, true, true, false},
+		{"[OUTPUT]\n  Name opentelemetry\n  http2 force\n", true, true, true, false},
+		{"[OUTPUT]\n  Name opentelemetry\n  http2 off\n", true, true, true, true},
+		{"[OUTPUT]\n  Name opentelemetry\n", true, true, true, true},
+		{"[OUTPUT]\n  Name opentelemetry\n  http2 on\n", true, false, true, false},
+	} {
+		prepared, err := projectprepare.PrepareFluentBit([]byte(tc.raw), projectprepare.FluentBitFrom, projectprepare.FluentBitTo, tc.complete, tc.current, tc.preserve)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := Check(projectprepare.FluentBitProject, prepared.CanonicalInputJSON, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := 0
+		if tc.blocked {
+			want = 10
+		}
+		if !tc.current {
+			want = 11
+		}
+		if got := ClaimExit(report); got != want {
+			t.Fatalf("raw=%q exit=%d want=%d report=%+v", tc.raw, got, want, report)
+		}
+	}
+}
+
+func TestFluentBitDuplicateInputRemainsUnknown(t *testing.T) {
+	prepared, err := projectprepare.PrepareFluentBit([]byte("[OUTPUT]\n  Name opentelemetry\n  http2 on\n  http2 off\n"), projectprepare.FluentBitFrom, projectprepare.FluentBitTo, true, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := Check(projectprepare.FluentBitProject, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ClaimExit(report); got != 11 || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "UNKNOWN" {
+		t.Fatalf("duplicate input report=%+v", report)
 	}
 }
 

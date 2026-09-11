@@ -24,7 +24,7 @@ type reviewedVector struct {
 
 func reviewClock(t *testing.T) time.Time {
 	t.Helper()
-	v, err := time.Parse(time.RFC3339, "2026-09-11T21:00:00Z")
+	v, err := time.Parse(time.RFC3339, "2026-09-11T21:30:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 56 || len(vectors) != 56 {
+	if len(b.pack.Entries) != 57 || len(vectors) != 57 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 411 {
+	if caseCount != 417 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -361,7 +361,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 51 || all.RuntimeReproduced != 0 {
+	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 52 || all.RuntimeReproduced != 0 {
 		t.Fatalf("unexpected inventory: %+v", all)
 	}
 	priority, err := Catalog(true, "")

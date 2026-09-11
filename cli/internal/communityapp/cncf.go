@@ -77,6 +77,7 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] (--now RFC3339 | --knowledge-db DIR) [--effective-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project buildpacks --current-lifecycle-config FILE --proposed-lifecycle-config FILE --from 0.16.5 --to 0.17.7 --current-platform-api 0.11 --proposed-platform-api 0.12|0.13 (--now RFC3339 | --knowledge-db DIR) [--current-lifecycle-config-digest SHA256] [--proposed-lifecycle-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project metallb|contour|kubevirt|thanos|cortex --native-resource FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project flux --native-resource FILE --from 2.6.4 --to 2.7.0 [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project nats --nats-config FILE --from 2.10.0 --to 2.11.0 (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
 
@@ -198,6 +199,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	operation := fs.String("operation", "", "caller-declared scoped operation")
 	nativeResource := fs.String("native-resource", "", "private selected native Kubernetes JSON resource")
 	nativeResourcePin := fs.String("native-resource-digest", "", "optional exact native resource SHA-256")
+	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that the selected Flux rendered-resource JSON set is complete")
 	natsConfig := fs.String("nats-config", "", "private standalone NATS JSON-like configuration")
 	natsConfigPin := fs.String("nats-config-digest", "", "optional exact NATS configuration SHA-256")
 	currentResource := fs.String("current-resource", "", "private current native Kubernetes JSON resource")
@@ -224,19 +226,20 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		}
 	}
 	nativeFlags := anyFlagProvided(args, "native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest")
+	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
-	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg"
-	if nativeFlags && !nativeProject {
-		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, or cloudnativepg; use --help")
+	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux"
+	if (nativeFlags || flagProvided(args, "resource-scope-complete")) && !nativeProject {
+		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, or flux; use --help")
 	}
-	if nativeProject && nativeFlags {
-		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, args)
+	if nativeProject && (nativeFlags || fluxNativeRequested) {
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, args)
 	}
 	if natsFlags && *project != "nats" {
 		return r.usage("NATS configuration flags require project nats; use --help")
 	}
 	if *project == "nats" && natsFlags {
-		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, args)
+		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
 	}
 	rawArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
 	rawKnativeRequested := *project == "knative" && anyFlagProvided(args, "service", "service-digest", "from", "to")
@@ -490,6 +493,7 @@ var cncfModeInputFlags = []string{
 	"metanode-config", "metanode-config-digest", "phase",
 	"image-status-request", "image-status-request-digest", "artifact-operation",
 	"native-resource", "native-resource-digest",
+	"resource-scope-complete",
 	"nats-config", "nats-config-digest",
 	"current-resource", "current-resource-digest", "resource", "resource-digest",
 	"image-manifest", "image-manifest-digest",

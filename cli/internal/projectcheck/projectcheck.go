@@ -111,6 +111,7 @@ func definitions() []constraintengine.FactDefinition {
 		{ID: "component.argo-workflows.server_legacy_basehref_flag_present", Component: "pkg:github/argoproj/argo-workflows", Type: constraintengine.FactBool},
 		{ID: "component.ceph.selected_current_osd_filestore", Component: "pkg:github/ceph/ceph", Type: constraintengine.FactBool},
 		{ID: "component.grafana.legacy_alerting_explicitly_enabled", Component: "pkg:github/grafana/grafana", Type: constraintengine.FactBool},
+		{ID: "component.fluent_bit.proposed_http2_enabled", Component: "pkg:github/fluent/fluent-bit", Type: constraintengine.FactBool},
 		{ID: "component.kibana.reporting_roles_allow_present", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
 	}
 }
@@ -138,7 +139,7 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 		return bundle{}, ErrIntegrity
 	}
 	b.registryDigest, b.packDigest = digest(registryRaw), digest(packRaw)
-	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 4 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
+	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 5 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
 		return bundle{}, ErrIntegrity
 	}
 	b.identities = map[string]identity{}

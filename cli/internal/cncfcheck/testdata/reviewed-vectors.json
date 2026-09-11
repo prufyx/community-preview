@@ -12559,7 +12559,43 @@
       }
     ]
   },
-{
+    {
+      "project": "opencost",
+      "ruleId": "opencost.cloud-cost-source-migration.1-119-to-1-120",
+      "cases": [
+        {
+          "name": "provider-source-not-migrated-blocked",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.119.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":true},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"declared","boolValue":false}]}]}},
+          "status": "BLOCKED"
+        },
+        {
+          "name": "target-integration-source-declared-pass",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.119.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":true},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"declared","boolValue":true}]}]}},
+          "status": "PASS"
+        },
+        {
+          "name": "disabled-cloud-cost-outside-scope",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.119.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":false},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":false},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":true},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"declared","boolValue":false}]}]}},
+          "status": "UNKNOWN"
+        },
+        {
+          "name": "incomplete-target-selection-unknown",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.119.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":false},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"unsupported"}]}]}},
+          "status": "UNKNOWN"
+        },
+        {
+          "name": "unresolved-target-source-unknown",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.119.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":true},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"unsupported"}]}]}},
+          "status": "UNKNOWN"
+        },
+        {
+          "name": "outside-reviewed-transition-unknown",
+          "input": {"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.120.0","facts":[{"id":"component.opencost.current_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.current_provider_derived_source_selected","state":"declared","boolValue":true},{"id":"component.opencost.current_source_selection_complete","state":"declared","boolValue":true}]}]},"proposed":{"components":[{"component":"pkg:github/opencost/opencost","version":"1.121.0","facts":[{"id":"component.opencost.proposed_cloud_cost_enabled","state":"declared","boolValue":true},{"id":"component.opencost.proposed_source_selection_complete","state":"declared","boolValue":true},{"id":"component.opencost.target_cloud_integration_source_selected_and_declared_present","state":"declared","boolValue":true}]}]}},
+          "status": "UNKNOWN"
+        }
+      ]
+    },
+    {
       "project": "openfga",
       "ruleId": "openfga.oidc-required-fields.1-17-1-to-1-18-0",
       "cases": [

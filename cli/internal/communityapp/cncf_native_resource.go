@@ -15,12 +15,14 @@ import (
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
-func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, args []string) int {
+func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, args []string) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
 	if project == "cloudnativepg" {
 		allowed = []string{"current-resource", "current-resource-digest", "resource", "resource-digest"}
 	} else if project == "nats" {
 		allowed = []string{"nats-config", "nats-config-digest"}
+	} else if project == "flux" {
+		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -30,7 +32,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var expectedSourceDigest string
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -50,6 +52,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareCortex(raw, from, to)
 		} else if project == "nats" {
 			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
+		} else if project == "flux" {
+			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
 		} else {
 			prepared, err = cncfprepare.PrepareNativeMigration(raw, project, from, to)
 		}

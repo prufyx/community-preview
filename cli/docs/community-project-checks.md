@@ -17,7 +17,7 @@ test "$(go env GOVERSION)" = go1.26.8
   go build -trimpath -buildvcs=false -o "$PREVIEW_DIR/prufyx-community" ./cmd/prufyx-community)
 ```
 
-Two checks inspect native effective-configuration files locally:
+Three checks inspect native effective-configuration files locally:
 
 - Grafana `10.4.0` → `11.0.0`: whether a proposed `grafana.ini` explicitly
   sets `[alerting] enabled=true`, which Grafana 11 rejects during settings
@@ -25,6 +25,37 @@ Two checks inspect native effective-configuration files locally:
 - Kibana `8.18.0` → `9.0.0`: whether a proposed `kibana.yml` retains
   `xpack.reporting.roles.allow`, which Kibana 9 no longer supports. Passing
   this predicate does not validate feature privileges or reporting access.
+- Fluent Bit `3.2.0` → `4.0.0`: whether a complete proposed classic
+  configuration preserves an enabled OpenTelemetry `http2` setting after
+  Fluent Bit changed its default from `on` to `off`. This requires the
+  caller to declare that the current default was used and that preservation
+  is intended. It checks only the enabled setting; protocol negotiation,
+  TLS, connectivity, collector behavior, and whole-upgrade compatibility
+  remain UNKNOWN. Fluent Bit is a neutral community-project identity; CNCF
+  membership is not asserted.
+
+The Fluent Bit example files are native classic configuration snippets. Copy
+one to a private file and declare the current default and preservation intent:
+
+```sh
+cp cli/examples/projects/fluent-bit/broken.conf "$PREVIEW_DIR/fluent-bit.conf"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project fluent-bit \
+  --effective-config "$PREVIEW_DIR/fluent-bit.conf" \
+  --from 3.2.0 --to 4.0.0 \
+  --effective-config-complete --current-default-was-used \
+  --preserve-http2-enabled \
+  --now 2026-09-12T00:00:00Z
+```
+
+The bounded parser admits one `[OUTPUT]` section with an exact `Name
+opentelemetry` row and selected `http2 on|off|force` or `grpc off` values.
+It requires consistently space-indented key/value rows separated by an ASCII
+space. Includes, environment substitutions, duplicate keys, case aliases,
+tabs, Unicode whitespace, continuations, other sections, and unresolved
+`grpc on|auto` forms remain UNKNOWN. Values for unrelated rows are discarded.
+Use `fixed.conf` for a scoped PASS and `unknown.conf` for an unsupported
+configuration shape; `broken.conf` is BLOCKED under the preservation intent.
 
 The Argo Workflows `3.5.0` → `3.6.0` check inspects one caller-supplied native
 Kubernetes Deployment. It selects the unique `argo-server` container bound to
