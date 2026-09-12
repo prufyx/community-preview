@@ -66,10 +66,20 @@ The source policy, complete selected tests and native execution evidence define
 the release package. Research candidates, planned checks and previous package
 lists do not expand the published CLI's capability or support contract.
 
+Public project onboarding is a separate maintainer workflow. It can turn one
+public GitHub repository URL into a private, locally verified snapshot of recent
+release observations and commit-pinned changelog or license files. The explicit
+`project sync` operation contacts GitHub; `init`, `verify`, `status`, `inspect`,
+and `proposal` remain offline. A collected project does not change support
+counts, evaluator inputs, result semantics, embedded rules, or signed knowledge
+selection. See [public project onboarding](project-onboarding.md) and
+[data handling](data-handling.md).
+
 ## Community contribution boundary
 
-Local validation, optional minimized observations, source provenance and replay
-are Community capabilities. New checks need exact public source evidence,
+Local validation, optional minimized observations, public project source
+snapshots, source provenance and replay are Community capabilities. New checks
+need exact public source evidence,
 independent expected outcomes and a falsifiable test. No model-generated text,
 review flag or synthetic fixture can by itself authorize a safety claim.
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -24,6 +25,65 @@ func ReadPrivateFile(path string, maximum int64) ([]byte, error) {
 	}
 	defer file.Close()
 	return readOwnerOnlyRegular(file, maximum)
+}
+
+// ReadPrivateTreeFile reads one fixed relative regular file below a private
+// directory using the same no-follow descriptor walk as corpus collections.
+func ReadPrivateTreeFile(rootPath, relative string, maximum int64) ([]byte, error) {
+	root, err := openPhysical(rootPath, os.O_RDONLY)
+	if err != nil {
+		return nil, errRejected
+	}
+	defer root.Close()
+	if validatePrivateDirectory(root) != nil {
+		return nil, errRejected
+	}
+	return readRelativeFile(root, relative, maximum, true)
+}
+
+// WriteNewPrivateFile writes one no-follow, exclusive owner-only regular file
+// and fsyncs its private parent. It is for small local request manifests.
+func WriteNewPrivateFile(path string, data []byte) error {
+	if len(data) < 1 || int64(len(data)) > maxManifestBytes {
+		return errRejected
+	}
+	parentPath, name := filepath.Dir(path), filepath.Base(path)
+	if !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`).MatchString(name) {
+		return errRejected
+	}
+	// filepath.Dir returns "." for a normal relative leaf. Resolve only that
+	// process-owned directory handle; openPhysical still walks every physical
+	// component with no-follow semantics and the leaf is created with O_EXCL.
+	if parentPath == "." {
+		var err error
+		parentPath, err = os.Getwd()
+		if err != nil {
+			return errRejected
+		}
+	}
+	parent, err := openPhysical(parentPath, os.O_RDONLY)
+	if err != nil {
+		return errRejected
+	}
+	defer parent.Close()
+	if validateOwnerOnlyDirectory(parent) != nil {
+		return errRejected
+	}
+	item, err := createBoundFile(parent, name, data)
+	if item != nil {
+		defer item.file.Close()
+	}
+	if err != nil {
+		if item != nil {
+			_ = removeRelative(parent, name)
+		}
+		return errRejected
+	}
+	if syncFile(parent) != nil || !createdFileMatches(item) {
+		_ = removeRelative(parent, name)
+		return errRejected
+	}
+	return nil
 }
 
 // ValidatePrivateDirectoryPath admits an owner-only directory through a
@@ -141,7 +201,31 @@ func createBoundFile(directory *os.File, name string, data []byte) (*createdFile
 // WriteCaptureTree creates the exclusive private capture layout and writes the
 // receipt completion marker last. Object keys are sha256:<hex> digests.
 func WriteCaptureTree(parentPath, destination string, objects map[string][]byte, manifest, receipt []byte) error {
-	if !regexpCaptureName.MatchString(destination) {
+	return writeTree(parentPath, destination, objects, []treeFile{
+		{"CANDIDATE-CORPUS-MANIFEST.json", manifest},
+		{"CAPTURE-RECEIPT.json", receipt},
+	}, regexpCaptureName)
+}
+
+// WriteProjectSnapshotTree writes the fixed, private project-onboarding
+// snapshot layout. The receipt is the completion marker and is written last.
+// It deliberately accepts no caller-controlled paths or file names.
+func WriteProjectSnapshotTree(parentPath, destination string, objects map[string][]byte, snapshot, manifest, receipt []byte) error {
+	files := []treeFile{{"PROJECT-ONBOARDING-SNAPSHOT.json", snapshot}}
+	if len(manifest) > 0 {
+		files = append(files, treeFile{"SOURCE-CORPUS-MANIFEST.json", manifest})
+	}
+	files = append(files, treeFile{"SYNC-RECEIPT.json", receipt})
+	return writeTree(parentPath, destination, objects, files, regexpSnapshotName)
+}
+
+type treeFile struct {
+	name string
+	data []byte
+}
+
+func writeTree(parentPath, destination string, objects map[string][]byte, files []treeFile, destinationPattern *regexp.Regexp) error {
+	if !destinationPattern.MatchString(destination) {
 		return errRejected
 	}
 	parent, err := openPhysical(parentPath, os.O_RDONLY)
@@ -251,10 +335,8 @@ func WriteCaptureTree(parentPath, destination string, objects map[string][]byte,
 			return fail()
 		}
 	}
-	for _, file := range []struct {
-		name string
-		data []byte
-	}{{"CANDIDATE-CORPUS-MANIFEST.json", append(append([]byte{}, manifest...), '\n')}, {"CAPTURE-RECEIPT.json", append(append([]byte{}, receipt...), '\n')}} {
+	for _, file := range files {
+		file.data = append(append([]byte{}, file.data...), '\n')
 		if !intact() {
 			return fail()
 		}
@@ -279,3 +361,4 @@ func WriteCaptureTree(parentPath, destination string, objects map[string][]byte,
 }
 
 var regexpCaptureName = regexp.MustCompile(`^capture-[0-9a-f]{64}$`)
+var regexpSnapshotName = regexp.MustCompile(`^snapshot-[0-9a-f]{64}$`)

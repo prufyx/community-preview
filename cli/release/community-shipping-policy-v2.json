@@ -296,6 +296,10 @@
       "role": "community-governance"
     },
     {
+      "path": ".github/ISSUE_TEMPLATE/project-knowledge.yml",
+      "role": "community-governance"
+    },
+    {
       "path": ".github/ISSUE_TEMPLATE/source-preview-feedback.md",
       "role": "community-governance"
     },
@@ -403,6 +407,18 @@
     },
     {
       "path": "cli/docs/product-contract.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/project-onboarding.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/rfc/RFC-0001-public-project-knowledge-onboarding.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/adr/ADR-0001-source-observations-before-reviewed-rules.md",
       "role": "documentation"
     },
     {
@@ -516,6 +532,11 @@
     },
     {
       "path": "cli/examples/contributions",
+      "recursive": true,
+      "role": "example"
+    },
+    {
+      "path": "cli/examples/project-onboarding",
       "recursive": true,
       "role": "example"
     },
