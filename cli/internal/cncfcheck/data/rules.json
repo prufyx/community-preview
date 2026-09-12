@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-12.1",
+  "revision": "cncf-2026-09-12.4",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:f825da8866c57ebd3d64ed9d9dc8315934ecb3f0384e518e8318c997d8b63b3a",
+  "registryDigest": "sha256:ead90e7bfbcdd2ab27f3fedaf55ae9dbbd80ffa0a3b35c1f91f9e2c4d370b0c0",
   "entries": [
     {
       "project": "argo-cd",
@@ -68,6 +68,101 @@
         "nextAction": "For required v2 inheritance set the documented option to false, or review explicit resource grants and the intended access model."
       }
     },
+    {
+      "description": "Argo CD v3 resource.exclusions target default versus an explicit declaration that the finite v2 visibility must be preserved; this does not establish resource existence, watches, UI, reconciliation, or runtime behavior.",
+      "project": "argo-cd",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/argoproj/argo-cd",
+          "description": "True only when one complete caller-selected argocd-cm has the exact canonical v3.0 source default resource.exclusions sequence; false only for absent or explicit empty sequence.",
+          "enumTokens": null,
+          "id": "component.argo_cd.resource_exclusions_source_default_selected",
+          "side": "proposed",
+          "type": "bool"
+        },
+        {
+          "component": "pkg:github/argoproj/argo-cd",
+          "description": "Explicit operator declaration that preserving v2 visibility for the finite v3 default-excluded kinds is required. Missing or false never makes this scoped rule PASS or BLOCKED.",
+          "enumTokens": null,
+          "id": "component.argo_cd.requires_v2_visibility_of_v3_default_excluded_resources",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "condition": {
+          "boolValue": true,
+          "component": "pkg:github/argoproj/argo-cd",
+          "factId": "component.argo_cd.resource_exclusions_source_default_selected",
+          "side": "proposed"
+        },
+        "appliesWhen": [
+          {
+            "boolValue": true,
+            "component": "pkg:github/argoproj/argo-cd",
+            "factId": "component.argo_cd.requires_v2_visibility_of_v3_default_excluded_resources",
+            "side": "proposed"
+          }
+        ],
+        "evidence": {
+          "reviewedAt": "2026-09-12T01:23:59Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:02a5b8c2157c4b3d7e433803235b0cacd0b67d4693dd726c3349f82b2fc6275f",
+              "endLine": 7,
+              "id": "argo-cd-v2-resource-exclusions-default",
+              "revision": "4745e08d4fbd9b115e208880eac9a63119a8821c",
+              "startLine": 1,
+              "url": "https://github.com/argoproj/argo-cd/blob/4745e08d4fbd9b115e208880eac9a63119a8821c/manifests/base/config/argocd-cm.yaml"
+            },
+            {
+              "contentDigest": "sha256:079276b3c92962e14e09d02dacb4641265b00571882db2115037c4d8b8772568",
+              "endLine": 782,
+              "id": "argo-cd-v2-resource-exclusions-loader",
+              "revision": "4745e08d4fbd9b115e208880eac9a63119a8821c",
+              "startLine": 759,
+              "url": "https://github.com/argoproj/argo-cd/blob/4745e08d4fbd9b115e208880eac9a63119a8821c/util/settings/settings.go"
+            },
+            {
+              "contentDigest": "sha256:f59df69938c049b3908ee8bdfb7361d21fb0f3550f7d91755fd37b6fb1f1ba78",
+              "endLine": 118,
+              "id": "argo-cd-v3-resource-exclusions-default",
+              "revision": "e98f483bfd5781df2592fef1aeed1148f150d9c9",
+              "startLine": 59,
+              "url": "https://github.com/argoproj/argo-cd/blob/e98f483bfd5781df2592fef1aeed1148f150d9c9/manifests/base/config/argocd-cm.yaml"
+            },
+            {
+              "contentDigest": "sha256:dd7d03fd482596a3b110535bed1d0d1c975e1f013cd7cac90ad99d9fe8684b2f",
+              "endLine": 75,
+              "id": "argo-cd-v3-resource-exclusions-guide",
+              "revision": "e98f483bfd5781df2592fef1aeed1148f150d9c9",
+              "startLine": 60,
+              "url": "https://github.com/argoproj/argo-cd/blob/e98f483bfd5781df2592fef1aeed1148f150d9c9/docs/operator-manual/upgrading/2.14-3.0.md"
+            },
+            {
+              "contentDigest": "sha256:7a6e66c2010be9c70114aed7f899bcd065d5f95399db5588070c3df1c43ffbcf",
+              "endLine": 810,
+              "id": "argo-cd-v3-resource-exclusions-loader",
+              "revision": "e98f483bfd5781df2592fef1aeed1148f150d9c9",
+              "startLine": 787,
+              "url": "https://github.com/argoproj/argo-cd/blob/e98f483bfd5781df2592fef1aeed1148f150d9c9/util/settings/settings.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T01:23:59Z"
+        },
+        "id": "argo-cd.resource-exclusions-v2-visibility-preservation.3-0",
+        "nextAction": "For declared v2 visibility preservation, remove resource.exclusions or set its exact empty sequence in the complete effective target argocd-cm; otherwise retain UNKNOWN and inspect complete precedence.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/argoproj/argo-cd",
+          "from": "2.14.0",
+          "to": "3.0.0"
+        }
+      }
+    }
+,
     {
       "project": "buildpacks",
       "description": "Lifecycle 0.17.7 checks a requested CNB_PLATFORM_API against its declared supported Platform API set; this evaluates only a 0.16.5 to 0.17.7 plan whose current 0.11 request is declared supported.",
@@ -4482,6 +4577,112 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Replace the removed logging exporter with an available exporter such as debug and verify pipeline behavior separately."
+      }
+    },
+    {
+      "project": "prometheus",
+      "description": "Prometheus selected Alertmanager api_version v1 removal only; the selected mapping is caller supplied rather than observed running configuration, and Alertmanager compatibility, reachability, alert delivery, complete configuration and whole-upgrade behavior remain unverified.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.prometheus.alertmanager_api_version_selection",
+          "component": "pkg:github/prometheus/prometheus",
+          "type": "enum",
+          "enumTokens": [
+            "omitted_default_v2",
+            "v1",
+            "v2"
+          ],
+          "description": "The selected native Alertmanager entry's literal api_version choice, or the exact target source-derived v2 default when the key is omitted. Addresses, credentials, paths and unrelated settings are discarded."
+        }
+      ],
+      "rule": {
+        "id": "prometheus.alertmanager-api-v1-removed.3-1",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/prometheus/prometheus",
+          "from": "2.55.1",
+          "to": "3.1.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/prometheus/prometheus",
+          "factId": "component.prometheus.alertmanager_api_version_selection",
+          "enumValue": "v1"
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T00:26:18Z",
+          "validUntil": "2026-12-11T00:26:18Z",
+          "sources": [
+            {
+              "id": "prometheus-alertmanager-source-1-old-default-v2",
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "startLine": 178,
+              "endLine": 184
+            },
+            {
+              "id": "prometheus-alertmanager-source-2-old-v1-v2-parser",
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "startLine": 959,
+              "endLine": 1029
+            },
+            {
+              "id": "prometheus-alertmanager-source-3-target-strict-loader",
+              "url": "https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/config/config.go",
+              "revision": "7086161a93b262aa0949dbf2aba15a5a7b13e0a3",
+              "contentDigest": "sha256:211485e61f95b11c45ef71aaf51ad82677cc2e840241764914947092504c3e44",
+              "startLine": 75,
+              "endLine": 86
+            },
+            {
+              "id": "prometheus-alertmanager-source-4-target-default-v2",
+              "url": "https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/config/config.go",
+              "revision": "7086161a93b262aa0949dbf2aba15a5a7b13e0a3",
+              "contentDigest": "sha256:211485e61f95b11c45ef71aaf51ad82677cc2e840241764914947092504c3e44",
+              "startLine": 189,
+              "endLine": 195
+            },
+            {
+              "id": "prometheus-alertmanager-source-5-target-v2-only-parser",
+              "url": "https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/config/config.go",
+              "revision": "7086161a93b262aa0949dbf2aba15a5a7b13e0a3",
+              "contentDigest": "sha256:211485e61f95b11c45ef71aaf51ad82677cc2e840241764914947092504c3e44",
+              "startLine": 969,
+              "endLine": 1083
+            },
+            {
+              "id": "prometheus-alertmanager-source-6-target-inline-decoder",
+              "url": "https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/discovery/registry.go",
+              "revision": "7086161a93b262aa0949dbf2aba15a5a7b13e0a3",
+              "contentDigest": "sha256:a6fbf5d538fd6ea7755e221912c94fa6fe805b8500a973b50a0c5b2342b84e61",
+              "startLine": 112,
+              "endLine": 160
+            },
+            {
+              "id": "prometheus-alertmanager-source-7-top-level-binding",
+              "url": "https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/config/config.go",
+              "revision": "7086161a93b262aa0949dbf2aba15a5a7b13e0a3",
+              "contentDigest": "sha256:211485e61f95b11c45ef71aaf51ad82677cc2e840241764914947092504c3e44",
+              "startLine": 260,
+              "endLine": 267
+            },
+            {
+              "id": "prometheus-alertmanager-source-8-migration-guide",
+              "url": "https://github.com/prometheus/prometheus/blob/c5d009d57fcccb7247e1191a0b10d74b06295388/docs/migration.md",
+              "revision": "c5d009d57fcccb7247e1191a0b10d74b06295388",
+              "contentDigest": "sha256:6823ef4490d3b73e6f01b77851a8ea675c8b4411168ccd2e50a5af0a7b57f34c",
+              "startLine": 210,
+              "endLine": 214
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Replace api_version: v1 with v2 in the selected Alertmanager entry, then separately verify that the actual Alertmanager supports v2, is reachable, and works with the complete target Prometheus configuration."
       }
     },
     {

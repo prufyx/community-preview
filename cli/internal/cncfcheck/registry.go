@@ -8,6 +8,8 @@ func compiledDefinitions() []constraintengine.FactDefinition {
 	return []constraintengine.FactDefinition{
 		{ID: "component.argo_cd.disable_fine_grained_inheritance", Component: "pkg:github/argoproj/argo-cd", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.argo_cd.requires_inherited_application_permissions", Component: "pkg:github/argoproj/argo-cd", Type: constraintengine.FactBool, EnumTokens: nil},
+		{ID: "component.argo_cd.resource_exclusions_source_default_selected", Component: "pkg:github/argoproj/argo-cd", Type: constraintengine.FactBool, EnumTokens: nil},
+		{ID: "component.argo_cd.requires_v2_visibility_of_v3_default_excluded_resources", Component: "pkg:github/argoproj/argo-cd", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.buildpacks.lifecycle_supports_selected_platform_api", Component: "pkg:oci/buildpacksio/lifecycle", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.buildpacks.selected_platform_api", Component: "pkg:oci/buildpacksio/lifecycle", Type: constraintengine.FactEnum, EnumTokens: []string{"0.11", "0.12", "0.13"}},
 		{ID: "component.cilium.nonempty_requires_fields", Component: "pkg:github/cilium/cilium", Type: constraintengine.FactBool, EnumTokens: nil},
@@ -101,6 +103,7 @@ func compiledDefinitions() []constraintengine.FactDefinition {
 		{ID: "component.opentelemetry.distribution", Component: "pkg:github/open-telemetry/opentelemetry-collector", Type: constraintengine.FactEnum, EnumTokens: []string{"custom", "official"}},
 		{ID: "component.opentelemetry.logging_exporter_present", Component: "pkg:github/open-telemetry/opentelemetry-collector", Type: constraintengine.FactBool, EnumTokens: nil},
 		{ID: "component.openfga.oidc_required_fields_missing", Component: "pkg:github/openfga/openfga", Type: constraintengine.FactBool, EnumTokens: nil},
+		{ID: "component.prometheus.alertmanager_api_version_selection", Component: "pkg:github/prometheus/prometheus", Type: constraintengine.FactEnum, EnumTokens: []string{"omitted_default_v2", "v1", "v2"}},
 		{ID: "component.prometheus.scrape_classic_histograms_key", Component: "pkg:github/prometheus/prometheus", Type: constraintengine.FactEnum, EnumTokens: []string{"always_scrape_classic_histograms", "scrape_classic_histograms"}},
 		{ID: "component.rook.deployment_mode", Component: "pkg:github/rook/rook", Type: constraintengine.FactEnum, EnumTokens: []string{"custom", "helm", "manifests"}},
 		{ID: "component.spire.distribution", Component: "pkg:github/spiffe/spire", Type: constraintengine.FactEnum, EnumTokens: []string{"custom_build", "official_upstream"}},

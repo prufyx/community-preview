@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 61 || len(vectors) != 61 {
+	if len(b.pack.Entries) != 63 || len(vectors) != 63 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 430 {
+	if caseCount != 436 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -75,8 +75,11 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				if vector.Project == "cloud-custodian" {
 					clock = time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
 				}
-				if vector.RuleID == "fluentd.z-literal-treatment.1-17-1-to-1-18-0" {
+				if vector.RuleID == "fluentd.z-literal-treatment.1-17-1-to-1-18-0" || vector.RuleID == "prometheus.alertmanager-api-v1-removed.3-1" {
 					clock = time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "argo-cd.resource-exclusions-v2-visibility-preservation.3-0" {
+					clock = time.Date(2026, 9, 12, 1, 23, 59, 0, time.UTC)
 				}
 				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {
@@ -159,6 +162,43 @@ func TestTektonCanonicalExamplePasses(t *testing.T) {
 	}
 	if len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "PASS" || ClaimExit(report) != 0 {
 		t.Fatalf("canonical Tekton example produced %+v", report.Check.Claims)
+	}
+}
+
+func TestSelectedRuleKeepsIndependentPrometheusCapabilitiesSeparate(t *testing.T) {
+	const (
+		alertmanagerRule = "prometheus.alertmanager-api-v1-removed.3-1"
+		scrapeRule       = "prometheus.scrape-classic-histograms-key-renamed.3-1"
+	)
+	var alertmanagerInput []byte
+	for _, vector := range reviewedVectors(t) {
+		if vector.RuleID != alertmanagerRule {
+			continue
+		}
+		for _, scenario := range vector.Cases {
+			if scenario.Name == "explicit-v2" {
+				alertmanagerInput = append([]byte(nil), scenario.Input...)
+			}
+		}
+	}
+	if len(alertmanagerInput) == 0 {
+		t.Fatal("Alertmanager pass vector missing")
+	}
+	report, err := CheckRule("prometheus", alertmanagerRule, alertmanagerInput, time.Date(2026, 9, 12, 0, 30, 0, 0, time.UTC))
+	if err != nil || report.RequestedRuleID != alertmanagerRule || report.SelectedRuleID != alertmanagerRule || len(report.Check.Claims) != 1 || report.Check.Claims[0].RuleID != alertmanagerRule || report.Check.Claims[0].Status != "PASS" || ClaimExit(report) != 0 {
+		t.Fatalf("selected report=%+v err=%v", report, err)
+	}
+	generic, err := Check("prometheus", alertmanagerInput, time.Date(2026, 9, 12, 0, 30, 0, 0, time.UTC))
+	if err != nil || generic.RequestedRuleID != "" || generic.SelectedRuleID != "" || len(generic.Check.Claims) != 2 || ClaimExit(generic) != 11 {
+		t.Fatalf("generic report=%+v err=%v", generic, err)
+	}
+	if _, err := CheckRule("prometheus", "tekton.metrics-protocol-prometheus.1-10", alertmanagerInput, time.Date(2026, 9, 12, 0, 30, 0, 0, time.UTC)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("cross-project selection error=%v", err)
+	}
+	mutated := report
+	mutated.SelectedRuleID = scrapeRule
+	if _, err := MarshalReport(mutated); err == nil {
+		t.Fatal("selected rule mutation retained report seal")
 	}
 }
 
@@ -403,7 +443,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 		t.Fatal("cert-manager existing check lost or double counted")
 	}
 	prometheus, err := Catalog(false, "prometheus")
-	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 1 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
+	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 2 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
 		t.Fatal("Prometheus existing check or source rule lost or double counted")
 	}
 	archived, err := Catalog(false, "curiefense")
@@ -469,7 +509,7 @@ func TestSourceFreshnessWithdrawalsAndReplayRemainBounded(t *testing.T) {
 	for i := range b.pack.Entries {
 		b.pack.Entries[i].Rule = bytes.ReplaceAll(b.pack.Entries[i].Rule, []byte(`"state": "active"`), []byte(`"state": "withdrawn"`))
 	}
-	withdrawn, err := b.check(vector.Project, raw, reviewClock(t))
+	withdrawn, err := b.check(vector.Project, "", raw, reviewClock(t))
 	if err != nil || ClaimExit(withdrawn) != 11 || withdrawn.Check.Claims[0].ReasonCode != "RULE_EVIDENCE_WITHDRAWN" {
 		t.Fatal("withdrawn evidence did not fail closed", err)
 	}

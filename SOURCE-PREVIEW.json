@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:cebe66b4d6404032f319a6d711850f879bf517297b783d6a79de57d0d1a11a89",
+    "inventorySha256": "sha256:56a42bb7bd48f6fb8a3a892b29ed7a1979a9f03da204c926ef37bab168d8ffcf",
     "counts": {
       "executableProjects": 64,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 20
+      "newExecutableScenarios": 23
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
@@ -174,6 +174,30 @@
       "to": "3.1.0",
       "rule": "selected scrape_classic_histograms key is renamed",
       "input": "caller-selected complete native scrape_config YAML with resolved precedence"
+    },
+    {
+      "project": "prometheus",
+      "repository": "https://github.com/prometheus/prometheus",
+      "from": "2.55.1",
+      "to": "3.1.0",
+      "rule": "selected Alertmanager api_version v1 is removed",
+      "input": "caller-selected complete native alerting.alertmanagers entry YAML with resolved precedence"
+    },
+    {
+      "project": "loki",
+      "repository": "https://github.com/grafana/loki",
+      "from": "2.9.8",
+      "to": "3.0.0",
+      "rule": "selected structured-metadata schema requires tsdb store and v13 when metadata is enabled",
+      "input": "caller-selected complete, precedence-resolved native Loki schema configuration YAML"
+    },
+    {
+      "project": "argo-cd",
+      "repository": "https://github.com/argoproj/argo-cd",
+      "from": "2.14.0",
+      "to": "3.0.0",
+      "rule": "exact resource.exclusions source default is blocked when v2 visibility preservation is declared",
+      "input": "caller-selected complete, precedence-resolved native argocd-cm YAML with explicit v2-visibility-preservation intent"
     }
   ],
   "resultScope": [

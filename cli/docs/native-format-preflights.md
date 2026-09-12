@@ -55,3 +55,13 @@ They also accept the existing `--knowledge-db` selection in place of `--now`.
 That selected store is authoritative and never falls back to embedded rules.
 Historical replay additionally requires the matching raw input digest and all
 three knowledge pins; a current selected-store check uses verifier-owned time.
+
+## Argo CD 2.14.0 to 3.0.0 resource exclusions
+
+`check cncf --project argo-cd --resource-exclusions-config-map FILE` evaluates
+only a private, mode-0600 `v1` `argocd-cm` ConfigMap selected by the operator.
+It requires complete and precedence-resolved declarations and an explicit true
+v2-visibility-preservation intent. The parser accepts only an absent key, an
+explicit empty YAML sequence, or the exact reviewed v3 source-default sequence;
+all other shapes stay UNKNOWN. Runnable private-file examples are in
+[`examples/cncf/native-resources/argocd-resource-exclusions`](../examples/cncf/native-resources/argocd-resource-exclusions/README.md).

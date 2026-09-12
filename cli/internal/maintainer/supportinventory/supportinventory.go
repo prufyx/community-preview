@@ -555,8 +555,45 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 			return grouped[project][i].(map[string]any)["ruleID"].(string) < grouped[project][j].(map[string]any)["ruleID"].(string)
 		})
 		capability := map[string]any{"kind": "embedded_cncf_source_rule", "command": []any{"check", "cncf", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack"}
-		if native, ok := nativeCNCFInputMetadata[project]; ok {
-			capability["localPreparer"] = native
+		if project == "argo-cd" {
+			// Preserve the published generic preparer for v1 readers. The plural
+			// routes distinguish its selected RBAC ConfigMap check from the
+			// separately scoped resource-exclusions check.
+			legacy := map[string]any{"command": []any{"prepare", "cncf", "--project", "argo-cd"}, "metadataState": "implemented_local_minimizing_adapter", "limit": "The adapter prepares only a bounded operator declaration from one local private input; it does not inspect a cluster, run an upgrade, or establish runtime behavior."}
+			capability["localPreparer"] = legacy
+			capability["localPreparers"] = []any{
+				legacy,
+				map[string]any{
+					"command":       []any{"check", "cncf", "--project", "argo-cd", "--config-map", "FILE", "--from", "2.14.0", "--to", "3.0.0"},
+					"metadataState": "implemented_native_selected_argocd_rbac_config_map_minimizer",
+					"limit":         "Checks one caller-selected native Argo CD argocd-cm JSON for the selected inheritance setting and explicit RBAC intent. It evaluates only that selected rule; other project rules, ConfigMap keys, RBAC grants, resource existence, watches, UI, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+				},
+				map[string]any{
+					"command":       []any{"check", "cncf", "--project", "argo-cd", "--resource-exclusions-config-map", "FILE", "--from", "2.14.0", "--to", "3.0.0", "--resource-exclusions-config-complete", "--resource-exclusions-precedence-resolved", "--requires-v2-visibility-of-v3-default-excluded-resources", "true"},
+					"metadataState": "implemented_native_selected_argocd_resource_exclusions_minimizer",
+					"limit":         "Checks one caller-selected complete, precedence-resolved native Argo CD argocd-cm YAML for an absent, explicit empty, or exact reviewed resource.exclusions target default with explicit v2-visibility-preservation intent. Other values, resource existence, watches, UI, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+				},
+			}
+		} else if native, ok := nativeCNCFInputMetadata[project]; ok {
+			if len(native) == 1 {
+				capability["localPreparer"] = native[0].inventoryValue()
+			} else {
+				// Preserve the established scrape route for v1 readers. New readers
+				// use localPreparers to discover every independently scoped route.
+				legacy := native[0]
+				for _, route := range native {
+					if route["metadataState"] == "implemented_native_selected_scrape_config_minimizer" {
+						legacy = route
+						break
+					}
+				}
+				capability["localPreparer"] = legacy.inventoryValue()
+				routes := make([]any, 0, len(native))
+				for _, route := range native {
+					routes = append(routes, route.inventoryValue())
+				}
+				capability["localPreparers"] = routes
+			}
 		} else if preparers[project] {
 			capability["localPreparer"] = map[string]any{"command": []any{"prepare", "cncf", "--project", project}, "metadataState": "implemented_local_minimizing_adapter", "limit": "The adapter prepares only a bounded operator declaration from one local private input; it does not inspect a cluster, run an upgrade, or establish runtime behavior."}
 		}
@@ -568,31 +605,44 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 // nativeCNCFInputMetadata describes direct check routes that intentionally do
 // not use the generic prepare command. Each route minimizes one caller-supplied
 // local input in memory; none inspects a cluster or proves runtime behavior.
-var nativeCNCFInputMetadata = map[string]map[string]any{
-	"thanos": {
+type nativeCNCFInputRoute map[string]any
+
+func (route nativeCNCFInputRoute) inventoryValue() map[string]any {
+	return map[string]any(route)
+}
+
+var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
+	"thanos": {{
 		"command":       []any{"check", "cncf", "--project", "thanos", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_kubernetes_workload_minimizer",
 		"limit":         "Checks one selected Thanos Receive or Store container in a caller-supplied Kubernetes workload with an exact reviewed image and literal argv; unresolved entrypoints, arguments, images, runtime behavior, storage, Query behavior, and whole-upgrade safety remain UNKNOWN.",
-	},
-	"cortex": {
+	}},
+	"cortex": {{
 		"command":       []any{"check", "cncf", "--project", "cortex", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_kubernetes_workload_minimizer",
 		"limit":         "Checks one selected Cortex container in a caller-supplied Kubernetes workload with the exact reviewed image and literal argv. Explicit /bin/cortex is admitted; an omitted command is source-derived only for the exact admitted target image, never runtime observation. Null, empty, wrapper, custom-image, or unresolved entrypoints and arguments remain UNKNOWN; query semantics, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
-	},
-	"nats": {
+	}},
+	"nats": {{
 		"command":       []any{"check", "cncf", "--project", "nats", "--nats-config", "FILE"},
 		"metadataState": "implemented_native_json_configuration_minimizer",
 		"limit":         "Checks only supplied literal server_name, cluster.name, and gateway.name in a bounded native JSON configuration subset; includes, variables, defaults, startup behavior, connectivity, and whole-upgrade safety remain UNKNOWN.",
-	},
-	"flux": {
+	}},
+	"flux": {{
 		"command":       []any{"check", "cncf", "--project", "flux", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_rendered_resource_minimizer",
 		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for five removed beta API versions; absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
-	},
+	}},
 	"prometheus": {
-		"command":       []any{"check", "cncf", "--project", "prometheus", "--scrape-config", "FILE", "--scrape-job", "NAME", "--scrape-config-complete", "--scrape-config-precedence-resolved"},
-		"metadataState": "implemented_native_selected_scrape_config_minimizer",
-		"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
+		{
+			"command":       []any{"check", "cncf", "--project", "prometheus", "--alertmanager-config", "FILE", "--from", "2.55.1", "--to", "3.1.0", "--alertmanager-config-complete", "--alertmanager-config-precedence-resolved"},
+			"metadataState": "implemented_native_selected_alertmanager_config_minimizer",
+			"limit":         "Checks only literal api_version in one caller-selected complete native alerting.alertmanagers entry; an omitted key uses the exact target source-derived v2 default. Addresses, credentials, paths, full configuration, Alertmanager compatibility, reachability, alert delivery, runtime behavior, and whole-upgrade safety remain unresolved.",
+		},
+		{
+			"command":       []any{"check", "cncf", "--project", "prometheus", "--scrape-config", "FILE", "--scrape-job", "NAME", "--scrape-config-complete", "--scrape-config-precedence-resolved"},
+			"metadataState": "implemented_native_selected_scrape_config_minimizer",
+			"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
+		},
 	},
 }
 
@@ -694,6 +744,18 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "3.2.0", "--to", "4.0.0", "--effective-config-complete", "--current-default-was-used", "--preserve-http2-enabled"}, "metadataState": "implemented_native_classic_configuration_minimizer", "limit": "Requires one caller-selected complete classic [OUTPUT] configuration and caller declarations that the current default was used and HTTP/2 must remain enabled; it evaluates only that setting. Unsupported syntax remains UNKNOWN."}
 		}
 		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
+		if project == "loki" {
+			// Keep the established generic compactor preparer for v1 readers while
+			// exposing both independently selected native Loki routes to v2 readers.
+			capability["localPreparers"] = []any{
+				preparer,
+				map[string]any{
+					"command":       []any{"check", "project", "--project", "loki", "--loki-schema-config", "FILE", "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved"},
+					"metadataState": "implemented_native_selected_loki_schema_config_minimizer",
+					"limit":         "Checks one caller-selected complete, precedence-resolved native Loki schema configuration: one canonical period with literal store and schema plus explicit allow_structured_metadata. An omitted allow setting requires exact-pair --use-reviewed-target-default. Multiple periods, aliases, tags, duplicate or near-key spellings, templates, unsupported values, other precedence, storage migration, retention, data access, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+				},
+			}
+		}
 		id := identities[project]
 		projects = append(projects, map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}})
 	}
@@ -1123,7 +1185,13 @@ func renderMarkdown(inventory map[string]any) string {
 				source := rawSource.(map[string]any)
 				evidence = append(evidence, markdownLink(source["id"].(string), source["url"].(string)))
 			}
-			if rawPreparer, ok := cap["localPreparer"]; ok {
+			if rawPreparers, ok := array(cap["localPreparers"]); ok {
+				for _, rawPreparer := range rawPreparers {
+					preparer := rawPreparer.(map[string]any)
+					preparers = append(preparers, "`prufyx "+strings.Join(stringSlice(preparer["command"]), " ")+"`")
+					limits = append(limits, preparer["limit"].(string))
+				}
+			} else if rawPreparer, ok := cap["localPreparer"]; ok {
 				preparer := rawPreparer.(map[string]any)
 				preparers = append(preparers, "`prufyx "+strings.Join(stringSlice(preparer["command"]), " ")+"`")
 				limits = append(limits, preparer["limit"].(string))

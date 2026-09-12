@@ -217,6 +217,14 @@
       }
     ]
   },
+  {
+    "project": "argo-cd",
+    "ruleId": "argo-cd.resource-exclusions-v2-visibility-preservation.3-0",
+    "cases": [
+      {"name":"source-default-blocked","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/argoproj/argo-cd","version":"2.14.0","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/argoproj/argo-cd","version":"3.0.0","facts":[{"id":"component.argo_cd.requires_v2_visibility_of_v3_default_excluded_resources","state":"declared","boolValue":true},{"id":"component.argo_cd.resource_exclusions_source_default_selected","state":"declared","boolValue":true}]}]}},"status":"BLOCKED"}
+    ]
+  }
+,
 {
     "project": "buildpacks",
     "ruleId": "buildpacks.lifecycle-platform-api-support.0-16-5-to-0-17-7",
@@ -13084,6 +13092,17 @@
         },
         "status": "UNKNOWN"
       }
+    ]
+  },
+  {
+    "project": "prometheus",
+    "ruleId": "prometheus.alertmanager-api-v1-removed.3-1",
+    "cases": [
+      {"name":"explicit-v2","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"2.55.1","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.1.0","facts":[{"id":"component.prometheus.alertmanager_api_version_selection","state":"declared","enumValue":"v2"}]}]}},"status":"PASS"},
+      {"name":"source-default-v2","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"2.55.1","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.1.0","facts":[{"id":"component.prometheus.alertmanager_api_version_selection","state":"declared","enumValue":"omitted_default_v2"}]}]}},"status":"PASS"},
+      {"name":"v1-blocked","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"2.55.1","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.1.0","facts":[{"id":"component.prometheus.alertmanager_api_version_selection","state":"declared","enumValue":"v1"}]}]}},"status":"BLOCKED"},
+      {"name":"unsupported-input","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"2.55.1","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.1.0","facts":[{"id":"component.prometheus.alertmanager_api_version_selection","state":"unsupported"}]}]}},"status":"UNKNOWN"},
+      {"name":"outside-transition","input":{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.1.0","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/prometheus/prometheus","version":"3.2.0","facts":[{"id":"component.prometheus.alertmanager_api_version_selection","state":"declared","enumValue":"v1"}]}]}},"status":"UNKNOWN"}
     ]
   },
   {

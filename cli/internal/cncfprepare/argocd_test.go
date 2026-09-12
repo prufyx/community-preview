@@ -66,8 +66,17 @@ func TestPrepareArgoCDExplicitConfigurationFeedsExistingRule(t *testing.T) {
 				t.Fatalf("facts=%v", facts)
 			}
 			got, err := cncfcheck.Check("argo-cd", prepared.CanonicalInputJSON, time.Date(2026, 9, 9, 6, 0, 0, 0, time.UTC))
-			if err != nil || len(got.Check.Claims) != 1 || got.Check.Claims[0].Status != tc.check || got.Check.Assessment != "UNKNOWN" {
+			claims := map[string]struct{ status, reason string }{}
+			for _, claim := range got.Check.Claims {
+				claims[claim.RuleID] = struct{ status, reason string }{claim.Status, claim.ReasonCode}
+			}
+			rbac, rbacOK := claims["argo-cd.required-rbac-inheritance.3-0"]
+			exclusions, exclusionsOK := claims["argo-cd.resource-exclusions-v2-visibility-preservation.3-0"]
+			if err != nil || len(got.Check.Claims) != 2 || !rbacOK || rbac.status != tc.check || !exclusionsOK || exclusions.status != "UNKNOWN" || exclusions.reason != "RULE_EVIDENCE_CLOCK_BEFORE_REVIEW" || got.Check.Assessment != "UNKNOWN" {
 				t.Fatalf("check=%+v err=%v", got.Check, err)
+			}
+			if tc.name == "false preserves v2 predicate" && cncfcheck.ClaimExit(got) != 11 {
+				t.Fatalf("generic false-preserves exit=%d", cncfcheck.ClaimExit(got))
 			}
 		})
 	}

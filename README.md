@@ -58,12 +58,13 @@ this example as proof that a cluster was converted or that traffic is safe.
 The current generated inventory reports **64 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
-contains the exact capabilities and source bindings. The twenty newly reviewed
+contains the exact capabilities and source bindings. The twenty-three newly reviewed
 scenarios are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
 | Argo Workflows | 3.5.0 → 3.6.0 renames server `--basehref` to `--base-href` | native Kubernetes Deployment JSON |
+| Argo CD | 2.14.0 → 3.0.0 preserves declared v2 visibility when the exact resource-exclusions default would exclude it | complete, precedence-resolved `argocd-cm` YAML with explicit preservation intent |
 | Ceph | Quincy 17.2.7 → Reef 18.2.0 rejects a selected current FileStore OSD | private native per-OSD metadata JSON output |
 | Cloud Custodian | 0.9.50 → 0.9.51 removes the selected IAM access-key `json-diff` policy filter | private policy JSON |
 | CloudNativePG | 1.29.0 → 1.30.0 cluster reference must remain immutable | paired Kubernetes JSON objects |
@@ -80,9 +81,11 @@ scenarios are:
 | Kibana | 8.18.0 → 9.0.0 removes `xpack.reporting.roles.allow` | complete, precedence-resolved `kibana.yml` |
 | KubeVirt | 1.8.4 → 1.9.0 rejects interfaces with no or multiple bindings | VM/VMI JSON |
 | Grafana Loki | 2.9.8 → 3.0.0 removes legacy compactor shared-store settings | complete, precedence-resolved native Loki YAML |
+| Grafana Loki | 2.9.8 → 3.0.0 requires `store: tsdb` and `schema: v13` when structured metadata is enabled | complete, precedence-resolved native Loki schema configuration YAML |
 | OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 | Prometheus | 2.55.1 → 3.1.0 renames selected `scrape_classic_histograms` | complete, precedence-resolved scrape-config YAML |
+| Prometheus | 2.55.1 → 3.1.0 removes selected Alertmanager `api_version: v1` | complete, precedence-resolved `alerting.alertmanagers` entry YAML |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
 Custodian and Prometheus, and `prufyx check

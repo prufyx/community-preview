@@ -295,6 +295,40 @@ func (b bundle) rulesForAdmittedInput(project string, raw []byte) (constrainteng
 	return b.parseRules(matched)
 }
 
+func (b bundle) selectedRuleSet(project, ruleID string) (constraintengine.RuleSet, error) {
+	selected := make([]json.RawMessage, 0, 1)
+	for _, entry := range b.pack.Entries {
+		if entry.Project != project {
+			continue
+		}
+		var shape struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(entry.Rule, &shape) != nil {
+			return constraintengine.RuleSet{}, ErrIntegrity
+		}
+		if shape.ID == ruleID {
+			selected = append(selected, entry.Rule)
+		}
+	}
+	return b.parseRules(selected)
+}
+
+func (b bundle) ownsRuleID(project, ruleID string) (bool, error) {
+	for _, entry := range b.pack.Entries {
+		var shape struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(entry.Rule, &shape) != nil {
+			return false, ErrIntegrity
+		}
+		if shape.ID == ruleID {
+			return entry.Project == project, nil
+		}
+	}
+	return false, nil
+}
+
 func subjectComponent(project, repository string) string {
 	if project == "opentelemetry" {
 		return "pkg:github/open-telemetry/opentelemetry-collector"

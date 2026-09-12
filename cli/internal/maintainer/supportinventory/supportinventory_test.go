@@ -143,9 +143,6 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 		matched := 0
 		for _, capability := range project.Capabilities {
 			if capability.LocalPreparer.MetadataState == expected.state && slices.Contains(capability.LocalPreparer.Command, expected.flag) && !strings.Contains(strings.Join(capability.LocalPreparer.Command, " "), "prepare") {
-				if project.ProjectID == "prometheus" && (!slices.Contains(capability.LocalPreparer.Command, "--scrape-config-complete") || !slices.Contains(capability.LocalPreparer.Command, "--scrape-config-precedence-resolved")) {
-					t.Fatalf("Prometheus native route omits required declarations: %#v", capability.LocalPreparer.Command)
-				}
 				matched++
 			}
 		}
@@ -157,6 +154,184 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("missing native route metadata: %#v", want)
 	}
+}
+
+func TestSupportInventory_PrometheusListsIndependentNativeRoutes(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+				LocalPreparers []struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparers"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "prometheus" {
+			continue
+		}
+		if len(project.Capabilities) != 2 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_selected_scrape_config_minimizer" || len(project.Capabilities[0].LocalPreparers) != 2 {
+			t.Fatalf("Prometheus native route inventory = %#v", project.Capabilities)
+		}
+		routes := map[string]struct {
+			command []string
+			limit   string
+		}{}
+		for _, route := range project.Capabilities[0].LocalPreparers {
+			routes[route.MetadataState] = struct {
+				command []string
+				limit   string
+			}{route.Command, route.Limit}
+		}
+		alertmanager, ok := routes["implemented_native_selected_alertmanager_config_minimizer"]
+		if !ok || !slices.Contains(alertmanager.command, "--alertmanager-config") || !slices.Contains(alertmanager.command, "--alertmanager-config-complete") || !slices.Contains(alertmanager.command, "--alertmanager-config-precedence-resolved") || !slices.Contains(alertmanager.command, "--from") || !slices.Contains(alertmanager.command, "--to") || strings.Contains(strings.Join(alertmanager.command, " "), "--scrape-config") || !strings.Contains(alertmanager.limit, "api_version") || !strings.Contains(alertmanager.limit, "Alertmanager compatibility") {
+			t.Fatalf("Alertmanager native route missing or overclaimed: %#v", alertmanager)
+		}
+		scrape, ok := routes["implemented_native_selected_scrape_config_minimizer"]
+		legacy := project.Capabilities[0].LocalPreparer
+		if !ok || !slices.Contains(scrape.command, "--scrape-config") || !slices.Contains(scrape.command, "--scrape-job") || !slices.Contains(scrape.command, "--scrape-config-complete") || !slices.Contains(scrape.command, "--scrape-config-precedence-resolved") || strings.Contains(strings.Join(scrape.command, " "), "--alertmanager-config") || !strings.Contains(scrape.limit, "scrape_config") || !slices.Equal(scrape.command, legacy.Command) || scrape.limit != legacy.Limit {
+			t.Fatalf("scrape native route missing or overclaimed: %#v", scrape)
+		}
+		return
+	}
+	t.Fatal("Prometheus inventory entry missing")
+}
+
+func TestSupportInventory_LokiListsIndependentNativeRoutes(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+				LocalPreparers []struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparers"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "loki" {
+			continue
+		}
+		if len(project.Capabilities) != 1 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_effective_config_minimizer" || len(project.Capabilities[0].LocalPreparers) != 2 {
+			t.Fatalf("Loki native route inventory = %#v", project.Capabilities)
+		}
+		legacy := project.Capabilities[0].LocalPreparer
+		routes := map[string]struct {
+			command []string
+			limit   string
+		}{}
+		for _, route := range project.Capabilities[0].LocalPreparers {
+			routes[route.MetadataState] = struct {
+				command []string
+				limit   string
+			}{route.Command, route.Limit}
+		}
+		compactor, ok := routes[legacy.MetadataState]
+		if !ok || !slices.Equal(compactor.command, legacy.Command) || compactor.limit != legacy.Limit {
+			t.Fatalf("legacy Loki compactor route not retained: %#v", legacy)
+		}
+		structured, ok := routes["implemented_native_selected_loki_schema_config_minimizer"]
+		if !ok || !slices.Contains(structured.command, "--loki-schema-config") || !slices.Contains(structured.command, "--effective-config-complete") || !slices.Contains(structured.command, "--precedence-resolved") || strings.Contains(strings.Join(structured.command, " "), "--effective-config FILE") || !strings.Contains(structured.limit, "allow_structured_metadata") || !strings.Contains(structured.limit, "Multiple periods") {
+			t.Fatalf("Loki structured-metadata route missing or overclaimed: %#v", structured)
+		}
+		return
+	}
+	t.Fatal("Loki inventory entry missing")
+}
+
+func TestSupportInventory_ArgoCDListsIndependentNativeRoutes(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+				LocalPreparers []struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparers"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "argo-cd" {
+			continue
+		}
+		if len(project.Capabilities) != 1 || len(project.Capabilities[0].LocalPreparers) != 3 {
+			t.Fatalf("Argo CD native route inventory = %#v", project.Capabilities)
+		}
+		legacy := project.Capabilities[0].LocalPreparer
+		if legacy.MetadataState != "implemented_local_minimizing_adapter" || !slices.Equal(legacy.Command, []string{"prepare", "cncf", "--project", "argo-cd"}) {
+			t.Fatalf("legacy Argo CD preparer changed: %#v", legacy)
+		}
+		routes := map[string]struct {
+			command []string
+			limit   string
+		}{}
+		for _, route := range project.Capabilities[0].LocalPreparers {
+			routes[route.MetadataState] = struct {
+				command []string
+				limit   string
+			}{route.Command, route.Limit}
+		}
+		legacyRoute, ok := routes[legacy.MetadataState]
+		if !ok || !slices.Equal(legacyRoute.command, legacy.Command) || legacyRoute.limit != legacy.Limit {
+			t.Fatalf("legacy Argo CD route not retained: %#v", legacy)
+		}
+		rbac, ok := routes["implemented_native_selected_argocd_rbac_config_map_minimizer"]
+		if !ok || !slices.Contains(rbac.command, "--config-map") || slices.Contains(rbac.command, "--resource-exclusions-config-map") || !strings.Contains(rbac.limit, "explicit RBAC intent") {
+			t.Fatalf("Argo CD RBAC route missing or overclaimed: %#v", rbac)
+		}
+		exclusions, ok := routes["implemented_native_selected_argocd_resource_exclusions_minimizer"]
+		if !ok || !slices.Contains(exclusions.command, "--resource-exclusions-config-map") || !slices.Contains(exclusions.command, "--resource-exclusions-config-complete") || !slices.Contains(exclusions.command, "--resource-exclusions-precedence-resolved") || !slices.Contains(exclusions.command, "--requires-v2-visibility-of-v3-default-excluded-resources") || strings.Contains(strings.Join(exclusions.command, " "), "--config-map") || !strings.Contains(exclusions.limit, "explicit v2-visibility-preservation intent") {
+			t.Fatalf("Argo CD resource-exclusions route missing or overclaimed: %#v", exclusions)
+		}
+		return
+	}
+	t.Fatal("Argo CD inventory entry missing")
 }
 
 func TestSupportInventory_PrometheusNamedAndCNCFRuleCapabilitiesCoexist(t *testing.T) {

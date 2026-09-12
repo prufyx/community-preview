@@ -168,6 +168,7 @@ func TestPrepareLokiRejectsMalformedAndDeclinesAmbiguousYAML(t *testing.T) {
 		"compactor:\n  Shared_Store: filesystem\n",
 		"compactor:\n  shared_store.child: filesystem\n",
 		"compactor:\n  storage:\n    shared_store: filesystem\n",
+		"compactor:\n  storage:\n    'shared_store ': filesystem\n",
 		"defaults: &defaults\n  shared_store: filesystem\ncompactor:\n  <<: *defaults\n",
 		"compactor: !include compactor.yml\n",
 		"compactor:\n  working_directory: ${LOKI_DATA}\n",
@@ -190,6 +191,17 @@ func TestPrepareLokiRejectsMalformedAndDeclinesAmbiguousYAML(t *testing.T) {
 		// Malformed YAML is admitted only as an UNKNOWN minimized fact; it is
 		// never interpreted as key absence.
 		t.Fatalf("malformed YAML state=%q err=%v", malformed.State, err)
+	}
+	for _, raw := range []string{
+		"'compactor ':\n  shared_store: filesystem\n",
+		"compactor:\n  'shared_store ': filesystem\n",
+		"!!map {compactor: {shared_store: filesystem}}\n",
+		"compactor: !!map {shared_store: !!str filesystem}\n",
+	} {
+		prepared, err := PrepareEffectiveConfig(LokiProject, []byte(raw), LokiFrom, LokiTo, true, true)
+		if err != nil || prepared.State != "UNKNOWN" {
+			t.Fatalf("near-key or tagged YAML state=%q err=%v raw=%q", prepared.State, err, raw)
+		}
 	}
 }
 

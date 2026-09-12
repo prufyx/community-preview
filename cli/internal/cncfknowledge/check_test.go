@@ -148,11 +148,15 @@ func TestExternalKnowledgeHistoricalReplayExactPinsAndMutation(t *testing.T) {
 	}
 	state := makeFixture(t)
 	req := request(state, "1", state.manifest.Revisions[0].BundleDigest, state.receipt1.TrustReceiptDigest, []byte(kyvernoInputFalse))
+	req.SelectedRuleID = "kyverno.reports-chunk-size-removed.1-13"
 	report, err := cncfknowledge.EvaluateCurrent(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	reportRaw := mustMarshalReport(t, report)
+	if report.Check.RequestedRuleID != req.SelectedRuleID || report.Check.SelectedRuleID != "" || len(report.Check.Check.Claims) != 0 {
+		t.Fatalf("selected empty external report=%+v", report.Check)
+	}
 	importSecond(t, &state)
 	replay, err := cncfknowledge.ReplayHistorical(req, append(append([]byte(nil), reportRaw...), '\n'))
 	if err != nil {
@@ -185,6 +189,11 @@ func TestExternalKnowledgeHistoricalReplayExactPinsAndMutation(t *testing.T) {
 	wrong.Selection.ExpectedTrustReceiptDigest = state.receipt2.TrustReceiptDigest
 	if _, err := cncfknowledge.ReplayHistorical(wrong, append(append([]byte(nil), reportRaw...), '\n')); err == nil {
 		t.Fatal("mismatched trust receipt pin accepted")
+	}
+	wrong = req
+	wrong.SelectedRuleID = ""
+	if _, err := cncfknowledge.ReplayHistorical(wrong, append(append([]byte(nil), reportRaw...), '\n')); err == nil {
+		t.Fatal("changed selected rule accepted for replay")
 	}
 	mutated := report
 	mutated.Knowledge.Revision = "2"

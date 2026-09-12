@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-source-rule-pack/v1alpha1",
-  "revision": "community-project-rules-2026-09-12.1",
+  "revision": "community-project-rules-2026-09-12.2",
   "policyId": "community-project-source-preview-v1",
   "policyDigest": "sha256:16b3a461dfc639f997c6f048d4dc6f0cf5bda3c02c12fdc4f390bf52fc2ff144",
   "entries": [
@@ -209,6 +209,43 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Remove shared_store and shared_store_key_prefix from the selected compactor mapping, then separately follow Loki 3.0 storage, index, retention, and data-access migration guidance."
+      }
+    },
+    {
+      "project": "loki",
+      "description": "Loki 3.0 requires structured metadata to use TSDB with schema v13; this checks only one complete, precedence-resolved selected schema period and does not establish runtime startup or data migration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.loki.structured_metadata_requires_tsdb_v13",
+          "component": "pkg:github/grafana/loki",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected proposed Loki schema and store violate the reviewed structured-metadata TSDB/v13 constraint."
+        }
+      ],
+      "rule": {
+        "id": "loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/grafana/loki", "from": "2.9.8", "to": "3.0.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/grafana/loki", "factId": "component.loki.structured_metadata_requires_tsdb_v13", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T01:19:15Z",
+          "validUntil": "2026-12-11T01:19:15Z",
+          "sources": [
+            {"id": "loki-v2-config-validate", "url": "https://github.com/grafana/loki/blob/94e00299ec9b36ad97c147641566b6922268c54e/pkg/loki/loki.go", "revision": "94e00299ec9b36ad97c147641566b6922268c54e", "contentDigest": "sha256:7d4bae6dccf98b64ef0cfbc35ec26e390f5ae4c170240537fd60c8864a616c3f", "startLine": 208, "endLine": 269},
+            {"id": "loki-v2-structured-metadata-default", "url": "https://github.com/grafana/loki/blob/94e00299ec9b36ad97c147641566b6922268c54e/pkg/validation/limits.go", "revision": "94e00299ec9b36ad97c147641566b6922268c54e", "contentDigest": "sha256:e8f4de56d0bda498b4236cbe4e5f0dcde3a9eba025f2d77a51638de484c22953", "startLine": 183, "endLine": 294},
+            {"id": "loki-v3-config-registers-limits", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/loki/loki.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:5cf53ee390408bf0df3953f61a4039da4162dbb5475cf40cfc0a68156ae11221", "startLine": 154, "endLine": 294},
+            {"id": "loki-v3-schema-period-validation", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/storage/config/schema_config.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:f96124194fbe2df3f642144cef7e6425bad02c0fb3479e007c421e1b601890b5", "startLine": 136, "endLine": 481},
+            {"id": "loki-v3-structured-metadata-default", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/validation/limits.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:a7fd7403183b0583f6fe8de7d8a7b36b5e14a894730c4e0ce938acca83c9d8eb", "startLine": 210, "endLine": 387},
+            {"id": "loki-v3-structured-metadata-guide", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/docs/sources/get-started/labels/structured-metadata.md", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:2747b317389a2b8451801c0e8abd637e9114a08e81504848f21911649b86a83d", "startLine": 8, "endLine": 10},
+            {"id": "loki-v3-structured-metadata-schema-validation", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/loki/validation.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:16b2dafeec5beedc4c19605be7d57ca563bedf174f86aee455609306c0ff47f5", "startLine": 24, "endLine": 52},
+            {"id": "loki-v3-upgrade-guide", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/docs/sources/setup/upgrade/_index.md", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:a37d623da6a49ae793923e6364ac0578c5e3137be583edfcff56883e58d25894", "startLine": 47, "endLine": 84}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Use schema v13 with tsdb, or disable allow_structured_metadata, then separately review Loki storage, index, retention, and data-access migration guidance."
       }
     }
   ]

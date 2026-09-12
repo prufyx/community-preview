@@ -65,6 +65,7 @@ func (r runtime) cncf(args []string) int {
 	if hasHelp(args) {
 		fmt.Fprintln(r.stdout, `Usage: prufyx check cncf --project SLUG --input FILE (--now RFC3339 | --knowledge-db DIR) [--input-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project argo-cd --config-map FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] --now RFC3339 [--config-map-digest SHA256] [--format human|json]
+   or: prufyx check cncf --project argo-cd --resource-exclusions-config-map FILE --from 2.14.0 --to 3.0.0 --resource-exclusions-config-complete --resource-exclusions-precedence-resolved [--requires-v2-visibility-of-v3-default-excluded-resources true] --now RFC3339 [--resource-exclusions-config-map-digest SHA256] [--format human|json]
    or: prufyx check cncf --project knative --service FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--service-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project in-toto --in-toto-run-argv FILE --from 2.2.0 --to 3.0.0 (--now RFC3339 | --knowledge-db DIR) [--in-toto-run-argv-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project the-update-framework-tuf --python-source FILE --from 6.0.0 --to 7.0.0 (--now RFC3339 | --knowledge-db DIR) [--python-source-digest SHA256] [--replay-report FILE] [--format human|json]
@@ -80,6 +81,7 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project flux --native-resource FILE --from 2.6.4 --to 2.7.0 [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project nats --nats-config FILE --from 2.10.0 --to 2.11.0 (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--scrape-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project prometheus --alertmanager-config FILE --from 2.55.1 --to 3.1.0 --alertmanager-config-complete --alertmanager-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--alertmanager-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
 
 Optional, local source-constraint preview using minimized operator declarations.
@@ -94,7 +96,8 @@ with --input FILE requires --replay-report FILE, --input-digest SHA256,
 --knowledge-bundle-digest SHA256 and --knowledge-trust-receipt-digest SHA256;
 its original time comes from the exact report. There is no embedded fallback.
 No cluster, network, model, or database download is used by this command.
-The Argo CD ConfigMap mode prepares and checks the local file in memory. It
+The Argo CD ConfigMap mode prepares and checks the local file in memory. The resource-exclusions mode admits one complete, precedence-resolved argocd-cm YAML and only exact target default, absent, or explicit empty values; it never infers v2 visibility intent, resource existence, watches, UI, reconciliation, or runtime behavior.
+It
 does not write canonical input, infer RBAC intent, or edit the ConfigMap.
 The Knative Serving Service mode derives only the target named HTTP startup-
 probe port-match fact. Embedded knowledge reviews only 1.22.0 -> 1.23.0.
@@ -120,6 +123,13 @@ It retains only whether the reviewed old or new key is present; job names,
 targets and unrelated settings are discarded. Completeness and precedence are
 caller declarations. PASS covers only the selected key rename, not parsing the
 whole prometheus.yml, startup, scraping, or native-histogram behavior.
+The Prometheus Alertmanager mode reads one caller-selected native
+alerting.alertmanagers entry. It retains only the API-version selection class;
+addresses, credentials, paths and unrelated settings are discarded. An omitted
+api_version can PASS only as the exact target source-derived v2 default with
+both caller declarations. PASS does not establish that Alertmanager supports
+v2, is reachable, or can receive alerts; validate compatibility and the complete
+target Prometheus configuration separately.
 The TUF mode uses a Go lexical parser that admits one unaliased direct import
 and one top-level direct Updater call. It reads private Python source as data
 and never imports or executes it. Source outside that narrow grammar remains
@@ -175,6 +185,11 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	pin := fs.String("input-digest", "", "optional exact input file SHA-256")
 	configMap := fs.String("config-map", "", "private proposed Argo CD argocd-cm JSON")
 	configMapPin := fs.String("config-map-digest", "", "optional exact ConfigMap SHA-256")
+	resourceExclusionsConfigMap := fs.String("resource-exclusions-config-map", "", "private Argo CD argocd-cm YAML for resource.exclusions")
+	resourceExclusionsConfigMapPin := fs.String("resource-exclusions-config-map-digest", "", "optional exact ConfigMap SHA-256")
+	resourceExclusionsComplete := fs.Bool("resource-exclusions-config-complete", false, "caller declaration that selected argocd-cm data is complete")
+	resourceExclusionsPrecedence := fs.Bool("resource-exclusions-precedence-resolved", false, "caller declaration that resource.exclusions precedence is resolved")
+	requiresV2Visibility := fs.String("requires-v2-visibility-of-v3-default-excluded-resources", "", "explicit Argo CD v2 visibility preservation intent: true")
 	service := fs.String("service", "", "private proposed Knative Serving Service JSON")
 	servicePin := fs.String("service-digest", "", "optional exact Service SHA-256")
 	currentLifecycleConfig := fs.String("current-lifecycle-config", "", "private current Lifecycle config-shaped JSON")
@@ -213,6 +228,10 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	scrapeJob := fs.String("scrape-job", "", "exact job_name selecting the supplied scrape_config")
 	scrapeConfigComplete := fs.Bool("scrape-config-complete", false, "caller declaration that the selected scrape_config is complete")
 	scrapeConfigPrecedenceResolved := fs.Bool("scrape-config-precedence-resolved", false, "caller declaration that configuration precedence is resolved")
+	alertmanagerConfig := fs.String("alertmanager-config", "", "private selected native Prometheus alerting.alertmanagers entry YAML")
+	alertmanagerConfigPin := fs.String("alertmanager-config-digest", "", "optional exact selected Alertmanager config SHA-256")
+	alertmanagerConfigComplete := fs.Bool("alertmanager-config-complete", false, "caller declaration that the selected Alertmanager mapping is complete")
+	alertmanagerConfigPrecedenceResolved := fs.Bool("alertmanager-config-precedence-resolved", false, "caller declaration that Alertmanager API-version precedence is resolved")
 	currentResource := fs.String("current-resource", "", "private current native Kubernetes JSON resource")
 	currentResourcePin := fs.String("current-resource-digest", "", "optional exact current resource SHA-256")
 	resource := fs.String("resource", "", "private proposed native Kubernetes JSON resource")
@@ -228,7 +247,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -240,6 +259,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
 	prometheusScrapeFlags := anyFlagProvided(args, "scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved")
+	prometheusAlertmanagerFlags := anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
 	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux"
 	if (nativeFlags || flagProvided(args, "resource-scope-complete")) && !nativeProject {
 		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, or flux; use --help")
@@ -259,7 +279,14 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	if *project == "prometheus" && prometheusScrapeFlags {
 		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
 	}
-	rawArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
+	if prometheusAlertmanagerFlags && *project != "prometheus" {
+		return r.usage("Prometheus Alertmanager configuration flags require project prometheus; use --help")
+	}
+	if *project == "prometheus" && prometheusAlertmanagerFlags {
+		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+	}
+	resourceExclusionsArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "resource-exclusions-config-map", "resource-exclusions-config-map-digest", "resource-exclusions-config-complete", "resource-exclusions-precedence-resolved", "requires-v2-visibility-of-v3-default-excluded-resources")
+	rawArgoRequested := *project == "argo-cd" && !resourceExclusionsArgoRequested && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
 	rawKnativeRequested := *project == "knative" && anyFlagProvided(args, "service", "service-digest", "from", "to")
 	rawBuildpacksRequested := *project == "buildpacks" && anyFlagProvided(args, "current-lifecycle-config", "proposed-lifecycle-config", "current-lifecycle-config-digest", "proposed-lifecycle-config-digest", "current-platform-api", "proposed-platform-api", "from", "to")
 	rawInTotoRequested := *project == "in-toto" && anyFlagProvided(args, "in-toto-run-argv", "in-toto-run-argv-digest", "from", "to")
@@ -282,6 +309,10 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	}
 	if rawDistributionRequested || rawCNISpecRequested || rawEmissaryRequested || rawOpenFGARequested {
 		// The closed selector checks above admitted the selected format route.
+	} else if resourceExclusionsArgoRequested {
+		if *resourceExclusionsConfigMap == "" || !*resourceExclusionsComplete || !*resourceExclusionsPrecedence || (*requiresV2Visibility != "" && *requiresV2Visibility != "true") || cncfUnexpectedModeFlag(args, "resource-exclusions-config-map", "resource-exclusions-config-map-digest", "resource-exclusions-config-complete", "resource-exclusions-precedence-resolved", "requires-v2-visibility-of-v3-default-excluded-resources") || *from == "" || *to == "" || *nowText == "" || flagProvided(args, "knowledge-db") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest") || flagProvided(args, "replay-report") {
+			return r.usage("invalid Argo CD resource-exclusions check arguments; use --help")
+		}
 	} else if rawArgoRequested {
 		if *configMap == "" || cncfUnexpectedModeFlag(args, "config-map", "config-map-digest", "requires-inherited-application-permissions") || *from == "" || *to == "" || *nowText == "" || flagProvided(args, "knowledge-db") || flagProvided(args, "knowledge-revision") || flagProvided(args, "knowledge-bundle-digest") || flagProvided(args, "knowledge-trust-receipt-digest") || flagProvided(args, "replay-report") || (flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false") {
 			return r.usage("invalid Argo CD ConfigMap check arguments; use --help")
@@ -332,6 +363,9 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	}
 	if _, err := cncfcheck.Catalog(false, *project); err != nil {
 		return r.cncfError("CNCF project selection failed", err)
+	}
+	if resourceExclusionsArgoRequested {
+		return r.cncfArgoCDResourceExclusions(*resourceExclusionsConfigMap, *resourceExclusionsConfigMapPin, *from, *to, *resourceExclusionsComplete, *resourceExclusionsPrecedence, *requiresV2Visibility, now, *format)
 	}
 	if rawArgoRequested {
 		return r.cncfArgoCDConfigMap(*configMap, *configMapPin, *from, *to, *requiresInheritedPermissions, now, *format)
@@ -502,6 +536,7 @@ func cncfUnexpectedModeFlag(args []string, allowed ...string) bool {
 var cncfModeInputFlags = []string{
 	"input", "input-digest",
 	"config-map", "config-map-digest", "requires-inherited-application-permissions",
+	"resource-exclusions-config-map", "resource-exclusions-config-map-digest", "resource-exclusions-config-complete", "resource-exclusions-precedence-resolved", "requires-v2-visibility-of-v3-default-excluded-resources",
 	"service", "service-digest",
 	"current-lifecycle-config", "proposed-lifecycle-config",
 	"current-lifecycle-config-digest", "proposed-lifecycle-config-digest",
@@ -514,6 +549,7 @@ var cncfModeInputFlags = []string{
 	"resource-scope-complete",
 	"nats-config", "nats-config-digest",
 	"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved",
+	"alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved",
 	"current-resource", "current-resource-digest", "resource", "resource-digest",
 	"image-manifest", "image-manifest-digest",
 	"cni-configuration", "cni-configuration-digest", "operation",

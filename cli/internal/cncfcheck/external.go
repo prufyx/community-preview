@@ -171,6 +171,21 @@ func (b ExternalBundle) BundleDigest() string {
 // falls back to the embedded pack and makes no source, signature, or runtime
 // authority claim.
 func (b ExternalBundle) Evaluate(project string, inputRaw []byte, now time.Time) (Report, error) {
+	return b.evaluate(project, "", inputRaw, now)
+}
+
+// EvaluateRule applies one closed rule selection without embedded fallback.
+// The compiled pack must establish that the requested rule belongs to project;
+// the selected external pack may omit it, in which case the report has no
+// claims and remains UNKNOWN.
+func (b ExternalBundle) EvaluateRule(project, ruleID string, inputRaw []byte, now time.Time) (Report, error) {
+	if ruleID == "" {
+		return Report{}, ErrInvalid
+	}
+	return b.evaluate(project, ruleID, inputRaw, now)
+}
+
+func (b ExternalBundle) evaluate(project, selectedRuleID string, inputRaw []byte, now time.Time) (Report, error) {
 	if !b.valid() {
 		return Report{}, ErrIntegrity
 	}
@@ -181,12 +196,26 @@ func (b ExternalBundle) Evaluate(project string, inputRaw []byte, now time.Time)
 	if !base.hasProject(project) {
 		return Report{}, ErrInvalid
 	}
+	if selectedRuleID != "" {
+		owned, ownershipErr := base.ownsRuleID(project, selectedRuleID)
+		if ownershipErr != nil {
+			return Report{}, ErrIntegrity
+		}
+		if !owned {
+			return Report{}, ErrInvalid
+		}
+	}
 	selected := bundle{landscape: base.landscape, priority: base.priority, pack: b.pack, registry: b.registry, packDigest: b.bundleDigest, catalogueDigest: base.catalogueDigest}
 	input, err := constraintengine.ParseInput(inputRaw, selected.registry)
 	if err != nil {
 		return Report{}, ErrInvalid
 	}
-	rules, err := selected.rulesForAdmittedInput(project, inputRaw)
+	var rules constraintengine.RuleSet
+	if selectedRuleID != "" {
+		rules, err = selected.selectedRuleSet(project, selectedRuleID)
+	} else {
+		rules, err = selected.rulesForAdmittedInput(project, inputRaw)
+	}
 	if err != nil {
 		return Report{}, ErrIntegrity
 	}
@@ -201,12 +230,21 @@ func (b ExternalBundle) Evaluate(project string, inputRaw []byte, now time.Time)
 		Schema: "prufyx.io/cncf-source-check/v1alpha1", Project: project, Assessment: "UNKNOWN",
 		KnowledgeOrigin: "external_declared", KnowledgeRevision: b.document.Revision, KnowledgePackDigest: b.bundleDigest,
 		CatalogueDigest: base.catalogueDigest, InputFileDigest: digest(inputRaw), SourceAuthority: externalSourceAuthority,
+		RequestedRuleID:   selectedRuleID,
 		RuntimeReproduced: 0, NetworkUsed: false,
 		NextAction: "review each scoped claim; whole-upgrade behavior and runtime evidence remain unverified",
 		Check:      result,
 	}
+	if selectedRuleID != "" && len(result.Claims) == 1 && result.Claims[0].RuleID == selectedRuleID {
+		report.SelectedRuleID = selectedRuleID
+		report.NextAction = "review the selected native-input claim; other project rules, configuration and whole-upgrade behavior remain unassessed"
+	}
 	if len(result.Claims) == 0 {
-		report.NextAction = "no rules are packaged for this project; retain UNKNOWN and request reviewed coverage"
+		if selectedRuleID != "" {
+			report.NextAction = "the selected external revision has no exact rule for this native-input capability; retain UNKNOWN with no embedded fallback"
+		} else {
+			report.NextAction = "no rules are packaged for this project; retain UNKNOWN and request reviewed coverage"
+		}
 	}
 	report.seal = &reportSeal{}
 	encoded, err := json.Marshal(report)

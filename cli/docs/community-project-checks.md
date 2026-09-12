@@ -18,7 +18,7 @@ test "$(go env GOVERSION)" = go1.26.8
   go build -trimpath -buildvcs=false -o "$PREVIEW_DIR/prufyx-community" ./cmd/prufyx-community)
 ```
 
-Four checks inspect native effective-configuration files locally:
+Five checks inspect native effective-configuration files locally:
 
 - Grafana `10.4.0` → `11.0.0`: whether a proposed `grafana.ini` explicitly
   sets `[alerting] enabled=true`, which Grafana 11 rejects during settings
@@ -88,6 +88,38 @@ UNKNOWN instead of being attributed to this upgrade. Unrelated configuration
 values are discarded. A scoped PASS means only that the two reviewed legacy
 keys are absent from this caller-declared complete and precedence-resolved
 selection.
+
+- Grafana Loki `2.9.8` → `3.0.0`: whether one selected top-level
+  `schema_config` period satisfies the structured-metadata constraint of
+  `store: tsdb` and `schema: v13` when `allow_structured_metadata` is enabled.
+  The native mode is selected explicitly with `--loki-schema-config`; it
+  accepts only one period, stores `tsdb` or `boltdb-shipper`, schemas `v9`–`v13`,
+  and canonical dates. A complete, precedence-resolved input with an explicit
+  `allow_structured_metadata: false` is a scoped PASS for this one global
+  constraint. An omitted allow setting remains UNKNOWN unless the exact pair
+  is accompanied by `--use-reviewed-target-default`, which records a
+  source-derived target default rather than a live observation. PASS/BLOCKED
+  says nothing about OTLP, storage migration, retention, data access, or
+  runtime startup. Multiple periods, aliases, tags, duplicate or near-key
+  spellings, templates, and unsupported values remain UNKNOWN.
+
+Copy a public structured-metadata example to a private file before checking:
+
+```sh
+umask 077
+cp cli/examples/projects/loki/schema-structured-fixed.yml "$PREVIEW_DIR/loki-schema.yml"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project loki \
+  --loki-schema-config "$PREVIEW_DIR/loki-schema.yml" \
+  --from 2.9.8 --to 3.0.0 \
+  --effective-config-complete --precedence-resolved \
+  --now 2026-09-12T02:00:00Z
+```
+
+Use `schema-structured-broken.yml` for a scoped BLOCKED result and
+`schema-structured-unknown.yml` for the deliberately unsupported multiple
+period shape. The selected schema/store values are reduced to one Boolean
+fact and do not enter the canonical input or report.
 
 The Argo Workflows `3.5.0` → `3.6.0` check inspects one caller-supplied native
 Kubernetes Deployment. It selects the unique `argo-server` container bound to
