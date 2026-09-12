@@ -11,6 +11,14 @@ Build the executable from source with the vendored Go modules. There is no
 official prebuilt binary, release feed, or automatic knowledge refresh for
 this preview.
 
+Have a public GitHub project with useful release notes or changelogs? Start with
+the [local project onboarding guide](cli/docs/project-onboarding.md)
+or [suggest the repository](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml).
+The repository URL is enough to begin; source onboarding does not add a support
+claim or executable check. Automatic sync currently requires a matching
+published GitHub Release; the guide covers the explicit pinned-source fallback
+for other repository layouts.
+
 ## Quickstart: a MetalLB migration fact
 
 The example below uses the caller's proposed native Kubernetes JSON. It does
@@ -152,6 +160,13 @@ or input format can require a CLI update. There is no official feed, startup
 refresh, or automatic knowledge admission.
 
 ## Contribute reviewed evidence
+
+Public-source suggestions can begin with the
+[project source issue form](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml)
+without exact versions or manually calculated hashes. The local
+[project onboarding workflow](cli/docs/project-onboarding.md) discovers bounded
+release metadata and commit-pinned public files, then emits a source-only
+proposal for review.
 
 Maintainers can start with the [upstream contribution guide](cli/docs/upstream-contributions.md),
 then use the offline scaffold and validator described there. A packet is a

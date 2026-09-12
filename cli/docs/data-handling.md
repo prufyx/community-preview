@@ -4,6 +4,35 @@ The Community evaluator runs locally. It does not contact Prufyx, invoke a model
 upload a report or require an account. Obtaining the source, compiler, release
 assets and upstream references is separate from offline evaluation.
 
+## Public project source onboarding
+
+The optional [public project onboarding workflow](project-onboarding.md) keeps
+evaluation offline while adding one explicit network operation:
+`prufyx-maintainer project sync`. Sync contacts only GitHub's public API and raw
+content host for the repository, recent-release limit, optional tag prefix,
+optional public changelog paths, and bounded built-in license filenames. GitHub
+sees the public repository names and ordinary connection data such as IP address
+and timing. Prufyx receives no request, account identifier, configuration, or
+telemetry.
+
+The private local snapshot retains public GitHub release bodies, normalized
+release and tag observations, commit-pinned public repository files, content
+digests, and receipts. Those bytes are untrusted data: onboarding does not run,
+build, render, extract, or send them to a model. Offline `project verify`,
+`status`, `inspect`, and `proposal` commands make no network request. A public
+proposal contains only repository and immutable-source references, generated
+hashes, bounded declarations, and license or attribution references; it excludes
+the retained bodies and object store.
+
+Project onboarding requests and proposals reject customer configuration, cluster
+objects, credentials, Secrets, logs, private paths, non-public proprietary
+source, and production data. Sync may retain publicly served repository bytes
+whose license is still unknown or restrictive; that state remains unreviewed and
+raw bytes are excluded from the public proposal. The workflow does
+not infer repository ownership, foundation membership, component identity,
+license permission, maintainer approval, or compatibility. Captured objects are
+private evidence inputs, not client knowledge targets or training authorization.
+
 ## Proposed files and reports
 
 Provide an exact local JSON artifact. The cert-manager check takes already

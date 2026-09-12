@@ -33,6 +33,17 @@ For a public upstream identity or transition proposal, use the closed offline
 receipt proves packet consistency only; it does not authenticate a reviewer,
 verify an upstream source, authorize a rule, or publish data.
 
+If you only want to suggest a useful public project, start with the
+[public project source issue form](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml).
+One exact public GitHub repository URL is enough; you do not need to maintain
+the project, choose exact versions, or calculate hashes. Maintainers can use the
+[local onboarding workflow](cli/docs/project-onboarding.md) to produce a bounded
+source-only snapshot and proposal. That proposal remains `NOT_REVIEWED` and
+`NOT_ADMITTED` until a separate review, and it never adds an executable rule by
+itself. Automatic sync currently requires a matching published GitHub Release;
+the guide describes the explicit pinned-source fallback for tag-only and
+changelog-only repositories.
+
 ## Develop locally
 
 Use Go 1.26.8. Go dependencies are pinned in `cli/vendor`; use the vendored,

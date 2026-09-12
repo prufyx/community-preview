@@ -17,6 +17,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgeexport"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/localkind"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/projectonboarding"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasegate"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releaseworkflow"
@@ -103,8 +104,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: code, message: "public-source-capture failed", printed: true}
 		}
 		return nil
+	case "project":
+		if code := projectonboarding.Run(context.Background(), args[1:], stdout, stderr, projectonboarding.Options{}); code != 0 {
+			return &commandError{code: code, message: "project onboarding failed", printed: true}
+		}
+		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <contribution|contribution-candidates|selected-source-import|source-corpus|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()
