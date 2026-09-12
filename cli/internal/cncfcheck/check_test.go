@@ -24,7 +24,7 @@ type reviewedVector struct {
 
 func reviewClock(t *testing.T) time.Time {
 	t.Helper()
-	v, err := time.Parse(time.RFC3339, "2026-09-11T23:00:00Z")
+	v, err := time.Parse(time.RFC3339, "2026-09-11T23:30:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 59 || len(vectors) != 59 {
+	if len(b.pack.Entries) != 61 || len(vectors) != 61 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 424 {
+	if caseCount != 430 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -74,6 +74,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				// preserve its real reviewedAt timestamp in the rule data.
 				if vector.Project == "cloud-custodian" {
 					clock = time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "fluentd.z-literal-treatment.1-17-1-to-1-18-0" {
+					clock = time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC)
 				}
 				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {

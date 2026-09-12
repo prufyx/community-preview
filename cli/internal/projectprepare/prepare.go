@@ -32,6 +32,12 @@ const (
 	KibanaTo        = "9.0.0"
 	KibanaFact      = "component.kibana.reporting_roles_allow_present"
 
+	LokiProject   = "loki"
+	LokiComponent = "pkg:github/grafana/loki"
+	LokiFrom      = "2.9.8"
+	LokiTo        = "3.0.0"
+	LokiFact      = "component.loki.compactor_legacy_shared_store_present"
+
 	CephProject   = "ceph"
 	CephComponent = "pkg:github/ceph/ceph"
 	CephFrom      = "17.2.7"
@@ -100,6 +106,9 @@ func PrepareEffectiveConfig(project string, raw []byte, from, to string, complet
 	case KibanaProject:
 		component, factID = KibanaComponent, KibanaFact
 		found, supported, err = kibanaReportingRolesAllow(raw)
+	case LokiProject:
+		component, factID = LokiComponent, LokiFact
+		found, supported, err = lokiCompactorLegacySharedStore(raw)
 	default:
 		return Prepared{}, ErrInvalid
 	}
@@ -117,17 +126,21 @@ func PrepareEffectiveConfig(project string, raw []byte, from, to string, complet
 	if err != nil {
 		return Prepared{}, ErrInvalid
 	}
+	omissions := []string{
+		"CALLER_SUPPLIED_CONFIG_NOT_LIVE_OBSERVATION",
+		"ENVIRONMENT_AND_CLI_PRECEDENCE_DECLARED_NOT_OBSERVED",
+		"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
+	}
+	if project == LokiProject {
+		omissions = append(omissions, "LOKI_STORAGE_INDEX_RETENTION_DATA_AND_STARTUP_NOT_EVALUATED")
+	}
 	return Prepared{
 		CanonicalInputJSON: canonical,
 		SourceDigest:       digest(raw),
 		InputDigest:        digest(canonical),
 		State:              state,
 		Reason:             reason,
-		Omissions: []string{
-			"CALLER_SUPPLIED_CONFIG_NOT_LIVE_OBSERVATION",
-			"ENVIRONMENT_AND_CLI_PRECEDENCE_DECLARED_NOT_OBSERVED",
-			"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
-		},
+		Omissions:          omissions,
 	}, nil
 }
 

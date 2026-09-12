@@ -55,10 +55,10 @@ this example as proof that a cluster was converted or that traffic is safe.
 
 ## What is covered
 
-The current generated inventory reports **63 executable projects**, **110
+The current generated inventory reports **64 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
-contains the exact capabilities and source bindings. The seventeen newly reviewed
+contains the exact capabilities and source bindings. The twenty newly reviewed
 scenarios are:
 
 | Project | Scoped scenario | Local input |
@@ -74,9 +74,12 @@ scenarios are:
 | Distribution | 2.8.3 → 3.0.0 removes schema 1 manifests | manifest JSON |
 | Emissary-Ingress | 3.10.0 → 4.0.1 removes `diagd --metrics-endpoint` | caller-selected argv JSON |
 | Fluent Bit | 3.2.0 → 4.0.0 requires an intended OpenTelemetry HTTP/2 setting to stay enabled | complete classic configuration plus current-default and preservation declarations |
+| Fluentd | 1.17.1 → 1.18.0 changes treatment of one selected unquoted interpolation marker | paired literal JSON declaration with completeness, current-default, and preservation guards |
 | Grafana | 10.4.0 → 11.0.0 rejects explicit legacy alerting enablement | complete, precedence-resolved `grafana.ini` |
+| Harbor | 2.7.0 → 2.8.0 removes the installer `--with-chartmuseum` option | caller-declared complete literal installer argv JSON |
 | Kibana | 8.18.0 → 9.0.0 removes `xpack.reporting.roles.allow` | complete, precedence-resolved `kibana.yml` |
 | KubeVirt | 1.8.4 → 1.9.0 rejects interfaces with no or multiple bindings | VM/VMI JSON |
+| Grafana Loki | 2.9.8 → 3.0.0 removes legacy compactor shared-store settings | complete, precedence-resolved native Loki YAML |
 | OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 | Prometheus | 2.55.1 → 3.1.0 renames selected `scrape_classic_histograms` | complete, precedence-resolved scrape-config YAML |
@@ -84,7 +87,7 @@ scenarios are:
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
 Custodian and Prometheus, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
-(Argo Workflows, Ceph, Fluent Bit, Grafana, and Kibana), with the input contract
+(Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, and Grafana Loki), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
 an exact reviewed source contract. They do not identify a running installation.
 CNI numbers are specification editions, not a library release claim. OpenFGA's
