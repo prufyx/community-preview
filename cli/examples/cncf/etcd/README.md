@@ -1,35 +1,43 @@
-# Synthetic offline etcd example
+# Synthetic offline etcd examples
 
-This walkthrough demonstrates the bounded etcd `3.5.17` to `3.6.0` source
-constraint using a private, synthetic `EtcdEffectiveArguments` declaration. It
-uses only a complete, direct effective argument vector. It does not read a
-Deployment, wrapper, environment variable, config file, response file, live
-etcd process, cluster, or customer configuration.
+This walkthrough exercises the exact adjacent etcd `3.6.14` to `3.7.1`
+source constraint through the native preparation and check commands. It uses
+only complete, direct, caller-declared effective argument vectors.
 
-Run it with an already-built Community executable from this source checkout:
+Run the Go-owned walkthrough with an already-built Community executable:
 
 ```sh
-prufyx community-preview example cncf-etcd
+/absolute/path/to/prufyx-community community-preview example cncf-etcd
 ```
 
-The Go command creates all temporary input and output files with mode `0600`,
-uses no network, and removes its temporary directory. The retained `run.sh`
-entrypoint is a compatibility shim for an already-built Community executable. The input contains the known atom `--enable-v2=false`. The value
-`false` does not mean that the removed option is absent: the atom itself is
-present in the complete effective argv, so preparation emits
-`component.etcd.removed_v2_proxy_flags_present=true`. The subsequent check
-returns the scoped `BLOCKED` result with exit `10`; the aggregate assessment
-remains `UNKNOWN`.
+The `run.sh` file is a thin compatibility shim for that native command. The Go
+walkthrough runs the retained `3.5.17` to `3.6.0` regression and the latest
+three cases. It creates private `0600` temporary inputs, binds source and
+canonical input digests, removes its temporary tree, and uses no network,
+cluster, or etcd process. The checked-in JSON files show the latest synthetic
+inputs that correspond to its blocked, fixed, and unknown states.
 
-The parser accepts only self-contained `--name=value` atoms for this slice. It
-does not resolve wrappers, environment or config sources, or execute etcd. The
-second input deliberately separates `--initial-cluster` from
-`--enable-v2=true`; that incomplete and ambiguous vector returns preparation
-exit `11`, emits the existing `missing` fact, and checks as `UNKNOWN` with exit
-`11`. A complete vector without a removed option also cannot prove absence and
-remains `UNKNOWN`.
+- `blocked.json` contains the reviewed removed
+  `--experimental-compact-hash-check-enabled=true` spelling. Preparation emits
+  `component.etcd.experimental_flags_present=true`, and the scoped check is
+  `BLOCKED` with exit `10`.
+- `fixed.json` uses the documented
+  `--feature-gates=CompactHashCheck=true` replacement. The complete finite target
+  grammar emits the same fact as `false`, and the adjacent scoped check is
+  `PASS` with exit `0`.
+- `unknown.json` declares an indirect `--config-file` source. Preparation does
+  not resolve it or emit a false fact, and the check remains `UNKNOWN` with
+  exit `11`.
 
-The declaration is synthetic operator input, not a live observation. The
-source-backed rule does not prove API admission, startup, traffic, runtime
-behavior, quorum or whole-upgrade safety. Review the generated canonical input
-and report before using them.
+The same removed-flag predicate is available for exact current versions
+`3.5.33`, `3.4.45`, `3.3.27`, and `3.2.32`, but replacing the flag cannot make
+those direct proposals pass: a separate one-minor-at-a-time rule still blocks
+each direct jump to `3.7.1`. Other current or target versions, unresolved
+wrappers, templates, environment, separated values, duplicate names, unknown
+flags, and config-file inputs remain `UNKNOWN`. In particular, the inferred
+plain `--compact-hash-check-enabled=true` name is not registered by the pinned
+3.7.1 target and remains `UNKNOWN`.
+
+Raw arguments never appear in the minimized canonical input. These source-only
+checks do not establish health, snapshot or v2-data safety, membership,
+downgrade, startup, rolling-upgrade behavior, or whole-upgrade safety.

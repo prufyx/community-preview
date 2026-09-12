@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -630,7 +631,7 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 	"flux": {{
 		"command":       []any{"check", "cncf", "--project", "flux", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_rendered_resource_minimizer",
-		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for five removed beta API versions; absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for the historical five beta API versions and the additive Flux 2.9.5 beta2 union; latest coverage is limited to the reviewed toolkit kinds and five exact origins, while source-watcher, extensions, and unreviewed API versions remain UNKNOWN. Absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
 	}},
 	"prometheus": {
 		{
@@ -807,7 +808,74 @@ func namedProject(contract map[string]any, digest string, identities map[string]
 		}
 		normalized = append(normalized, v)
 	}
-	capability := map[string]any{"kind": "named_local_check", "command": []any{"check", check}, "transitions": []any{map[string]any{"component": component, "from": from, "to": to, "semantics": "exact_reviewed_transition_only"}}, "evidence": normalized, "metadataState": "embedded_source_contract", "sourceContractDigest": digest, "limit": limit}
+	transitions := []any{map[string]any{"component": component, "from": from, "to": to, "semantics": "exact_reviewed_transition_only"}}
+	if check == "cert-manager-values" {
+		if latest, ok := object(contract["_latestContract"]); ok {
+			latestTransitions, _ := array(latest["transitions"])
+			latestSources, _ := array(latest["sources"])
+			seenEvidenceIDs := map[string]bool{}
+			for _, item := range normalized {
+				if evidence, ok := object(item); ok {
+					if id, ok := stringValue(evidence["id"]); ok {
+						seenEvidenceIDs[id] = true
+					}
+				}
+			}
+			for _, rawTransition := range latestTransitions {
+				item, itemOK := object(rawTransition)
+				old, oldOK := object(item["current"])
+				new, newOK := object(item["target"])
+				oldVersion, oldVersionOK := stringValue(old["version"])
+				newVersion, newVersionOK := stringValue(new["version"])
+				oldDigest, oldDigestOK := stringValue(old["chartManifestDigest"])
+				newDigest, newDigestOK := stringValue(new["chartManifestDigest"])
+				if !itemOK || !oldOK || !newOK || !oldVersionOK || !newVersionOK || !oldDigestOK || !newDigestOK || !digestRE.MatchString(oldDigest) || !digestRE.MatchString(newDigest) {
+					return nil, invalid("invalid latest cert transition")
+				}
+				transitions = append(transitions, map[string]any{"component": component, "from": oldVersion, "to": newVersion, "currentChartManifestDigest": oldDigest, "targetChartManifestDigest": newDigest, "semantics": "exact_reviewed_transition_only"})
+			}
+			for _, rawSource := range latestSources {
+				// The inventory evidence schema is intentionally GitHub-only. The
+				// chart OCI digest remains bound in the executable contract and
+				// transitions; the immutable GitHub-backed schema and guide evidence
+				// is rendered here.
+				item, itemOK := object(rawSource)
+				if !itemOK || item["id"] == "oci-manifest-target" {
+					continue
+				}
+				id, idOK := stringValue(item["id"])
+				if !idOK {
+					return nil, invalid("invalid latest cert evidence identity")
+				}
+				if id == "target-values-schema" {
+					// Keep the historical evidence identity and expose the latest
+					// commit-pinned identity alongside it.
+					id = "latest-target-values-schema"
+					item["id"] = id
+				}
+				if seenEvidenceIDs[id] {
+					continue
+				}
+				v, err := sourceRecord(item, project)
+				if err != nil {
+					return nil, err
+				}
+				normalized = append(normalized, v)
+				seenEvidenceIDs[id] = true
+			}
+		}
+	}
+	capability := map[string]any{"kind": "named_local_check", "command": []any{"check", check}, "transitions": transitions, "evidence": normalized, "metadataState": "embedded_source_contract", "sourceContractDigest": digest, "limit": limit}
+	if latest, ok := object(contract["_latestContract"]); ok {
+		if latestDigest, ok := stringValue(contract["_latestDigest"]); ok {
+			if check == "cert-manager-values" {
+				capability["latestSourceContractDigest"] = latestDigest
+				if target, ok := object(latest["target"]); ok {
+					capability["latestTarget"] = target
+				}
+			}
+		}
+	}
 	return map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}}, nil
 }
 
@@ -971,6 +1039,74 @@ func tikvProject(profile map[string]any, digest string, identities map[string]id
 	return map[string]any{"projectID": "tikv", "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}}, nil
 }
 
+func validateLatestCertContract(latest map[string]any) error {
+	if !exactKeys(latest, "schema", "component", "target", "transitions", "originChartManifests", "removedPaths", "sources") || latest["schema"] != "prufyx.io/cert-manager-removed-monitor-values-source-contract/v1" || latest["component"] != "pkg:helm/quay.io/jetstack/charts/cert-manager" {
+		return invalid("invalid latest cert contract identity")
+	}
+	target, targetOK := object(latest["target"])
+	targetVersion, versionOK := stringValue(target["version"])
+	targetDigest, digestOK := stringValue(target["chartManifestDigest"])
+	targetCommit, commitOK := stringValue(target["tagCommit"])
+	if !targetOK || !exactKeys(target, "version", "chartManifestDigest", "tagCommit") || !versionOK || !versionRE.MatchString(targetVersion) || !digestOK || !digestRE.MatchString(targetDigest) || !commitOK || !commitRE.MatchString(targetCommit) {
+		return invalid("invalid latest cert target")
+	}
+	transitions, transitionsOK := array(latest["transitions"])
+	origins, originsOK := array(latest["originChartManifests"])
+	removed, removedOK := array(latest["removedPaths"])
+	sources, sourcesOK := array(latest["sources"])
+	if !transitionsOK || len(transitions) != 5 || !originsOK || len(origins) != 5 || !removedOK || len(removed) != 3 || !sourcesOK || len(sources) != 4 {
+		return invalid("invalid latest cert contract cardinality")
+	}
+	seenTransitions := map[string]string{}
+	for _, raw := range transitions {
+		transition, ok := object(raw)
+		current, currentOK := object(transition["current"])
+		proposed, proposedOK := object(transition["target"])
+		from, fromOK := stringValue(current["version"])
+		fromDigest, fromDigestOK := stringValue(current["chartManifestDigest"])
+		fromCommit, fromCommitOK := stringValue(current["tagCommit"])
+		to, toOK := stringValue(proposed["version"])
+		toDigest, toDigestOK := stringValue(proposed["chartManifestDigest"])
+		toCommit, toCommitOK := stringValue(proposed["tagCommit"])
+		if !ok || !currentOK || !proposedOK || !exactKeys(current, "version", "chartManifestDigest", "tagCommit") || !exactKeys(proposed, "version", "chartManifestDigest", "tagCommit") || !fromOK || !versionRE.MatchString(from) || !fromDigestOK || !digestRE.MatchString(fromDigest) || !fromCommitOK || !commitRE.MatchString(fromCommit) || !toOK || to != targetVersion || !toDigestOK || toDigest != targetDigest || !toCommitOK || toCommit != targetCommit || seenTransitions[from] != "" {
+			return invalid("invalid latest cert transition")
+		}
+		seenTransitions[from] = fromDigest
+	}
+	seenOrigins := map[string]bool{}
+	for _, raw := range origins {
+		origin, ok := object(raw)
+		version, versionOK := stringValue(origin["version"])
+		content, contentOK := stringValue(origin["contentDigest"])
+		revision, revisionOK := stringValue(origin["revision"])
+		if !ok || !exactKeys(origin, "version", "url", "revision", "contentDigest") || !versionOK || seenTransitions[version] != content || seenOrigins[version] || !contentOK || !digestRE.MatchString(content) || !revisionOK || !commitRE.MatchString(revision) {
+			return invalid("invalid latest cert origin")
+		}
+		if _, err := httpsURL(origin["url"], false); err != nil {
+			return invalid("invalid latest cert origin URL")
+		}
+		seenOrigins[version] = true
+	}
+	for _, value := range removed {
+		path, ok := stringValue(value)
+		if !ok || path == "" {
+			return invalid("invalid latest cert removed path")
+		}
+	}
+	for _, raw := range sources {
+		source, ok := object(raw)
+		id, idOK := stringValue(source["id"])
+		content, contentOK := stringValue(source["contentDigest"])
+		if !ok || !idOK || !idRE.MatchString(id) || !contentOK || !digestRE.MatchString(content) {
+			return invalid("invalid latest cert source")
+		}
+		if _, err := httpsURL(source["url"], false); err != nil {
+			return invalid("invalid latest cert source URL")
+		}
+	}
+	return nil
+}
+
 func canonical(value any) ([]byte, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
@@ -1024,6 +1160,24 @@ func Generate(cfg Config) ([]byte, string, error) {
 	community, communityRuleCount, err := communityProjects(inputs[8].value, inputs[9].value)
 	if err != nil {
 		return nil, "", err
+	}
+	// The historical named contract remains the compatibility anchor. When
+	// the additive latest contract is shipped beside it, include its finite
+	// transition table in the generated inventory without changing the old
+	// input identity or route.
+	latestPath := filepath.Join(filepath.Dir(cfg.CertContract), "source-contract-v1-latest.json")
+	latestContractDigest := ""
+	if latest, latestErr := load(latestPath); latestErr == nil {
+		if err := validateLatestCertContract(latest.value); err != nil {
+			return nil, "", err
+		}
+		latestContractDigest = latest.digest
+		if certContract, ok := object(inputs[2].value); ok {
+			certContract["_latestContract"] = latest.value
+			certContract["_latestDigest"] = latest.digest
+		}
+	} else if !errors.Is(latestErr, os.ErrNotExist) {
+		return nil, "", latestErr
 	}
 	cert, err := namedProject(inputs[2].value, inputs[2].digest, identities, "cert-manager-values")
 	if err != nil {
@@ -1110,7 +1264,11 @@ func Generate(cfg Config) ([]byte, string, error) {
 	for _, id := range names {
 		projectList = append(projectList, projects[id])
 	}
-	inventory := map[string]any{"schema": Schema, "inputDigests": map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "selectedSourceManifest": inputs[7].digest, "communityProjectRules": inputs[8].digest, "communityProjectRegistry": inputs[9].digest}, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfRuleProjects": len(generic), "communityProjectSourceRules": communityRuleCount, "communityProjectRuleProjects": len(community), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active CNCF source-rule pack; exact declared endpoints only", "communityProjectRules": "separate embedded maintainer-reviewed external-project registry; CNCF membership is not asserted and external updates are unavailable", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "wholeUpgrade": "UNKNOWN"}, "projects": projectList}
+	inputDigests := map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "selectedSourceManifest": inputs[7].digest, "communityProjectRules": inputs[8].digest, "communityProjectRegistry": inputs[9].digest}
+	if latestContractDigest != "" {
+		inputDigests["certManagerLatestSourceContract"] = latestContractDigest
+	}
+	inventory := map[string]any{"schema": Schema, "inputDigests": inputDigests, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfRuleProjects": len(generic), "communityProjectSourceRules": communityRuleCount, "communityProjectRuleProjects": len(community), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active CNCF source-rule pack; exact declared endpoints only", "communityProjectRules": "separate embedded maintainer-reviewed external-project registry; CNCF membership is not asserted and external updates are unavailable", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "wholeUpgrade": "UNKNOWN"}, "projects": projectList}
 	raw, err := canonical(inventory)
 	if err != nil {
 		return nil, "", err

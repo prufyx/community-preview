@@ -19,6 +19,7 @@ const (
 	PrometheusScrapeKeyFact = "component.prometheus.scrape_classic_histograms_key"
 	PrometheusFrom          = "2.55.1"
 	PrometheusTo            = "3.1.0"
+	PrometheusLatestTo      = "3.14.0"
 	prometheusOldKey        = "scrape_classic_histograms"
 	prometheusNewKey        = "always_scrape_classic_histograms"
 	yamlMapTag              = "!!map"
@@ -45,7 +46,10 @@ func PreparePrometheusScrapeConfig(raw []byte, selectedJob, from, to string, com
 	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to || !prometheusLiteralJob(selectedJob) {
 		return Prepared{}, ErrInvalid
 	}
-	key, ok := prometheusScrapeKey(raw, selectedJob)
+	key, ok := "", false
+	if prometheusReviewedTransition(from, to) {
+		key, ok = prometheusScrapeKey(raw, selectedJob)
+	}
 	fact := inputFact{ID: PrometheusScrapeKeyFact, State: "unsupported"}
 	state, reason := StateUnknown, ReasonPrometheusScrapeConfigUnsupported
 	if complete && precedenceResolved && ok {
@@ -74,6 +78,24 @@ func PreparePrometheusScrapeConfig(raw []byte, selectedJob, from, to string, com
 			"SCRAPING_NATIVE_HISTOGRAMS_STARTUP_AND_WHOLE_UPGRADE_NOT_EVALUATED",
 		},
 	}, nil
+}
+
+// prometheusReviewedTransition admits the retained 2.55.1 -> 3.1.0 route and
+// five exact origins to 3.14.0. The latter are target configuration
+// constraints; they do not claim a newly introduced change on every path.
+func prometheusReviewedTransition(from, to string) bool {
+	if from == PrometheusFrom && to == PrometheusTo {
+		return true
+	}
+	if to != PrometheusLatestTo {
+		return false
+	}
+	switch from {
+	case "3.9.1", "3.10.0", "3.11.3", "3.12.0", "3.13.3":
+		return true
+	default:
+		return false
+	}
 }
 
 func prometheusLiteralJob(value string) bool {

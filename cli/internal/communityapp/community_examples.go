@@ -21,20 +21,34 @@ import (
 // scoped rule results; they do not claim runtime or whole-upgrade safety.
 func (r runtime) communityExample(args []string) int {
 	if hasHelp(args) || len(args) != 1 {
-		fmt.Fprintln(r.stdout, "Usage: prufyx community-preview example <cncf-etcd|cncf-opentelemetry|knowledge-cert-manager|knowledge-cncf>")
+		fmt.Fprintln(r.stdout, "Usage: prufyx community-preview example <cncf-coredns-latest|cncf-envoy-latest|cncf-etcd|cncf-kyverno-latest|cncf-nats-latest|cncf-opa-latest|cncf-opentelemetry|cncf-rook-latest|knowledge-cert-manager|knowledge-cncf|project-ceph-latest>")
 		return ExitOK
 	}
 	var result communityExampleResult
 	var err error
 	switch args[0] {
+	case "cncf-coredns-latest":
+		result, err = r.runCoreDNSLatestExample()
+	case "cncf-envoy-latest":
+		result, err = r.runEnvoyLatestExample()
 	case "cncf-etcd":
 		result, err = r.runEtcdExample()
+	case "cncf-kyverno-latest":
+		result, err = r.runKyvernoLatestExample()
+	case "cncf-nats-latest":
+		result, err = r.runNATSLatestExample()
+	case "cncf-opa-latest":
+		result, err = r.runOPALatestExample()
 	case "cncf-opentelemetry":
 		result, err = r.runOpenTelemetryExample()
+	case "cncf-rook-latest":
+		result, err = r.runRookLatestExample()
 	case "knowledge-cert-manager":
 		result, err = r.runKnowledgeCertManagerExample()
 	case "knowledge-cncf":
 		result, err = r.runKnowledgeCNCFExample()
+	case "project-ceph-latest":
+		result, err = r.runCephLatestExample()
 	default:
 		return r.usage("unknown Community example; use prufyx community-preview example --help")
 	}
@@ -262,7 +276,54 @@ func (r runtime) runEtcdExample() (communityExampleResult, error) {
 	if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
 		return communityExampleResult{}, fmt.Errorf("etcd incomplete argv did not produce scoped UNKNOWN")
 	}
-	return communityExampleResult{Example: "cncf-etcd", BlockedExit: blockedCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+	latestBlocked := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--name=synthetic-private-node","--experimental-compact-hash-check-enabled=true"]}`)
+	latestClean := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--name=synthetic-private-node","--feature-gates=CompactHashCheck=true"]}`)
+	latestUnknown := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--config-file=/synthetic/private/etcd.yaml"]}`)
+	latestBlockedCode, latestBlockedReport, err := r.prepareThenCheck(work, "etcd", "3.6.14", "3.7.1", latestBlocked)
+	if err != nil || latestBlockedCode != ExitBlocked || !communityClaim(latestBlockedReport, "BLOCKED") {
+		return communityExampleResult{}, fmt.Errorf("etcd 3.7 removed experimental flag did not produce scoped BLOCKED")
+	}
+	latestCleanCode, latestCleanReport, err := r.prepareThenCheck(work, "etcd", "3.6.14", "3.7.1", latestClean)
+	if err != nil || latestCleanCode != ExitOK || !communityClaim(latestCleanReport, "PASS") {
+		return communityExampleResult{}, fmt.Errorf("etcd documented feature gate replacement did not produce scoped PASS")
+	}
+	latestUnknownCode, latestUnknownReport, err := r.prepareThenCheck(work, "etcd", "3.6.14", "3.7.1", latestUnknown)
+	if err != nil || latestUnknownCode != ExitUnknown || !communityClaim(latestUnknownReport, "UNKNOWN") {
+		return communityExampleResult{}, fmt.Errorf("etcd indirect configuration did not remain UNKNOWN")
+	}
+	return communityExampleResult{Example: "cncf-etcd", BlockedExit: latestBlockedCode, CleanExit: latestCleanCode, UnknownExit: latestUnknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) runRookLatestExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-rook-latest-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private Rook example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	input := func(from, kubernetes string) []byte {
+		dependency := ""
+		if kubernetes != "" {
+			dependency = fmt.Sprintf(`{"component":"pkg:github/kubernetes/kubernetes","version":%q,"facts":[]},`, kubernetes)
+		}
+		return []byte(fmt.Sprintf(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/rook/rook","version":%q,"facts":[]}]},"proposed":{"components":[%s{"component":"pkg:github/rook/rook","version":"1.20.7","facts":[]}]}}`, from, dependency))
+	}
+	var blockedCode, cleanCode, unknownCode int
+	var blockedReport, cleanReport, unknownReport map[string]any
+	for _, from := range []string{"1.15.9", "1.16.9", "1.17.9", "1.18.11", "1.19.11"} {
+		blockedCode, blockedReport, err = r.checkPrepared(work, "rook", input(from, "1.30.9"))
+		if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+			return communityExampleResult{}, fmt.Errorf("Rook %s below-minimum Kubernetes declaration did not produce scoped BLOCKED", from)
+		}
+		cleanCode, cleanReport, err = r.checkPrepared(work, "rook", input(from, "1.31.0"))
+		if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+			return communityExampleResult{}, fmt.Errorf("Rook %s minimum Kubernetes declaration did not produce scoped PASS", from)
+		}
+		unknownCode, unknownReport, err = r.checkPrepared(work, "rook", input(from, ""))
+		if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+			return communityExampleResult{}, fmt.Errorf("Rook %s missing Kubernetes declaration did not remain UNKNOWN", from)
+		}
+	}
+	return communityExampleResult{Example: "cncf-rook-latest", BlockedExit: blockedCode, CleanExit: cleanCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
 }
 
 func (r runtime) runOpenTelemetryExample() (communityExampleResult, error) {
@@ -287,6 +348,73 @@ func (r runtime) runOpenTelemetryExample() (communityExampleResult, error) {
 		return communityExampleResult{}, fmt.Errorf("OpenTelemetry missing fact did not produce scoped UNKNOWN")
 	}
 	return communityExampleResult{Example: "cncf-opentelemetry", BlockedExit: blockedCode, CleanExit: cleanCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) runOPALatestExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-opa-latest-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private OPA example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	for _, from := range []string{"1.15.2", "1.16.2", "1.17.1", "1.18.2", "1.19.1"} {
+		base := fmt.Sprintf(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/open-policy-agent/opa","version":%q,"facts":[]}]},"proposed":{"components":[{"component":"pkg:github/open-policy-agent/opa","version":"1.20.2","facts":[{"id":"component.opa.modules_use_rego_v1_import","state":"declared","boolValue":false},{"id":"component.opa.producer_v0_compatible","state":"declared","boolValue":false},{"id":"component.opa.v0_consumers_remain","state":"declared","boolValue":true}]}]}}`, from)
+		blocked := []byte(base)
+		clean := []byte(strings.Replace(base, `"id":"component.opa.producer_v0_compatible","state":"declared","boolValue":false`, `"id":"component.opa.producer_v0_compatible","state":"declared","boolValue":true`, 1))
+		unknown := []byte(strings.Replace(base, `"id":"component.opa.producer_v0_compatible","state":"declared","boolValue":false`, `"id":"component.opa.producer_v0_compatible","state":"missing"`, 1))
+		blockedCode, blockedReport, err := r.checkPrepared(work, "opa", blocked)
+		if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+			return communityExampleResult{}, fmt.Errorf("OPA %s target-only witness did not produce scoped BLOCKED", from)
+		}
+		cleanCode, cleanReport, err := r.checkPrepared(work, "opa", clean)
+		if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+			return communityExampleResult{}, fmt.Errorf("OPA %s corrected witness did not produce scoped PASS", from)
+		}
+		unknownCode, unknownReport, err := r.checkPrepared(work, "opa", unknown)
+		if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+			return communityExampleResult{}, fmt.Errorf("OPA %s missing producer declaration did not produce scoped UNKNOWN", from)
+		}
+	}
+	return communityExampleResult{Example: "cncf-opa-latest", BlockedExit: ExitBlocked, CleanExit: ExitOK, UnknownExit: ExitUnknown, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) runKyvernoLatestExample() (communityExampleResult, error) {
+	work, err := os.MkdirTemp("", "prufyx-community-kyverno-latest-")
+	if err != nil {
+		return communityExampleResult{}, fmt.Errorf("create private Kyverno example directory: %w", err)
+	}
+	defer os.RemoveAll(work)
+	blocked := []byte(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"synthetic-private"},"spec":{"template":{"spec":{"containers":[{"name":"selected","image":"private.example/opaque","command":["reports-controller"],"args":["--reportsChunkSize=16"]}]}}}}`)
+	clean := []byte(strings.Replace(string(blocked), `,"args":["--reportsChunkSize=16"]`, "", 1))
+	for _, from := range []string{"1.14.5", "1.15.3", "1.16.4", "1.17.2", "1.18.2"} {
+		blockedCode, blockedReport, err := r.prepareKyvernoThenCheck(work, from, "1.19.1", "official_upstream", blocked)
+		if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+			return communityExampleResult{}, fmt.Errorf("Kyverno %s target-only witness did not produce scoped BLOCKED", from)
+		}
+		cleanCode, cleanReport, err := r.prepareKyvernoThenCheck(work, from, "1.19.1", "official_upstream", clean)
+		if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+			return communityExampleResult{}, fmt.Errorf("Kyverno %s corrected witness did not produce scoped PASS", from)
+		}
+		unknownCode, unknownReport, err := r.prepareKyvernoThenCheck(work, from, "1.19.1", "custom_build", clean)
+		if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+			return communityExampleResult{}, fmt.Errorf("Kyverno %s custom distribution did not produce scoped UNKNOWN", from)
+		}
+	}
+	return communityExampleResult{Example: "cncf-kyverno-latest", BlockedExit: ExitBlocked, CleanExit: ExitOK, UnknownExit: ExitUnknown, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
+}
+
+func (r runtime) prepareKyvernoThenCheck(work, from, to, distribution string, raw []byte) (int, map[string]any, error) {
+	input := filepath.Join(work, "kyverno-workload.json")
+	if err := os.WriteFile(input, raw, 0o600); err != nil {
+		return 0, nil, fmt.Errorf("write private Kyverno input: %w", err)
+	}
+	var prepared bytes.Buffer
+	child := r
+	child.stdout = &prepared
+	code := child.prepareCNCF([]string{"--project", "kyverno", "--input", input, "--container", "selected", "--from", from, "--to", to, "--distribution", distribution, "--input-digest", communityDigest(raw), "--format", "input"})
+	if (code != ExitOK && code != ExitUnknown) || !json.Valid(prepared.Bytes()) {
+		return code, nil, fmt.Errorf("prepare Kyverno returned %d", code)
+	}
+	return r.checkPrepared(work, "kyverno", prepared.Bytes())
 }
 
 func (r runtime) prepareThenCheck(work, project, from, to string, raw []byte) (int, map[string]any, error) {
@@ -316,6 +444,13 @@ func (r runtime) checkPrepared(work, project string, raw []byte) (int, map[strin
 	evaluationTime := "2026-09-10T00:00:00Z"
 	if project == "opentelemetry" {
 		evaluationTime = "2026-09-12T02:35:00Z"
+	} else if project == "etcd" {
+		evaluationTime = "2026-09-12T07:38:00Z"
+	} else if project == "rook" {
+		evaluationTime = "2026-09-12T08:32:00Z"
+	}
+	if project == "opa" || project == "kyverno" {
+		evaluationTime = "2026-09-12T09:34:00Z"
 	}
 	code := child.cncf([]string{"--project", project, "--input", input, "--input-digest", communityDigest(raw), "--now", evaluationTime, "--format", "json"})
 	var report map[string]any

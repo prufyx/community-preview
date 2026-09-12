@@ -112,6 +112,19 @@ func TestPreparePrometheusAlertmanagerConfigRejectsInvalidEnvelope(t *testing.T)
 	}
 }
 
+func TestPreparePrometheusAlertmanagerLatestTargetPairsAreFinite(t *testing.T) {
+	for _, from := range []string{"3.9.1", "3.10.0", "3.11.3", "3.12.0", "3.13.3"} {
+		prepared, err := PreparePrometheusAlertmanagerConfig([]byte("api_version: v1\nscheme: http\n"), from, PrometheusLatestTo, true, true)
+		if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonPrometheusAlertmanagerAPIV1Present {
+			t.Fatalf("from=%s prepared=%#v err=%v", from, prepared, err)
+		}
+	}
+	prepared, err := PreparePrometheusAlertmanagerConfig([]byte("api_version: v1\nscheme: http\n"), "3.8.0", PrometheusLatestTo, true, true)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonPrometheusAlertmanagerUnsupported {
+		t.Fatalf("prepared=%#v err=%v", prepared, err)
+	}
+}
+
 func prometheusAlertmanagerCanonicalFact(t *testing.T, raw []byte) (string, string) {
 	t.Helper()
 	var document struct {

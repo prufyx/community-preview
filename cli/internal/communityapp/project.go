@@ -15,8 +15,8 @@ import (
 var projectDigestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type projectArguments struct {
-	project, config, schemaConfig, workload, osdMetadata, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, now, format string
-	complete, precedenceResolved, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled          bool
+	project, config, schemaConfig, workload, osdMetadata, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, now, format                                                                  string
+	complete, precedenceResolved, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled, requireHTTP2, fullStatusWithoutMonitor, fullStatusWithoutMonitorDeclared bool
 }
 
 func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
@@ -42,11 +42,14 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.BoolVar(&result.useReviewedTargetDefault, "use-reviewed-target-default", false, "explicitly use the reviewed target default for an omitted Loki setting")
 	fs.BoolVar(&result.currentDefaultWasUsed, "current-default-was-used", false, "declare that the reviewed current default was used")
 	fs.BoolVar(&result.preserveHTTP2Enabled, "preserve-http2-enabled", false, "declare intent to preserve an enabled HTTP/2 setting")
+	fs.BoolVar(&result.fullStatusWithoutMonitor, "full-status-without-monitor-required", false, "declare that authenticated callers without monitor privilege require the full Kibana status response")
+	fs.BoolVar(&result.requireHTTP2, "require-http2", false, "declare that the selected Fluent Bit OpenTelemetry output requires HTTP/2")
 	fs.BoolVar(&result.workloadComplete, "workload-complete", false, "declare complete selected workload argv")
 	fs.BoolVar(&result.osdMetadataComplete, "selected-osd-metadata-complete", false, "declare complete selected current OSD metadata object")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
 		return projectArguments{}, false
 	}
+	result.fullStatusWithoutMonitorDeclared = flagProvided(args, "full-status-without-monitor-required")
 	modes := 0
 	for _, path := range []string{result.config, result.schemaConfig, result.workload, result.osdMetadata} {
 		if path != "" {
@@ -57,7 +60,7 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 		return projectArguments{}, false
 	}
 	if result.schemaConfig != "" {
-		if result.project != projectprepare.LokiProject || anyFlagProvided(args, "effective-config", "effective-config-digest", "workload", "workload-digest", "workload-complete", "selected-osd-metadata", "selected-osd-metadata-digest", "selected-osd-id", "selected-osd-metadata-complete", "current-default-was-used", "preserve-http2-enabled") {
+		if result.project != projectprepare.LokiProject || anyFlagProvided(args, "effective-config", "effective-config-digest", "workload", "workload-digest", "workload-complete", "selected-osd-metadata", "selected-osd-metadata-digest", "selected-osd-id", "selected-osd-metadata-complete", "current-default-was-used", "preserve-http2-enabled", "require-http2") {
 			return projectArguments{}, false
 		}
 	} else if result.config != "" {
@@ -73,7 +76,16 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 			return projectArguments{}, false
 		}
 	}
-	if result.project != projectprepare.FluentBitProject && result.schemaConfig == "" && anyFlagProvided(args, "current-default-was-used", "preserve-http2-enabled") {
+	if result.project != projectprepare.KibanaProject && anyFlagProvided(args, "full-status-without-monitor-required") {
+		return projectArguments{}, false
+	}
+	if result.project == projectprepare.KibanaProject && anyFlagProvided(args, "full-status-without-monitor-required") && (result.to != "9.5.3" || !projectprepare.KibanaLatestOrigin(result.from)) {
+		return projectArguments{}, false
+	}
+	if result.project != projectprepare.FluentBitProject && result.schemaConfig == "" && anyFlagProvided(args, "current-default-was-used", "preserve-http2-enabled", "require-http2") {
+		return projectArguments{}, false
+	}
+	if result.project == projectprepare.FluentBitProject && anyFlagProvided(args, "require-http2") && anyFlagProvided(args, "current-default-was-used", "preserve-http2-enabled") {
 		return projectArguments{}, false
 	}
 	if result.schemaConfig == "" && anyFlagProvided(args, "use-reviewed-target-default") {
@@ -92,10 +104,13 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 func (r runtime) prepareProject(args []string) int {
 	if hasHelp(args) {
 		fmt.Fprintln(r.stdout, "Usage: prufyx prepare project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   Kibana 9.0.8|9.1.10|9.2.8|9.3.8|9.4.6 -> 9.5.3 additionally requires --full-status-without-monitor-required for the status-page scope.")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project loki --loki-schema-config FILE --from 2.9.8 --to 3.0.0 --effective-config-complete --precedence-resolved [--use-reviewed-target-default] [--loki-schema-config-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled [--effective-config-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project fluent-bit --effective-config FILE --from 3.2.10|4.0.14|4.1.2|4.2.8|5.0.10 --to 5.1.2 --effective-config-complete --require-http2 [--effective-config-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
-		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
 		return ExitOK
 	}
 	request, ok := parseProjectArguments(args, false)
@@ -148,10 +163,13 @@ func (r runtime) prepareProject(args []string) int {
 func (r runtime) project(args []string) int {
 	if hasHelp(args) {
 		fmt.Fprintln(r.stdout, "Usage: prufyx check project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   Kibana 9.0.8|9.1.10|9.2.8|9.3.8|9.4.6 -> 9.5.3 additionally requires --full-status-without-monitor-required for the status-page scope.")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project loki --loki-schema-config FILE --from 2.9.8 --to 3.0.0 --effective-config-complete --precedence-resolved --now RFC3339 [--use-reviewed-target-default] [--loki-schema-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project fluent-bit --effective-config FILE --from 3.2.10|4.0.14|4.1.2|4.2.8|5.0.10 --to 5.1.2 --effective-config-complete --require-http2 --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
-		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "This preview is embedded-only. --knowledge-db, --profile, and replay flags are not supported for community projects.")
 		return ExitOK
 	}
@@ -240,7 +258,13 @@ func (r runtime) prepareProjectInput(request projectArguments) (projectprepare.P
 		prepared, err = projectprepare.PrepareSelectedOSDMetadata(request.project, raw, request.selectedOSDID, request.from, request.to, request.osdMetadataComplete)
 	} else {
 		if request.project == projectprepare.FluentBitProject {
-			prepared, err = projectprepare.PrepareFluentBit(raw, request.from, request.to, request.complete, request.currentDefaultWasUsed, request.preserveHTTP2Enabled)
+			if request.requireHTTP2 {
+				prepared, err = projectprepare.PrepareFluentBitHTTP2Target(raw, request.from, request.to, request.complete, request.requireHTTP2)
+			} else {
+				prepared, err = projectprepare.PrepareFluentBit(raw, request.from, request.to, request.complete, request.currentDefaultWasUsed, request.preserveHTTP2Enabled)
+			}
+		} else if request.project == projectprepare.KibanaProject && request.to == "9.5.3" && projectprepare.KibanaLatestOrigin(request.from) {
+			prepared, err = projectprepare.PrepareKibanaStatusPage(raw, request.from, request.to, request.complete, request.precedenceResolved, request.fullStatusWithoutMonitorDeclared, request.fullStatusWithoutMonitor)
 		} else {
 			prepared, err = projectprepare.PrepareEffectiveConfig(request.project, raw, request.from, request.to, request.complete, request.precedenceResolved)
 		}

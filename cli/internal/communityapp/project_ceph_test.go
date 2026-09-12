@@ -37,6 +37,51 @@ func TestCephSelectedOSDProjectCLI(t *testing.T) {
 	}
 }
 
+func TestCephLatestSelectedOSDAllExactOrigins(t *testing.T) {
+	for _, from := range []string{"19.2.6", "18.2.8", "17.2.9", "16.2.15", "15.2.17"} {
+		for _, tc := range []struct {
+			name, store, status string
+			complete            bool
+			want                int
+		}{
+			{"filestore-blocked", "filestore", "BLOCKED", true, ExitBlocked},
+			{"bluestore-pass", "bluestore", "PASS", true, ExitOK},
+			{"unknown-backend", "memstore", "UNKNOWN", true, ExitUnknown},
+			{"incomplete-unknown", "filestore", "UNKNOWN", false, ExitUnknown},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				body := `{"id":7,"osd_objectstore":"` + tc.store + `","hostname":"private-node"}`
+				path := writePrivateProjectFixture(t, body)
+				args := []string{"check", "project", "--project", "ceph", "--selected-osd-metadata", path, "--selected-osd-id", "7", "--from", from, "--to", "20.2.4", "--now", "2026-09-12T09:20:00Z", "--format", "json"}
+				if tc.complete {
+					args = append(args, "--selected-osd-metadata-complete")
+				}
+				var stdout, stderr bytes.Buffer
+				exit := Run(t.Context(), args, &stdout, &stderr, "test")
+				if exit != tc.want || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"assessment":"UNKNOWN"`) {
+					t.Fatalf("exit=%d stdout=%q stderr=%q", exit, stdout.String(), stderr.String())
+				}
+				if tc.status != "UNKNOWN" && !strings.Contains(stdout.String(), `"status":"`+tc.status+`"`) {
+					t.Fatalf("missing status %s: %s", tc.status, stdout.String())
+				}
+				for _, private := range []string{path, "private-node", `"id":7`, `"osd_objectstore"`} {
+					if strings.Contains(stdout.String()+stderr.String(), private) {
+						t.Fatalf("private selected metadata leaked: %q", private)
+					}
+				}
+			})
+		}
+	}
+	for _, tc := range []struct{ from, to string }{{"19.2.5", "20.2.4"}, {"19.2.6", "20.2.3"}} {
+		path := writePrivateProjectFixture(t, `{"id":7,"osd_objectstore":"filestore"}`)
+		args := []string{"check", "project", "--project", "ceph", "--selected-osd-metadata", path, "--selected-osd-id", "7", "--from", tc.from, "--to", tc.to, "--selected-osd-metadata-complete", "--now", "2026-09-12T09:20:00Z", "--format", "json"}
+		var stdout, stderr bytes.Buffer
+		if exit := Run(t.Context(), args, &stdout, &stderr, "test"); exit != ExitUnknown || stderr.Len() != 0 || !strings.Contains(stdout.String(), "no reviewed rule matches") || strings.Contains(stdout.String()+stderr.String(), path) {
+			t.Fatalf("pair=%s/%s exit=%d stdout=%q stderr=%q", tc.from, tc.to, exit, stdout.String(), stderr.String())
+		}
+	}
+}
+
 func TestCephSelectedOSDProjectAdmissionAndHumanScope(t *testing.T) {
 	path := writePrivateProjectFixture(t, `{"id":7,"osd_objectstore":"filestore"}`)
 	base := []string{"check", "project", "--project", "ceph", "--selected-osd-metadata", path, "--selected-osd-id", "7", "--from", "17.2.7", "--to", "18.2.0", "--selected-osd-metadata-complete", "--now", "2026-09-11T21:00:00Z"}

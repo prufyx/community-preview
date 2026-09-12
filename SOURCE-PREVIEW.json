@@ -1,15 +1,33 @@
 {
   "schema": "prufyx.io/community-source-preview/v2",
-  "status": "publishable_source_preview",
+  "status": "development_source_preview",
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:d38035bf9e80ff8dc10f0be09b877254544ac23af8d622e72b9a72ae6c09a319",
+    "inventorySha256": "sha256:da020ce688761d18b12159e909d08b267fc69963e0219bef2e9f28d103caeb93",
     "counts": {
       "executableProjects": 64,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 24
+      "documentedScenarioExamples": 24
+    },
+    "latestUpgradeCoverage": {
+      "asOf": "2026-09-12",
+      "matrixPath": "cli/docs/latest-upgrade-coverage-2026-09-12.md",
+      "projectCount": 23,
+      "selectedExactProjectVersionPairCount": 115,
+      "selection": "Five selected earlier stable releases per project to one exact reviewed target; this is not universal minor-line coverage.",
+      "inputAuthority": "Bounded native input or explicit minimized operator declarations, as stated per matrix row.",
+      "claimScope": "Exact endpoints and named predicates only; missing, custom, incomplete, ambiguous, runtime, cluster, data-migration, and whole-upgrade facts remain UNKNOWN.",
+      "additionalPreservedRoute": "Jaeger 1.76.0 to 2.20.0 is retained outside the selected-pair count.",
+      "preexistingSelectedPair": "Cortex 1.17.2 to 1.21.1 was already present and is included in the selected-pair count.",
+      "qualificationGaps": [
+        {
+          "project": "notation",
+          "state": "NO_EXECUTABLE_RULE",
+          "reason": "Source qualification did not establish a substantive target predicate."
+        }
+      ]
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },

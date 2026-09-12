@@ -28,7 +28,7 @@ behavior. Use the private-copy walkthrough in
 
 ## Harbor installer argv
 
-For Harbor `2.7.0` to `2.8.0`, `prepare cncf --project harbor` accepts one
+For Harbor `2.7.0` to `2.8.0` and the exact `2.10.3`, `2.11.2`, `2.12.4`, `2.13.5`, or `2.14.4` to `2.15.2` pairs, `prepare cncf --project harbor` accepts one
 private JSON declaration of the selected installer argv. Set
 `effectiveArgvDeclared=true` only after selecting a complete, literal
 `make/install.sh` argument vector. The check classifies only the removed
@@ -67,6 +67,27 @@ The report displays the baked-in official chart manifest digests. The declared
 versions select that reviewed source contract; they do not prove those charts
 match a deployed installation. Optional `--current-chart-digest` and
 `--target-chart-digest` assertions fail with exit 3 when they differ.
+
+The additive latest target is `1.21.2`. It accepts the five reviewed chart
+origins `1.20.3`, `1.19.6`, `1.18.6`, `1.17.4`, and `1.16.5`; each route keeps
+the same three removed monitor-value paths. For a local synthetic check, copy
+[`examples/community/cert-manager-removed.json`](../examples/community/cert-manager-removed.json)
+to a private values file and select any one of those origins:
+
+```sh
+umask 077
+cp examples/community/cert-manager-removed.json values.json
+chmod 600 values.json
+./prufyx check cert-manager-values \
+  --from 1.19.6 --to 1.21.2 --values values.json \
+  --current-chart-digest sha256:5d95e81072636335b7b43fc2517e5336b93b77d41a4c87cbaf291783f03b4a0f \
+  --target-chart-digest sha256:634dce9c13b56677a2c05e2ab76c312d0be2664022d5dd05815da67e1fd5f610
+```
+
+The target chart identity is pinned to the official OCI manifest digest. The
+historical `1.20.3` to `1.21.1` route remains available with its original
+contract; neither route proves full Helm schema, rendering, runtime behavior,
+or whole-upgrade safety.
 
 To retain and replay a deterministic JSON receipt, bind the original input by
 its SHA-256 digest:

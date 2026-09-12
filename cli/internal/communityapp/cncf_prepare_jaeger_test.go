@@ -2,6 +2,8 @@ package communityapp
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -15,6 +17,15 @@ func jaegerPreparationArgs(path string) []string {
 func jaegerPreparationDeclaration(t *testing.T, argv any) []byte {
 	t.Helper()
 	raw, err := json.Marshal(map[string]any{"authority": jaegerAuthority, "argv": argv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func jaegerExampleFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "cncf", "jaeger-explicit-config", name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,5 +97,42 @@ func TestJaegerPreparationAdmissionAndCrossProjectFlagsStaySanitized(t *testing.
 		if code != ExitUsage && code != ExitIntegrity || stdout != "" || strings.Contains(stderr, canary) || strings.Contains(stderr, private) || strings.Contains(stderr, permissive) {
 			t.Fatalf("args=%q code=%d stdout=%q stderr=%q", args, code, stdout, stderr)
 		}
+	}
+}
+
+func TestJaegerLatestTargetPairRoute(t *testing.T) {
+	raw := jaegerPreparationDeclaration(t, []any{"--config=/etc/jaeger/config.yaml"})
+	path := writeCNCFFile(t, "jaeger-latest.json", raw, 0o600)
+	args := []string{"prepare", "cncf", "--project", "jaeger", "--input", path, "--from", "2.19.0", "--to", "2.20.0", "--non-memory-storage-required", "true", "--official-jaeger-distribution", "true", "--format", "input"}
+	code, input, stderr := runCNCFCLI(t, args...)
+	if code != ExitOK || stderr != "" || !json.Valid([]byte(input)) {
+		t.Fatalf("prepare code=%d stderr=%q input=%q", code, stderr, input)
+	}
+	prepared := writeCNCFFile(t, "jaeger-latest-prepared.json", []byte(input), 0o600)
+	code, report, stderr := runCNCFCLI(t, "check", "cncf", "--project", "jaeger", "--input", prepared, "--now", "2026-09-12T08:39:00Z", "--format", "json")
+	if code != ExitOK || stderr != "" || !strings.Contains(report, "jaeger.explicit-config-required-for-non-memory.target.2-19-to-2-20") || !strings.Contains(report, `"status":"PASS"`) {
+		t.Fatalf("check code=%d stderr=%q report=%s", code, stderr, report)
+	}
+}
+
+func TestJaegerExampleFixturesKeepNativeAndOperatorDeclaredScopesSeparate(t *testing.T) {
+	nativeRaw := jaegerExampleFixture(t, "unknown-empty.json")
+	native := writeCNCFFile(t, "unknown-empty.json", nativeRaw, 0o600)
+	prepareArgs := []string{"prepare", "cncf", "--project", "jaeger", "--input", native, "--from", "2.19.0", "--to", "2.20.0", "--non-memory-storage-required", "true", "--official-jaeger-distribution", "true", "--format", "input"}
+	code, prepared, stderr := runCNCFCLI(t, prepareArgs...)
+	if code != ExitUnknown || stderr != "" || !json.Valid([]byte(prepared)) {
+		t.Fatalf("native empty prepare code=%d stderr=%q input=%q", code, stderr, prepared)
+	}
+	preparedPath := writeCNCFFile(t, "unknown-empty-prepared.json", []byte(prepared), 0o600)
+	code, report, stderr := runCNCFCLI(t, "check", "cncf", "--project", "jaeger", "--input", preparedPath, "--now", "2026-09-12T08:39:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(report, `"status":"UNKNOWN"`) {
+		t.Fatalf("native empty check code=%d stderr=%q report=%s", code, stderr, report)
+	}
+
+	declaredRaw := jaegerExampleFixture(t, "blocked-operator-declared.json")
+	declared := writeCNCFFile(t, "blocked-operator-declared.json", declaredRaw, 0o600)
+	code, report, stderr = runCNCFCLI(t, "check", "cncf", "--project", "jaeger", "--input", declared, "--now", "2026-09-12T08:39:00Z", "--format", "json")
+	if code != ExitBlocked || stderr != "" || !strings.Contains(report, `"status":"BLOCKED"`) || !strings.Contains(report, "jaeger.explicit-config-required-for-non-memory.target.2-19-to-2-20") {
+		t.Fatalf("operator-declared check code=%d stderr=%q report=%s", code, stderr, report)
 	}
 }

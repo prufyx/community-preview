@@ -17,9 +17,10 @@ const (
 )
 
 const (
-	ReasonCortexRemovedFlagPresent  Reason = "CORTEX_REMOVED_AT_MODIFIER_FLAG_PRESENT"
-	ReasonCortexRemovedFlagAbsent   Reason = "CORTEX_REMOVED_AT_MODIFIER_FLAG_ABSENT"
-	ReasonCortexWorkloadUnsupported Reason = "CORTEX_WORKLOAD_INPUT_UNSUPPORTED"
+	ReasonCortexRemovedFlagPresent    Reason = "CORTEX_REMOVED_AT_MODIFIER_FLAG_PRESENT"
+	ReasonCortexRemovedFlagAbsent     Reason = "CORTEX_REMOVED_AT_MODIFIER_FLAG_ABSENT"
+	ReasonCortexWorkloadUnsupported   Reason = "CORTEX_WORKLOAD_INPUT_UNSUPPORTED"
+	ReasonCortexTransitionUnsupported Reason = "CORTEX_TRANSITION_NOT_REVIEWED"
 )
 
 // PrepareCortex accepts only apps/v1 Deployment, StatefulSet, or DaemonSet
@@ -41,13 +42,17 @@ func PrepareCortex(raw []byte, from, to string) (Prepared, error) {
 	if err != nil {
 		return Prepared{}, ErrInvalid
 	}
-	present, ok, sourceDerivedEntrypoint := cortexRemovedFlagFact(value, to)
+	present, ok, sourceDerivedEntrypoint := false, false, false
 	facts := []inputFact{
 		{ID: CortexDistributionFact, State: "unsupported"},
 		{ID: CortexSurfaceFact, State: "unsupported"},
 		{ID: CortexFact, State: "unsupported"},
 	}
-	state, reason := StateUnknown, ReasonCortexWorkloadUnsupported
+	state, reason := StateUnknown, ReasonCortexTransitionUnsupported
+	if cortexReviewedTransition(from, to) {
+		present, ok, sourceDerivedEntrypoint = cortexRemovedFlagFact(value, to)
+		reason = ReasonCortexWorkloadUnsupported
+	}
 	if ok {
 		facts[0] = inputFact{ID: CortexDistributionFact, State: "declared", EnumValue: "official_upstream"}
 		facts[1] = inputFact{ID: CortexSurfaceFact, State: "declared", EnumValue: "cortex"}
@@ -81,6 +86,22 @@ func PrepareCortex(raw []byte, from, to string) (Prepared, error) {
 		Reason:             reason,
 		Omissions:          omissions,
 	}, nil
+}
+
+// cortexReviewedTransition deliberately enumerates every reviewed origin.
+// These are target-only argv constraints; this list does not claim that the
+// removed flag changed on each source version or establish complete upgrade
+// compatibility.
+func cortexReviewedTransition(from, to string) bool {
+	if to != CortexTo {
+		return false
+	}
+	switch from {
+	case "1.16.1", "1.17.2", "1.18.1", "1.19.1", "1.20.1":
+		return true
+	default:
+		return false
+	}
 }
 
 func cortexRemovedFlagFact(value any, to string) (bool, bool, bool) {

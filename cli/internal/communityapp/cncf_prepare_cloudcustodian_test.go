@@ -67,3 +67,42 @@ func TestCloudCustodianPreparationRejectsPrivateInputPinAndMalformedJSON(t *test
 		t.Fatalf("bad pin code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+func TestCloudCustodianLatestFiveOriginRoutes(t *testing.T) {
+	tests := []struct {
+		name, raw, status      string
+		prepareCode, checkCode int
+	}{
+		{"blocked", `{"policies":[{"name":"private-policy","resource":"iam-access-key","filters":[{"type":"json-diff","selector":"previous"}]}]}`, "BLOCKED", ExitOK, ExitBlocked},
+		{"clear", `{"policies":[{"name":"private-policy","resource":"iam-access-key","filters":[]}]}`, "PASS", ExitOK, ExitOK},
+		{"ambiguous", `{"policies":[{"name":"private-policy","resource":"iam-access-key","filters":[{"type":"value","key":"tag:team","value":"private"}]}]}`, "UNKNOWN", ExitUnknown, ExitUnknown},
+	}
+	for _, from := range []string{"0.9.47", "0.9.48", "0.9.49", "0.9.50", "0.9.51"} {
+		for _, test := range tests {
+			t.Run(from+"/"+test.name, func(t *testing.T) {
+				raw := []byte(test.raw)
+				path := writeCNCFFile(t, "private-policy.json", raw, 0o600)
+				code, input, stderr := runCNCFCLI(t, "prepare", "cncf", "--project", "cloud-custodian", "--input", path, "--input-digest", cncfDigest(raw), "--from", from, "--to", "0.9.52", "--format", "input")
+				if code != test.prepareCode || stderr != "" || !strings.Contains(input, `"version":"`+from+`"`) || !strings.Contains(input, `"version":"0.9.52"`) || strings.Contains(input, "private-policy") || strings.Contains(input, "tag:team") {
+					t.Fatalf("prepare code=%d stderr=%q input=%q", code, stderr, input)
+				}
+				prepared := writeCNCFFile(t, "prepared.json", []byte(input), 0o600)
+				code, report, stderr := runCNCFCLI(t, "check", "cncf", "--project", "cloud-custodian", "--input", prepared, "--input-digest", cncfDigest([]byte(input)), "--now", "2026-09-12T10:00:00Z", "--format", "json")
+				ruleID := "cloud-custodian.iam-access-key-json-diff-rejected." + strings.ReplaceAll(from, ".", "-") + "-to-0-9-52"
+				if code != test.checkCode || stderr != "" || !strings.Contains(report, `"ruleId":"`+ruleID+`"`) || !strings.Contains(report, `"status":"`+test.status+`"`) || !strings.Contains(report, `"assessment":"UNKNOWN"`) || strings.Contains(report, "private-policy") || strings.Contains(report, path) {
+					t.Fatalf("check code=%d stderr=%q report=%q", code, stderr, report)
+				}
+			})
+		}
+	}
+
+	valid := writeCNCFFile(t, "wrong-pair.json", []byte(`{"policies":[{"name":"private-policy","resource":"iam-access-key","filters":[]}]}`), 0o600)
+	code, output, stderr := runCNCFCLI(t, "prepare", "cncf", "--project", "cloud-custodian", "--input", valid, "--from", "0.9.46", "--to", "0.9.52", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(output, `"state":"UNKNOWN"`) || strings.Contains(output, "private-policy") {
+		t.Fatalf("wrong pair code=%d stderr=%q output=%q", code, stderr, output)
+	}
+	code, output, stderr = runCNCFCLI(t, "prepare", "cncf", "--project", "cloud-custodian", "--input", valid, "--from", "0.9.51.0", "--to", "0.9.52", "--format", "json")
+	if code != ExitUsage || output != "" || stderr != "prufyx: CLOUD_CUSTODIAN_PREPARATION_INPUT_INVALID\n" {
+		t.Fatalf("tag-shaped package version code=%d stdout=%q stderr=%q", code, output, stderr)
+	}
+}

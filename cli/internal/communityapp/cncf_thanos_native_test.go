@@ -40,6 +40,41 @@ func TestThanosNativeWorkloadCheckEvaluatesLiteralTargetArgs(t *testing.T) {
 	}
 }
 
+func TestThanosNativeWorkloadRejectsUnlistedLatestExpansionPair(t *testing.T) {
+	raw := thanosNativeWorkload(`{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":["receive","--log.level=info"]}`)
+	path := writeCNCFFile(t, "thanos-workload.json", []byte(raw), 0o600)
+	code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "thanos", "--native-resource", path, "--from", "0.41.1", "--to", "0.42.4", "--now", "2026-09-12T07:38:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, "RULE_TRANSITION_NOT_REVIEWED") || strings.Contains(stdout, "private-receive") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestThanosLatestTargetPairsEndToEnd(t *testing.T) {
+	origins := []string{"0.37.2", "0.38.0", "0.39.2", "0.40.1", "0.41.0"}
+	for i, from := range origins {
+		blockerArgs := `["receive","--shipper.ignore-unequal-block-size"]`
+		if i%2 == 1 {
+			blockerArgs = `["store","--debug.advertise-compatibility-label=true"]`
+		}
+		for _, tc := range []struct {
+			name, container, reason string
+			want                    int
+		}{
+			{"blocker", `{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":` + blockerArgs + `}`, "REVIEWED_SOURCE_CONSTRAINT", ExitBlocked},
+			{"scoped pass", `{"name":"thanos","image":"thanosio/thanos:v0.42.4","args":["receive","--log.level=info"]}`, "REVIEWED_SOURCE_CONSTRAINT", ExitOK},
+			{"legacy command is unsupported", `{"name":"thanos","image":"docker.io/thanosio/thanos:v0.42.4","command":["thanos"],"args":["store","--log.level=info"]}`, "RULE_FACT_UNAVAILABLE", ExitUnknown},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				path := writeCNCFFile(t, "thanos-latest.json", []byte(thanosNativeWorkload(tc.container)), 0o600)
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "thanos", "--native-resource", path, "--from", from, "--to", "0.42.4", "--now", "2026-09-12T07:38:00Z", "--format", "json")
+				if code != tc.want || stderr != "" || !strings.Contains(stdout, tc.reason) || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || strings.Contains(stdout, "private-receive") {
+					t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+				}
+			})
+		}
+	}
+}
+
 func TestThanosNativeWorkloadCheckRejectsMissingAndMixedInputModes(t *testing.T) {
 	raw := []byte(thanosNativeWorkload(`{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.0","command":["thanos"],"args":["receive"]}`))
 	path := writeCNCFFile(t, "thanos-workload.json", raw, 0o600)

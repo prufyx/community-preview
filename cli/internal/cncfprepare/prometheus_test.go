@@ -84,6 +84,21 @@ func TestPreparePrometheusScrapeConfigRejectsInvalidEnvelope(t *testing.T) {
 	}
 }
 
+func TestPreparePrometheusLatestTargetPairsAreFinite(t *testing.T) {
+	for _, from := range []string{"3.9.1", "3.10.0", "3.11.3", "3.12.0", "3.13.3"} {
+		prepared, err := PreparePrometheusScrapeConfig([]byte("job_name: private-job\nscrape_classic_histograms: true\n"), "private-job", from, PrometheusLatestTo, true, true)
+		if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonPrometheusOldKeyPresent {
+			t.Fatalf("from=%s prepared=%#v err=%v", from, prepared, err)
+		}
+	}
+	for _, pair := range [][2]string{{"3.8.0", PrometheusLatestTo}, {"3.13.3", "3.14.1"}} {
+		prepared, err := PreparePrometheusScrapeConfig([]byte("job_name: private-job\nscrape_classic_histograms: true\n"), "private-job", pair[0], pair[1], true, true)
+		if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonPrometheusScrapeConfigUnsupported {
+			t.Fatalf("pair=%v prepared=%#v err=%v", pair, prepared, err)
+		}
+	}
+}
+
 func prometheusCanonicalFact(t *testing.T, raw []byte) (string, string) {
 	t.Helper()
 	var document struct {

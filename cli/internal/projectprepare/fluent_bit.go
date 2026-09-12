@@ -9,12 +9,21 @@ import (
 )
 
 const (
-	FluentBitProject   = "fluent-bit"
-	FluentBitComponent = "pkg:github/fluent/fluent-bit"
-	FluentBitFrom      = "3.2.0"
-	FluentBitTo        = "4.0.0"
-	FluentBitFact      = "component.fluent_bit.proposed_http2_enabled"
+	FluentBitProject    = "fluent-bit"
+	FluentBitComponent  = "pkg:github/fluent/fluent-bit"
+	FluentBitFrom       = "3.2.0"
+	FluentBitTo         = "4.0.0"
+	FluentBitFact       = "component.fluent_bit.proposed_http2_enabled"
+	FluentBitTargetFact = "component.fluent_bit.target_required_http2_enabled"
 )
+
+var fluentBitHTTP2TargetPairs = map[string]bool{
+	"3.2.10\x005.1.2": true,
+	"4.0.14\x005.1.2": true,
+	"4.1.2\x005.1.2":  true,
+	"4.2.8\x005.1.2":  true,
+	"5.0.10\x005.1.2": true,
+}
 
 const (
 	fluentBitPreparedReason    = "FLUENT_BIT_HTTP2_SETTING_INSPECTED"
@@ -36,7 +45,9 @@ func PrepareFluentBit(raw []byte, from, to string, complete, currentDefaultWasUs
 	}
 	fact := inputFact{ID: FluentBitFact, State: "unsupported"}
 	state, reason := "UNKNOWN", fluentBitIncompleteReason
-	if !supported {
+	if from != FluentBitFrom || to != FluentBitTo {
+		reason = "UNSUPPORTED_VERSION_PAIR"
+	} else if !supported {
 		reason = fluentBitUnsupportedReason
 	} else if complete && currentDefaultWasUsed && preserveHTTP2Enabled {
 		fact.State = "declared"
@@ -62,6 +73,48 @@ func PrepareFluentBit(raw []byte, from, to string, complete, currentDefaultWasUs
 	}, nil
 }
 
+// PrepareFluentBitHTTP2Target derives the same bounded output fact for five
+// reviewed routes to Fluent Bit 5.1.2. It is a target-only requirement: the
+// caller declares that its selected output needs HTTP/2. It does not infer an
+// origin default or preservation intent.
+func PrepareFluentBitHTTP2Target(raw []byte, from, to string, complete, requireHTTP2 bool) (Prepared, error) {
+	if len(raw) == 0 || len(raw) > maxInputBytes || !versionRE.MatchString(from) || !versionRE.MatchString(to) || from == to {
+		return Prepared{}, ErrInvalid
+	}
+	enabled, supported, err := parseFluentBitConfig(raw)
+	if err != nil {
+		return Prepared{}, err
+	}
+	fact := inputFact{ID: FluentBitTargetFact, State: "unsupported"}
+	state, reason := "UNKNOWN", fluentBitIncompleteReason
+	if !fluentBitHTTP2TargetPairs[from+"\x00"+to] {
+		reason = "UNSUPPORTED_VERSION_PAIR"
+	} else if !supported {
+		reason = fluentBitUnsupportedReason
+	} else if complete && requireHTTP2 {
+		fact.State = "declared"
+		fact.BoolValue = &enabled
+		state, reason = "PREPARED", fluentBitPreparedReason
+	}
+	canonical, err := marshalInput(FluentBitComponent, from, to, []inputFact{fact})
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	return Prepared{
+		CanonicalInputJSON: canonical,
+		SourceDigest:       digest(raw),
+		InputDigest:        digest(canonical),
+		State:              state,
+		Reason:             reason,
+		Omissions: []string{
+			"CALLER_SUPPLIED_EFFECTIVE_CLASSIC_CONFIG_NOT_LIVE_OBSERVATION",
+			"HTTP2_REQUIREMENT_IS_OPERATOR_DECLARED_TARGET_INTENT",
+			"ONLY_HTTP2_ENABLED_SETTING_IS_EVALUATED;_PROTOCOL_NEGOTIATION_TLS_CONNECTIVITY_AND_RUNTIME_NOT_EVALUATED",
+			"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
+		},
+	}, nil
+}
+
 // parseFluentBitConfig returns supported=false for syntax outside the bounded
 // surface. Duplicate keys are ambiguous effective configuration and therefore
 // remain unsupported/UNKNOWN without retaining or exposing their values.
@@ -80,14 +133,19 @@ func parseFluentBitConfig(raw []byte) (enabled, supported bool, err error) {
 		if line == "" || line[0] == '#' {
 			continue
 		}
-		if line[0] == '[' {
-			if line != "[OUTPUT]" || sectionSeen {
+		trimmed := strings.TrimLeft(line, " ")
+		// The native classic parser recognizes a group from its leading '[';
+		// do not treat an indented group or a group with trailing text as an
+		// unrelated OUTPUT property and then attribute later http2 settings to
+		// the preceding selected section.
+		if strings.HasPrefix(trimmed, "[") {
+			if line != trimmed || line != "[OUTPUT]" || sectionSeen {
 				return false, false, nil
 			}
 			sectionSeen = true
 			continue
 		}
-		if !sectionSeen || strings.HasPrefix(line, "@") || strings.Contains(line, "${") || strings.Contains(line, "{{") {
+		if !sectionSeen || strings.HasPrefix(trimmed, "@") || strings.Contains(line, "${") || strings.Contains(line, "{{") {
 			return false, false, nil
 		}
 		indentLen := 0

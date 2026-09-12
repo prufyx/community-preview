@@ -1,5 +1,45 @@
 # CNCF source-constraint examples
 
+## Check one Argo CD 3.5.2 Helm repository Secret
+
+[`argocd-35-plain-http-repository-secret.json`](argocd-35-plain-http-repository-secret.json)
+is a synthetic pre-apply repository Secret. From the repository root, copy it
+to a fresh private directory, prepare the minimized declaration, and check it:
+
+```sh
+set -eu
+umask 077
+argo_dir="$(mktemp -d)"
+trap 'rm -rf "$argo_dir"' EXIT
+cp cli/examples/cncf/argocd-35-plain-http-repository-secret.json "$argo_dir/repository.json"
+chmod 600 "$argo_dir/repository.json"
+prufyx prepare cncf --project argo-cd \
+  --input "$argo_dir/repository.json" --from 3.4.8 --to 3.5.2 \
+  --distribution official_upstream --repository-settings-resolved true \
+  --repository-uses-plain-http true \
+  --format input > "$argo_dir/input.json"
+chmod 600 "$argo_dir/input.json"
+input_digest="$(shasum -a 256 "$argo_dir/input.json" | awk '{print $1}')"
+set +e
+prufyx check cncf --project argo-cd --input "$argo_dir/input.json" \
+  --input-digest "sha256:${input_digest}" \
+  --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --format json
+argo_exit=$?
+set -e
+printf 'Argo CD scoped check exit: %s\n' "$argo_exit"
+```
+
+The example lacks `insecureOCIForceHttp=true`, so it produces the one scoped
+`BLOCKED` claim and exit `10` while the whole-upgrade assessment remains
+`UNKNOWN`. The same target is reviewed from exact origins `3.0.23`, `3.1.16`,
+`3.2.12`, `3.3.14`, and `3.4.8`; change only `--from` to select one of them.
+The adapter admits only `type=helm` plus `enableOCI=true`. Native `type=oci`,
+dependency chart pulls, custom builds, unresolved inherited repository
+credentials/settings, authentication, connectivity, and Helm execution remain
+`UNKNOWN`. The completeness/precedence and plain-HTTP flags are caller
+declarations. OCI repository URLs use Argo CD's protocol-free registry/path
+form. Secret names, URLs, and credentials are discarded rather than copied.
+
 ## Check a CloudEvents structured JSON envelope
 
 [`cloudevents-structured-json/event.json`](cloudevents-structured-json/event.json)
@@ -46,6 +86,35 @@ entrypoint is a compatibility shim for an already-built Community executable. Th
 returns scoped `PASS` (exit `0`), while an absent fact returns `UNKNOWN` (exit
 `11`). Every report retains aggregate `UNKNOWN`, and no case proves runtime,
 startup, pipeline delivery, or whole-upgrade safety.
+
+## Review OPA and Kyverno latest-target constraints
+
+Two Go walkthroughs exercise all five selected exact origins for each latest
+target:
+
+```sh
+prufyx community-preview example cncf-opa-latest
+prufyx community-preview example cncf-kyverno-latest
+```
+
+The OPA walkthrough covers `1.15.2`, `1.16.2`, `1.17.1`, `1.18.2`, and
+`1.19.1` targeting `1.20.2`. It checks a declared v0-consumer scenario with the
+effective producer `--v0-compatible` mode absent (`BLOCKED`), enabled (`PASS`),
+and missing (`UNKNOWN`). These are operator facts; the command does not parse
+modules, bundles, consumers, or policy syntax.
+
+The Kyverno walkthrough covers `1.14.5`, `1.15.3`, `1.16.4`, `1.17.2`, and
+`1.18.2` targeting `1.19.1`. It uses the native private workload preparer for
+an official bare `reports-controller` command with a literal
+`--reportsChunkSize` option (`BLOCKED`), definite literal absence (`PASS`), and
+a custom distribution (`UNKNOWN`). The exact `1.15.3` release is used; a
+misleading `v1.15.20` tag was rejected during source qualification because it
+does not identify an official matching stable release.
+
+Both walkthroughs create mode `0600` temporary input files, bind exact bytes by
+digest, and remove the temporary directory. They do not contact a network or
+cluster, execute OPA or Kyverno, inspect images, or prove controller behavior or
+whole-upgrade safety. Each envelope retains aggregate `UNKNOWN`.
 
 ## Check three graduated-project declarations
 
@@ -137,6 +206,34 @@ silently treated as non-triggers. The scoped claim can be `BLOCKED`, `PASS`, or
 `UNKNOWN`, while the aggregate remains `UNKNOWN`. These examples establish no
 API admission, startup, runtime, traffic, or whole-upgrade safety.
 
+## Check the latest Envoy and CoreDNS target constraints
+
+The native community examples exercise blocked, passing, and unknown declarations
+for each of the five exact source-reviewed origins:
+
+```sh
+prufyx community-preview example cncf-envoy-latest
+prufyx community-preview example cncf-coredns-latest
+```
+
+The Envoy example covers `1.34.14`, `1.35.13`, `1.36.10`, `1.37.6`, and
+`1.38.4` targeting `1.39.1`. Its only scoped predicate is the declared xDS API
+major: `v2` is blocked, `v3` passes that predicate, and a missing declaration
+remains `UNKNOWN`. It does not parse bootstrap files, inspect resource type URLs,
+validate schemas or control-plane behavior, or establish rollout or whole-upgrade
+safety.
+
+The CoreDNS example covers `1.9.4`, `1.10.1`, `1.11.4`, `1.12.4`, and
+`1.13.2` targeting the official `1.14.7` distribution. A declared federation
+directive is blocked because that directive is absent from the target's complete
+generated plugin list; declared absence passes that predicate. Missing directive
+state and custom distributions remain `UNKNOWN`. This does not parse a Corefile,
+resolve imports, inspect a custom build, execute DNS queries, or establish startup,
+runtime, or whole-upgrade safety.
+
+Both examples create digest-bound `0600` inputs in private temporary directories,
+use the existing Go `check cncf` route, and perform no network or cluster access.
+
 ## Check nine additional graduated-project declarations
 
 These checked-in files are synthetic, operator-declared inputs for the exact
@@ -182,8 +279,20 @@ startup, traffic, migration, rollback, or complete upgrade safety.
 ## Run the synthetic etcd walkthrough
 
 [`etcd/README.md`](etcd/README.md) demonstrates the direct effective-argv
-preparation and check flow for etcd 3.5.17 → 3.6.0 using only synthetic local
-inputs. It is an offline example and does not establish runtime or whole-upgrade
+preparation and check flow for the retained etcd 3.5.17 → 3.6.0 route and the
+new exact 3.6.14 → 3.7.1 route using only synthetic local inputs. The latest
+fixtures cover a removed experimental flag (`BLOCKED`), its documented feature
+gate replacement (`PASS`), and an unresolved config-file input (`UNKNOWN`). It
+is an offline example and does not establish runtime or whole-upgrade
+compatibility.
+
+## Run the Rook 1.20.7 source-constraint walkthrough
+
+[`rook-latest/README.md`](rook-latest/README.md) exercises the Rook 1.20.7
+Kubernetes minimum for five exact origins with synthetic `BLOCKED`, `PASS`,
+and `UNKNOWN` declarations. The target-only rules make no claim that those
+direct routes are supported and require no intermediate Rook version. The
+example does not inspect a cluster or establish runtime or whole-upgrade
 compatibility.
 
 ## Check a Dapr Scheduler declaration

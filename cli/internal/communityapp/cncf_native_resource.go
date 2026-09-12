@@ -17,6 +17,37 @@ const (
 	opentelemetryLoggingRuleID   = "opentelemetry.logging-exporter-removed.0-111"
 )
 
+func prometheusNativeRuleID(from, to string, alertmanager bool) string {
+	if from == cncfprepare.PrometheusFrom && to == cncfprepare.PrometheusTo {
+		if alertmanager {
+			return prometheusAlertmanagerRuleID
+		}
+		return prometheusScrapeRuleID
+	}
+	if to != cncfprepare.PrometheusLatestTo {
+		return ""
+	}
+	var origin string
+	switch from {
+	case "3.9.1":
+		origin = "3-9-1"
+	case "3.10.0":
+		origin = "3-10-0"
+	case "3.11.3":
+		origin = "3-11-3"
+	case "3.12.0":
+		origin = "3-12-0"
+	case "3.13.3":
+		origin = "3-13-3"
+	default:
+		return ""
+	}
+	if alertmanager {
+		return "prometheus.alertmanager-api-v1.target-config." + origin + "-to-3-14-0"
+	}
+	return "prometheus.scrape-classic-histograms.target-config." + origin + "-to-3-14-0"
+}
+
 // cncfNativeResourceCheck makes the native-resource adapters useful without
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
@@ -78,10 +109,10 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
 		} else if prometheusAlertmanagerMode {
 			prepared, err = cncfprepare.PreparePrometheusAlertmanagerConfig(raw, from, to, complete, precedenceResolved)
-			selectedRuleID = prometheusAlertmanagerRuleID
+			selectedRuleID = prometheusNativeRuleID(from, to, true)
 		} else if project == "prometheus" {
 			prepared, err = cncfprepare.PreparePrometheusScrapeConfig(raw, selectedJob, from, to, complete, precedenceResolved)
-			selectedRuleID = prometheusScrapeRuleID
+			selectedRuleID = prometheusNativeRuleID(from, to, false)
 		} else {
 			prepared, err = cncfprepare.PrepareNativeMigration(raw, project, from, to)
 		}

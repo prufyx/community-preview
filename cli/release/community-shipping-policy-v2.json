@@ -546,6 +546,10 @@
       "role": "documentation"
     },
     {
+      "path": "cli/docs/latest-upgrade-coverage-2026-09-12.md",
+      "role": "documentation"
+    },
+    {
       "path": "cli/cmd/prufyx-maintainer",
       "recursive": true,
       "role": "maintainer-tool"
@@ -554,6 +558,10 @@
       "path": "cli/internal/maintainer",
       "recursive": true,
       "role": "maintainer-tool"
+    },
+    {
+      "path": "cli/internal/cncfprepare/flux-latest-source-contract.json",
+      "role": "operator-data"
     }
   ],
   "schemaVersion": "prufyx.io/community-shipping-policy/v2",

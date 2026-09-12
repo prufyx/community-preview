@@ -34,7 +34,7 @@ func PreparePrometheusAlertmanagerConfig(raw []byte, from, to string, complete, 
 		return Prepared{}, ErrInvalid
 	}
 	selection, ok := "", false
-	if from == PrometheusFrom && to == PrometheusTo {
+	if prometheusReviewedTransition(from, to) {
 		selection, ok = prometheusAlertmanagerAPISelection(raw)
 	}
 	fact := inputFact{ID: PrometheusAlertmanagerAPIVersionFact, State: "unsupported"}

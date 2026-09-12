@@ -27,6 +27,12 @@ prufyx prepare cncf --project jaeger --input FILE \
 prufyx prepare cncf --project opencost --input FILE \
   --from 1.119.0 --to 1.120.0 \
   [--input-digest sha256:<digest>] [--format human|json|input]
+prufyx prepare cncf --project opencost --input FILE \
+  --from 1.116.0|1.117.6|1.118.0|1.119.2|1.120.4 --to 1.121.2 \
+  [--input-digest sha256:<digest>] [--format human|json|input]
+prufyx prepare cncf --project cloud-custodian --input FILE \
+  --from 0.9.47|0.9.48|0.9.49|0.9.50|0.9.51 --to 0.9.52 \
+  [--input-digest sha256:<digest>] [--format human|json|input]
 prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]
 prufyx check cncf --project SLUG --input FILE --now RFC3339 \
   [--input-digest SHA256] [--replay-report FILE] [--format human|json]
@@ -54,13 +60,33 @@ flag-presence fact remain parseable, but lack the new distribution and execution
 surface guards. Preserve older binaries and database stores to replay their
 historical reports; this registry change does not promise cross-binary replay.
 
-The adapter accepts only canonical numeric `major.minor.patch` version syntax
-and currently prepares the exact declared pair `1.12.5` to `1.13.0`. The
+The adapter accepts only canonical numeric `major.minor.patch` version syntax.
+It prepares the retained exact pair `1.12.5` to `1.13.0`, plus exact origins
+`1.14.5`, `1.15.3`, `1.16.4`, `1.17.2`, and `1.18.2` targeting `1.19.1`. The
 `--from` and `--to` values are operator declarations; an image tag or digest is
 not verified. Unsupported but well-formed pairs produce `UNKNOWN` with an
 `unsupported` fact state. Missing or ambiguous container selection and
 unresolved command arguments produce `UNKNOWN` with a `missing` or
 `unsupported` fact state. Invalid syntax returns exit `2`.
+
+The five `1.x` to `1.19.1` rules are target-only constraints. They do not claim
+that `reportsChunkSize` first became unsupported on any of those transitions.
+For the official upstream bare `reports-controller` surface, a conservatively
+parsed literal flag is scoped `BLOCKED`, definite literal absence is scoped
+`PASS`, and custom builds, wrappers, unsupported argument grammar, missing or
+conflicting facts, and wrong endpoints remain `UNKNOWN`. The retained target
+changelog text records the historical removal; the target registration and Go
+flag parser sources bind the actual `1.19.1` surface and admitted integer/token
+grammar.
+
+OPA has target-only rules for exact origins `1.15.2`, `1.16.2`, `1.17.1`,
+`1.18.2`, and `1.19.1` targeting `1.20.2`. When an operator declares that v0
+consumers remain and relevant modules omit the `rego.v1` import alternative,
+an effective producer without `--v0-compatible` is scoped `BLOCKED` and one
+with that producer mode is scoped `PASS`. The `rego.v1` alternative, missing or
+conflicting declarations, and wrong endpoints remain `UNKNOWN`. This generic
+route does not parse modules or bundles, inspect consumers, execute OPA, or
+prove policy, runtime, or whole-upgrade compatibility.
 
 The Linkerd preparation adapter accepts only a private regular `0600`
 `policy.linkerd.io/v1alpha1` `MeshTLSAuthentication` JSON object. Its `spec` may contain only `identities`
@@ -159,8 +185,8 @@ prufyx catalog cncf --project helm --format json
 
 The generic check accepts one local JSON file containing minimized, operator-declared current and proposed component identities and facts. The file must be a regular private file with mode `0600`; symlinks, permissive files, oversized files, malformed JSON, and untyped values are rejected. The CLI reads bytes locally and does not collect a cluster, inspect live state, invoke a model, download a database, or upload data.
 
-The current embedded preview has 63 exact rules across 54 rule projects, 116
-registered boolean or finite-enum facts, and 436 rule-scoped cases. The
+The current embedded preview has 156 exact rules across 54 rule projects, 123
+registered boolean or finite-enum facts, and 832 rule-scoped cases. The
 separate SPIFFE X.509-SVID and CloudEvents structured JSON
 standards-conformance profiles have no from/to pairs and do not alter these
 transition-rule totals. SPIFFE does not duplicate the SPIRE project's
@@ -188,9 +214,8 @@ execution, runtime behavior, and whole-upgrade safety remain `UNKNOWN`. See the
 
 Cilium project-level `prepare cncf --project cilium` adapter accepts raw policy input only for the exact `1.18.6` → `1.19.0` and `1.18.13` → `1.19.7` pairs. It derives only the existing nonempty-requires fact; a scoped false result still requires an explicit complete CNP and CCNP set declaration. A project-level prepare command never implies preparation of every exact rule pair listed for that project. The
 catalogue's 255 identities and 30 maintainer-selected priority projects are
-separate counts and are not an adoption ranking. Cortex, Falco, Karmada, Kuma, Linkerd,
-SPIRE, Strimzi, and Dragonfly add
-these narrow source constraints:
+separate counts and are not an adoption ranking. The table below summarizes
+selected narrow source constraints:
 
 | Project and reviewed pair | Declared facts | Scoped result |
 | --- | --- | --- |
@@ -198,13 +223,16 @@ these narrow source constraints:
 | Falco `0.40.0` → `0.42.0` | `distribution=official_upstream`, `execution_surface=falco`, `removed_040_cli_flags_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with both guards |
 | Karmada `1.18.3` → `1.19.0` | `distribution=official_upstream`, `execution_surface=karmada_policy_application_failover`, `target_policy_crd_admission_required=true`, `removed_application_purge_mode_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with all three guards |
 | Argo CD `2.14.0` → `3.0.0` | `disable_fine_grained_inheritance`, `requires_inherited_application_permissions` | `true` is `BLOCKED` with intent `true`; explicit `false` is `PASS` only with intent `true` |
+| Argo CD `3.0.23`, `3.1.16`, `3.2.12`, `3.3.14`, or `3.4.8` → `3.5.2` | `distribution=official_upstream`, `execution_surface=repository_secret`, `repository_settings_complete_and_precedence_resolved=true`, `selected_repository_uses_plain_http=true`, `plain_http_oci_repository_unusable` | `true` is `BLOCKED`; definite `false` is `PASS` only with all four guards |
 | Kuma `2.8.0` → `2.9.0` | `distribution=official_upstream`, `execution_surface=kumactl_install_transparent_proxy`, `removed_exclude_uid_flags_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with both guards |
 | Linkerd `2.13.7` → `2.14.0` | `distribution=official_upstream`, `execution_surface=meshtls_authentication_crd`, `schema_validation_required=true`, `mtls_identity_selector_empty` | `true` is `BLOCKED`; definite `false` is `PASS` only with all three guards |
 | SPIRE `1.10.4` → `1.11.0` | `distribution=official_upstream`, `execution_surface=spire_server_entry_create`, `removed_entry_ttl_flag_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with both guards |
 | Tekton Pipelines `1.9.0` → `1.10.0` | `distribution=official_upstream`, `config_observability_identity_bound=true`, `proposed_config_observability_complete_effective=true`, `retain_prometheus_metrics_required=true`, `proposed_metrics_protocol_prometheus` | `false` is `BLOCKED`; exact `true` is `PASS`; missing, unsupported, conflict, partial overlay, non-Prometheus, or wrong-pair declarations remain `UNKNOWN` |
 | Dragonfly `2.2.3` → `2.2.4` | `distribution=official_upstream`, `execution_surface=manager_config` or `scheduler_config`, `legacy_verbose_debug_intent`, `retain_debug_logging_required`, `debug_logging_enabled` | `false` effective debug state is `BLOCKED` only for the matching sibling surface and all declared intents; declared `debug_logging_enabled=true` is scoped `PASS` only for the matching sibling surface with all guards satisfied |
 | Cortex `1.17.2` → `1.21.1` | `distribution=official_upstream`, `execution_surface=cortex`, `removed_at_modifier_flag_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with both guards |
+| Cloud Custodian package `0.9.47`, `0.9.48`, `0.9.49`, `0.9.50`, or `0.9.51` → `0.9.52` | caller-declared IAM Access Key `json-diff` filter presence | a direct selected `json-diff` filter is `BLOCKED`; an explicitly complete empty filter list is scoped `PASS`; missing, ambiguous, unsupported, or wrong-pair declarations remain `UNKNOWN` |
 | OpenCost `1.119.0` → `1.120.0` | caller-declared current and proposed cloud-cost enablement, complete source selection, current provider-derived reliance, and proposed cloud-integration source selection with declared file presence | provider-only target selection is `BLOCKED`; an explicitly selected, declared-present cloud-integration file is scoped `PASS`; disabled, incomplete, ambiguous, API-managed, contradictory, or other-pair declarations remain `UNKNOWN` |
+| OpenCost `1.116.0`, `1.117.6`, `1.118.0`, `1.119.2`, or `1.120.4` → `1.121.2` | caller-declared current and proposed cloud-cost enablement, complete source selection, current provider-derived reliance, and proposed cloud-integration source selection with declared file presence | provider-only target selection is `BLOCKED`; an explicitly selected, declared-present cloud-integration file is scoped `PASS`; disabled, incomplete, ambiguous, API-managed, contradictory, or other-pair declarations remain `UNKNOWN` |
 | CRI-O `1.34.0` → `1.35.0` | caller-declared `named-reference-resolution` operation plus strict short-reference classification from one supplied CRI `ImageStatusRequest` JSON document | a short explicit-tag reference is `BLOCKED`; a fully-qualified explicit-tag reference in the reviewed grammar is scoped `PASS`; unsupported intent, grammar, input shape, ambiguity or other pairs remain `UNKNOWN` |
 | Strimzi `0.51.0` → `1.0.0` | `distribution=official_upstream`, `execution_surface=kafka_custom_resource`, `target_kafka_crd_admission_required=true`, `kafka_v1beta2_api_present` | `true` is `BLOCKED`; definite `false` is `PASS` only with all three guards |
 | Keycloak `26.7.2` → `26.7.3` | `server_allow_oidc_params_in_redirect_uris`, `client_allow_oidc_params_in_redirect_uris`, `oidc_response_parameter_in_redirect_fragment` for one selected authorization redirect URI | with both allowances explicitly `false`, fragment `true` is `BLOCKED` and fragment `false` is scoped `PASS`; facts must stay bound to that one context, while missing, mixed, conflicting, or opt-in evidence is represented as `UNKNOWN` |
@@ -214,6 +242,19 @@ these narrow source constraints:
 | CubeFS `3.2.1` → `3.3.2` | caller-declared `metanode-upgrade` phase plus `raftSyncSnapFormatVersion` guard derived from one supplied planned MetaNode JSON config | explicit numeric `0` is scoped `PASS`; absent (target default `1`) or explicit numeric `1` is `BLOCKED`; unsupported phase, role, type, value, ambiguity or other pairs remain `UNKNOWN` |
 | TUF Updater `6.0.0` → `7.0.0` | `updater_bootstrap_keyword_present` derived from one conservatively bound direct call in supplied Python source | absent keyword is `BLOCKED`; explicit keyword, including `None`, is scoped `PASS`; unsupported bindings or call shapes and other pairs remain `UNKNOWN`, while malformed lexical input stops without a semantic result |
 | Kubeflow KFP Python SDK `1.8.22` → `2.0.0` | `kfp_component_authoring_api` derived from one conservatively bound bare decorator in supplied Python source | unaliased `create_component_from_func` is `BLOCKED`; unaliased `dsl.component` is scoped `PASS`; aliases, rebinding, multiple or dynamic forms, unsupported syntax shapes and other pairs remain `UNKNOWN`, while malformed lexical input stops without a semantic result |
+
+Cloud Custodian endpoints above are the three-part package versions declared by
+the immutable `c7n/version.py` files. Their corresponding upstream release tags
+have a fourth `.0` component, such as package `0.9.52` at tag `0.9.52.0`; the
+adapter does not accept the tag spelling as a package version. It reads one
+private operator declaration and does not execute Custodian, read an AWS
+account, inspect policies, or prove runtime compatibility.
+
+The OpenCost rows use the same minimized cloud-source declaration. The adapter
+does not parse a deployment, inspect a cluster, contact a provider, open a
+configuration file named in the declaration, or prove cost-model behavior.
+Each endpoint is an exact reviewed release identity; no intermediate upgrade
+sequence is implied.
 
 The Karmada fact covers only declared proposed rendered `PropagationPolicy` or
 `ClusterPropagationPolicy` application-failover `purgeMode` values at the exact
@@ -240,6 +281,21 @@ intent `true` is a scoped pass. Missing or malformed settings, missing or false
 intent, unsupported pairs, RBAC policy, CLI or environment overrides, stored
 objects, and all runtime behavior remain `UNKNOWN`. It does not inspect a
 cluster, validate RBAC, or prove whole-upgrade compatibility.
+
+The separate Argo CD `3.5.2` preparation route reads one caller-selected,
+pre-apply v1 repository Secret labeled `argocd.argoproj.io/secret-type:
+repository`. It admits only `type=helm` with `enableOCI=true`, then classifies
+the selected protocol-free OCI registry/path and `insecureOCIForceHttp`/`insecure`
+flags. Plain-HTTP use is an explicit caller declaration, not inferred from the URL.
+A scoped result additionally requires `distribution=official_upstream` and an
+explicit declaration that repository settings are complete and precedence
+resolved. This guard is required because repository credential templates can
+override selected settings. Native `type=oci`, dependency pulls, custom builds,
+missing guards, unsupported shapes, and other version pairs stay `UNKNOWN`.
+The adapter discards names, URLs, credentials, and unrelated fields. It does
+not read credential templates, authenticate, contact a repository, execute
+Helm, inspect a cluster, or establish whole-upgrade compatibility. A runnable
+private-file example is in the [CNCF examples guide](../examples/cncf/README.md).
 
 The Knative Serving observation is a named HTTP startup-probe port comparison
 for one `serving.knative.dev/v1` Service. The combined `check cncf --project
@@ -604,10 +660,11 @@ Examples are in
 [`examples/cncf/fluentd-literal-treatment`](../examples/cncf/fluentd-literal-treatment/README.md).
 
 The earlier Fluentd Ruby-minimum facts are entered locally; the literal route
-has the documented preparation adapter. The current rules use 113 registered
+has the documented preparation adapter. The current rules use 123 registered
 facts, so this binary requires its own compatible CNCF database store. Preserve
-older stores and binaries for older reports. The embedded rule pack has 61
-constraints across 54 rule projects and 430 rule-scoped cases; runtime
+older stores and binaries for older reports. The embedded CNCF rule pack has 156
+constraints across 54 rule projects and 832 rule-scoped cases; the separate
+community-project pack has 32 constraints across 6 projects. Runtime
 reproduction remains zero.
 
 The fact registry and operators are compiled into this binary. Rules are embedded by default; `db import --profile cncf` can select a complete signed local rule revision for `check cncf --knowledge-db DIR`. External selection never blends with embedded rules. `catalog cncf` describes the embedded coverage only. Explicit [`db update`](knowledge-updates.md) can download a complete package before local import. There is no public Prufyx root, feed or automatic startup refresh. A new rule over existing canonical facts can be imported without a binary release. For a newly reviewed exact pair, the current binary can evaluate it when those facts are declared manually; new facts or operators require an engine update. Optional `prepare cncf` adapters support only their documented pairs, so extending raw-input preparation for a new pair can require a CLI update even when the facts and operators are unchanged. Both embedded and external CNCF rules must limit `reviewedAt` to `validUntil` to at most 90 days. That bound does not authenticate the declared review or establish an upstream support lifetime.

@@ -253,3 +253,95 @@ func assertCanonicalFact(t *testing.T, raw []byte, id string, want *bool) {
 		t.Fatalf("fact=%+v want=%v", fact, *want)
 	}
 }
+
+func TestPrepareKibanaStatusPageLatestScope(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw, from                            string
+		complete, resolved, intentDeclared, intent bool
+		state                                      string
+		bypass, authentication, required           *bool
+	}{
+		{"blocked-default", "server.host: localhost\n", "9.4.6", true, true, true, true, "PREPARED", boolPointer(false), boolPointer(true), boolPointer(true)},
+		{"pass-bypass", "status.statusPageBypassMonitorPrivilege: true\n", "9.4.6", true, true, true, true, "PREPARED", boolPointer(true), boolPointer(true), boolPointer(true)},
+		{"intent-false", "status.statusPageBypassMonitorPrivilege: true\n", "9.4.6", true, true, true, false, "PREPARED", boolPointer(true), boolPointer(true), boolPointer(false)},
+		{"missing-intent", "status.statusPageBypassMonitorPrivilege: true\n", "9.4.6", true, true, false, false, "UNKNOWN", boolPointer(true), boolPointer(true), nil},
+		{"incomplete", "status.statusPageBypassMonitorPrivilege: true\n", "9.4.6", false, true, true, true, "UNKNOWN", nil, nil, boolPointer(true)},
+		{"wrong-pair", "status.statusPageBypassMonitorPrivilege: true\n", "9.4.5", true, true, true, true, "UNKNOWN", nil, nil, nil},
+		{"nested-ambiguous", "status:\n  statusPageBypassMonitorPrivilege: true\n", "9.4.6", true, true, true, true, "UNKNOWN", nil, nil, boolPointer(true)},
+		{"allow-anonymous-outside-predicate", "status.allowAnonymous: true\n", "9.4.6", true, true, true, true, "PREPARED", boolPointer(false), boolPointer(false), boolPointer(true)},
+		{"json-ambiguous", `{"status.statusPageBypassMonitorPrivilege":true}`, "9.4.6", true, true, true, true, "UNKNOWN", nil, nil, boolPointer(true)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareKibanaStatusPage([]byte(tc.raw), tc.from, "9.5.3", tc.complete, tc.resolved, tc.intentDeclared, tc.intent)
+			if err != nil || prepared.State != tc.state {
+				t.Fatalf("state=%q err=%v", prepared.State, err)
+			}
+			assertCanonicalFacts(t, prepared.CanonicalInputJSON, map[string]*bool{KibanaStatusBypassFact: tc.bypass, KibanaStatusAuthFact: tc.authentication, KibanaFullStatusIntentFact: tc.required})
+			if bytes.Contains(prepared.CanonicalInputJSON, []byte("localhost")) {
+				t.Fatal("raw config leaked")
+			}
+		})
+	}
+	duplicate, err := PrepareKibanaStatusPage([]byte("status.statusPageBypassMonitorPrivilege: true\nstatus.statusPageBypassMonitorPrivilege: false\n"), "9.4.6", "9.5.3", true, true, true, true)
+	if err != nil || duplicate.State != "UNKNOWN" {
+		t.Fatalf("duplicate selected setting state=%q err=%v", duplicate.State, err)
+	}
+	for _, raw := range []string{
+		`"status.statusPageBypassMonitorPrivilege": true`,
+		`"status.allowAnonymous": false`,
+		"status.statusPageBypassMonitorPrivilege: true\n\"status.statusPageBypassMonitorPrivilege\": false\n",
+		"defaults: &defaults\n  status.statusPageBypassMonitorPrivilege: true\n<<: *defaults\n",
+		"---\nstatus.statusPageBypassMonitorPrivilege: true\n",
+		"- status.statusPageBypassMonitorPrivilege: true\n",
+		"  status.statusPageBypassMonitorPrivilege: true\n",
+		"status.unknown: true\n",
+		"not a YAML mapping\n",
+	} {
+		prepared, err := PrepareKibanaStatusPage([]byte(raw), "9.4.6", "9.5.3", true, true, true, true)
+		if err != nil || prepared.State != "UNKNOWN" {
+			t.Fatalf("unsupported latest YAML %q state=%q err=%v", raw, prepared.State, err)
+		}
+		assertCanonicalFacts(t, prepared.CanonicalInputJSON, map[string]*bool{KibanaStatusBypassFact: nil, KibanaStatusAuthFact: nil, KibanaFullStatusIntentFact: boolPointer(true)})
+	}
+}
+
+func assertCanonicalFacts(t *testing.T, raw []byte, want map[string]*bool) {
+	t.Helper()
+	var doc struct {
+		Proposed struct {
+			Components []struct {
+				Facts []struct {
+					ID        string `json:"id"`
+					State     string `json:"state"`
+					BoolValue *bool  `json:"boolValue"`
+				} `json:"facts"`
+			} `json:"components"`
+		} `json:"proposed"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]struct {
+		state string
+		value *bool
+	}{}
+	for _, fact := range doc.Proposed.Components[0].Facts {
+		got[fact.ID] = struct {
+			state string
+			value *bool
+		}{fact.State, fact.BoolValue}
+	}
+	for id, value := range want {
+		fact, ok := got[id]
+		if !ok {
+			t.Fatalf("missing fact %s", id)
+		}
+		if value == nil {
+			if fact.state != "unsupported" || fact.value != nil {
+				t.Fatalf("unsupported fact %s=%+v", id, fact)
+			}
+		} else if fact.state != "declared" || fact.value == nil || *fact.value != *value {
+			t.Fatalf("fact %s=%+v", id, fact)
+		}
+	}
+}

@@ -81,6 +81,35 @@ func TestPrepareCortexUnknownForUnresolvedWorkload(t *testing.T) {
 	}
 }
 
+func TestPrepareCortexLatestTargetPairsHaveBlockedPassAndUnknownOutcomes(t *testing.T) {
+	for _, from := range []string{"1.16.1", "1.17.2", "1.18.1", "1.19.1", "1.20.1"} {
+		for _, tc := range []struct {
+			name, container string
+			state           State
+			reason          Reason
+		}{
+			{"blocker", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--querier.at-modifier-enabled=true"]}`, StatePrepared, ReasonCortexRemovedFlagPresent},
+			{"scoped absence", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`, StatePrepared, ReasonCortexRemovedFlagAbsent},
+			{"unsupported image", `{"name":"cortex","image":"registry.example/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`, StateUnknown, ReasonCortexWorkloadUnsupported},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				prepared, err := PrepareCortex([]byte(cortexWorkload(tc.container)), from, CortexTo)
+				if err != nil || prepared.State != tc.state || prepared.Reason != tc.reason {
+					t.Fatalf("PrepareCortex() = %#v, %v", prepared, err)
+				}
+			})
+		}
+	}
+}
+
+func TestPrepareCortexRejectsUnreviewedVersionPair(t *testing.T) {
+	raw := cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`)
+	prepared, err := PrepareCortex([]byte(raw), "1.20.2", CortexTo)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonCortexTransitionUnsupported {
+		t.Fatalf("PrepareCortex() = %#v, %v", prepared, err)
+	}
+}
+
 func cortexWorkload(containers string) string {
 	return `{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"cortex","namespace":"observability"},"spec":{"template":{"spec":{"containers":[` + containers + `]}}}}`
 }

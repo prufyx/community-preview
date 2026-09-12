@@ -58,3 +58,24 @@ func TestPrepareCloudCustodianRejectsMalformedAndAmbiguousJSON(t *testing.T) {
 		t.Fatalf("unsupported pair = %+v err=%v", prepared, err)
 	}
 }
+
+func TestPrepareCloudCustodianLatestPackageRoutes(t *testing.T) {
+	blocked := []byte(`{"policies":[{"name":"one","resource":"iam-access-key","filters":[{"type":"json-diff","selector":"previous"}]}]}`)
+	for _, from := range cloudCustodianLatestOrigins {
+		prepared, err := PrepareCloudCustodian(blocked, from, CloudCustodianLatestTo)
+		if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonCloudCustodianJsonDiffPresent || !strings.Contains(string(prepared.CanonicalInputJSON), `"version":"`+from+`"`) || !strings.Contains(string(prepared.CanonicalInputJSON), `"version":"0.9.52"`) {
+			t.Fatalf("%s latest route = %+v, %v", from, prepared, err)
+		}
+	}
+	for _, pair := range [][2]string{{"0.9.46", CloudCustodianLatestTo}, {"0.9.51", "0.9.53"}} {
+		prepared, err := PrepareCloudCustodian(blocked, pair[0], pair[1])
+		if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonCloudCustodianUnsupportedPair {
+			t.Fatalf("unsupported pair %v = %+v, %v", pair, prepared, err)
+		}
+	}
+	for _, tag := range []string{"0.9.47.0", "0.9.52.0"} {
+		if _, err := PrepareCloudCustodian(blocked, tag, CloudCustodianLatestTo); err == nil {
+			t.Fatalf("release tag %q accepted as package version", tag)
+		}
+	}
+}

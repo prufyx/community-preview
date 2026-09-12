@@ -90,3 +90,30 @@ func TestFluxNativeResourceExternalStoreHasNoFallbackAndReplayPinsRawInput(t *te
 		t.Fatalf("missing pin code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+func TestFluxNativeResourceLatestCoversFiveOrigins(t *testing.T) {
+	raw := []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1beta2","kind":"GitRepository","metadata":{"name":"app"}}`)
+	path := writeCNCFFile(t, "flux-latest.json", raw, 0o600)
+	for _, from := range []string{"2.4.0", "2.5.1", "2.6.4", "2.7.5", "2.8.8"} {
+		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "flux", "--native-resource", path, "--from", from, "--to", "2.9.5", "--now", "2026-09-12T10:00:00Z", "--format", "json")
+		if code != ExitBlocked || stderr != "" || !strings.Contains(stdout, `"status":"BLOCKED"`) || !strings.Contains(stdout, "component.flux.latest_removed_beta_api_present") {
+			t.Fatalf("from=%s code=%d stdout=%q stderr=%q", from, code, stdout, stderr)
+		}
+	}
+	clear := writeCNCFFile(t, "flux-latest-clear.json", []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1","kind":"GitRepository","metadata":{"name":"app"}}`), 0o600)
+	for _, from := range []string{"2.4.0", "2.5.1", "2.6.4", "2.7.5", "2.8.8"} {
+		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "flux", "--native-resource", clear, "--from", from, "--to", "2.9.5", "--resource-scope-complete", "--now", "2026-09-12T10:00:00Z", "--format", "json")
+		if code != ExitOK || stderr != "" || !strings.Contains(stdout, `"status":"PASS"`) {
+			t.Fatalf("clear from=%s code=%d stdout=%q stderr=%q", from, code, stdout, stderr)
+		}
+	}
+	code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "flux", "--native-resource", clear, "--from", "2.3.0", "--to", "2.9.5", "--resource-scope-complete", "--now", "2026-09-12T10:00:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, "RULE_TRANSITION_NOT_REVIEWED") {
+		t.Fatalf("unsupported origin code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	unknownVersion := writeCNCFFile(t, "flux-latest-unknown-version.json", []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v99","kind":"GitRepository","metadata":{"name":"app"}}`), 0o600)
+	code, stdout, stderr = runCNCFCLI(t, "check", "cncf", "--project", "flux", "--native-resource", unknownVersion, "--from", "2.8.8", "--to", "2.9.5", "--resource-scope-complete", "--now", "2026-09-12T10:00:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, `"status":"UNKNOWN"`) || !strings.Contains(stdout, "RULE_FACT_UNAVAILABLE") || strings.Contains(stdout, `"boolValue":false`) {
+		t.Fatalf("unknown API version code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}

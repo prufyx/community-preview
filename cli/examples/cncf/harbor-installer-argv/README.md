@@ -1,7 +1,7 @@
 # Harbor installer argv check
 
 These private JSON examples cover the reviewed Harbor `make/install.sh` pair
-2.7.0 to 2.8.0. The declaration describes one complete literal argv vector; it
+2.7.0 to 2.8.0 and `2.10.3`, `2.11.2`, `2.12.4`, `2.13.5`, or `2.14.4` to 2.15.2. The declaration describes one complete literal argv vector; it
 does not execute the installer or inspect Harbor, Docker, ChartMuseum, a
 database, or runtime state.
 
@@ -28,7 +28,9 @@ Review the minimized input locally, then run the check with its exact digest:
 ```
 
 The blocked example contains the removed `--with-chartmuseum` option. The fixed
-example contains only other reviewed bare options and produces a scoped PASS.
+example contains only other reviewed bare options and produces a scoped PASS. For
+the `2.15.2` target pairs, only `--with-trivy` is a modeled non-removed option;
+`--with-notary` and `--with-clair` are target-rejected and therefore remain UNKNOWN.
 Help, wrappers, values, duplicates, unknown options, and unresolved input stay
 UNKNOWN. To see the help boundary explicitly, prepare this private declaration
 with the same pair, then check the minimized input; the check returns UNKNOWN

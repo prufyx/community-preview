@@ -9,6 +9,13 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- A development-preview latest-target matrix, checked on 2026-09-12, covering
+  115 selected exact project/version pairs across 23 projects. Each project
+  contributes five selected earlier stable releases to one exact target. The
+  matrix distinguishes native input from operator declarations, names each
+  scoped predicate and `UNKNOWN` boundary, preserves an additional historical
+  Jaeger route, and records Notation as a qualification gap. It does not claim
+  universal minor-line coverage, runtime proof, or whole-upgrade safety.
 - A bounded offline collection verifier for multiple private source-corpus shards.
   It verifies retained bytes, rejects conflicting metadata and duplicate records,
   counts shared objects once, and binds per-shard receipts. Source interpretation,

@@ -39,6 +39,31 @@ func TestHarborPreparationFeedsScopedCheck(t *testing.T) {
 	}
 }
 
+func TestHarborLatestPreparationFeedsScopedCheck(t *testing.T) {
+	for _, tc := range []struct {
+		name, from, status string
+		argv               []string
+		want               int
+	}{
+		{"removed option", "2.10.3", "BLOCKED", []string{"--with-chartmuseum"}, ExitBlocked},
+		{"complete absence", "2.11.2", "PASS", []string{"--with-trivy"}, ExitOK},
+		{"ambiguous help", "2.14.4", "UNKNOWN", []string{"--help"}, ExitUnknown},
+		{"target-rejected notary", "2.13.5", "UNKNOWN", []string{"--with-notary"}, ExitUnknown},
+	} {
+		raw := harborCLIInput(true, tc.argv...)
+		path := writeCNCFFile(t, "latest-"+tc.name+".json", raw, 0o600)
+		prepareCode, input, stderr := runCNCFCLI(t, "prepare", "cncf", "--project", "harbor", "--input", path, "--from", tc.from, "--to", "2.15.2", "--format", "input", "--input-digest", cncfDigest(raw))
+		if prepareCode != map[int]int{ExitOK: ExitOK, ExitBlocked: ExitOK, ExitUnknown: ExitUnknown}[tc.want] || stderr != "" {
+			t.Fatalf("%s prepare=%d stderr=%q", tc.name, prepareCode, stderr)
+		}
+		preparedPath := writeCNCFFile(t, "latest-prepared-"+tc.name+".json", []byte(input), 0o600)
+		checkCode, output, stderr := runCNCFCLI(t, "check", "cncf", "--project", "harbor", "--input", preparedPath, "--input-digest", cncfDigest([]byte(input)), "--now", "2026-09-12T12:00:00Z", "--format", "json")
+		if checkCode != tc.want || stderr != "" || !strings.Contains(output, "\"status\":\""+tc.status+"\"") {
+			t.Fatalf("%s check=%d stderr=%q output=%s", tc.name, checkCode, stderr, output)
+		}
+	}
+}
+
 func TestHarborPreparationRejectsMalformedInputAndPinsBytes(t *testing.T) {
 	raw := harborCLIInput(true, "--with-chartmuseum")
 	path := writeCNCFFile(t, "harbor-private.json", raw, 0o600)

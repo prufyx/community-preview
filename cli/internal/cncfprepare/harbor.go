@@ -14,6 +14,15 @@ const (
 	HarborKind      = "HarborInstallerArguments"
 )
 
+var harborChartMuseumPairs = map[string]string{
+	HarborFrom: "2.8.0",
+	"2.10.3":   "2.15.2",
+	"2.11.2":   "2.15.2",
+	"2.12.4":   "2.15.2",
+	"2.13.5":   "2.15.2",
+	"2.14.4":   "2.15.2",
+}
+
 const (
 	ReasonHarborArgvWitness      Reason = "HARBOR_INSTALLER_CHARTMUSEUM_FLAG_PRESENT"
 	ReasonHarborArgvNoWitness    Reason = "HARBOR_INSTALLER_CHARTMUSEUM_FLAG_ABSENT"
@@ -69,9 +78,9 @@ func PrepareHarbor(raw []byte, from, to string) (Prepared, error) {
 	state, reason := StateUnknown, ReasonHarborAuthorityMissing
 	if declared {
 		reason = ReasonHarborArgvUnsupported
-		if from != HarborFrom || to != HarborTo {
+		if harborChartMuseumPairs[from] != to {
 			reason = ReasonHarborUnsupportedPair
-		} else if valid, present := inspectHarborArgv(argv); valid {
+		} else if valid, present := inspectHarborArgv(argv, to); valid {
 			value := present
 			fact = inputFact{ID: HarborFact, State: "declared", BoolValue: &value}
 			state = StatePrepared
@@ -103,7 +112,7 @@ func PrepareHarbor(raw []byte, from, to string) (Prepared, error) {
 // inspectHarborArgv accepts only the literal, no-value options registered by
 // the reviewed installer. --help is deliberately unsupported because the
 // target exits before normal option processing; it cannot prove absence.
-func inspectHarborArgv(argv []string) (valid, present bool) {
+func inspectHarborArgv(argv []string, target string) (valid, present bool) {
 	seen := map[string]bool{}
 	for _, token := range argv {
 		if token == "" || hasExpansion(token) || strings.IndexFunc(token, func(r rune) bool { return r < 32 || r == 127 }) >= 0 {
@@ -117,7 +126,11 @@ func inspectHarborArgv(argv []string) (valid, present bool) {
 			return false, false
 		}
 		switch name {
-		case "with-notary", "with-clair", "with-trivy":
+		case "with-trivy":
+		case "with-notary", "with-clair":
+			if target != HarborTo {
+				return false, false
+			}
 		case "with-chartmuseum":
 			present = true
 		default:

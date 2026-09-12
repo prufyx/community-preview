@@ -131,7 +131,7 @@ func PrepareKyvernoScoped(raw []byte, containerName, from, to, distribution stri
 		// distribution guard. Do not inspect a command to manufacture a fact.
 	case distribution == KyvernoDistributionCustom:
 		reason = ReasonCustomDistribution
-	case from != FromVersion || to != ToVersion:
+	case !supportedKyvernoPair(from, to):
 		reason = ReasonUnsupportedVersionPair
 	case selection != selectionReady:
 		switch selection {
@@ -169,6 +169,21 @@ func PrepareKyvernoScoped(raw []byte, containerName, from, to, distribution stri
 		Reason:             reason,
 		Omissions:          []string{OmissionNoLiveObservation, OmissionNoWholeUpgrade},
 	}, nil
+}
+
+func supportedKyvernoPair(from, to string) bool {
+	if from == FromVersion && to == ToVersion {
+		return true
+	}
+	if to != "1.19.1" {
+		return false
+	}
+	switch from {
+	case "1.14.5", "1.15.3", "1.16.4", "1.17.2", "1.18.2":
+		return true
+	default:
+		return false
+	}
 }
 
 type selectionState uint8

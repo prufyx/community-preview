@@ -111,3 +111,112 @@ func mustTime(value string) (result time.Time) {
 	result, _ = time.Parse(time.RFC3339, value)
 	return
 }
+
+func TestPrepareEtcdLatestExperimentalFlagPair(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		argv  []string
+		state State
+		value any
+	}{
+		{"removed flag", []string{"--name=node", "--experimental-memory-mlock=true"}, StatePrepared, true},
+		{"documented replacement", []string{"--name=node", "--feature-gates=CompactHashCheck=true"}, StatePrepared, false},
+		{"unsupported inferred replacement", []string{"--name=node", "--compact-hash-check-enabled=true"}, StateUnknown, nil},
+		{"target only flag", []string{"--name=node", "--snapshot-count=10000"}, StatePrepared, false},
+		{"old only flag", []string{"--name=node", "--experimental-enable-lease-checkpoint=true"}, StatePrepared, true},
+		{"unknown experimental", []string{"--name=node", "--experimental-future=x"}, StateUnknown, nil},
+		{"old allowlist is insufficient", []string{"--name=node", "--experimental-enable-v2v3=write-only"}, StateUnknown, nil},
+		{"unknown target flag", []string{"--name=node", "--target-future=x"}, StateUnknown, nil},
+		{"config file", []string{"--config-file=private"}, StateUnknown, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareEtcd(etcdArguments(t, true, tc.argv...), "3.6.14", EtcdLatestTo)
+			if err != nil || prepared.State != tc.state {
+				t.Fatalf("prepared=%+v err=%v", prepared, err)
+			}
+			fact := preparedFacts(t, prepared)[EtcdLatestFact]
+			if tc.value == nil {
+				if _, ok := fact["boolValue"]; ok {
+					t.Fatalf("unexpected fact=%v", fact)
+				}
+				return
+			}
+			if fact["state"] != "declared" || fact["boolValue"] != tc.value {
+				t.Fatalf("fact=%v", fact)
+			}
+		})
+	}
+}
+
+func TestPrepareEtcdLatestAllExactOriginsAndHopPrecedence(t *testing.T) {
+	for _, from := range []string{"3.6.14", "3.5.33", "3.4.45", "3.3.27", "3.2.32"} {
+		t.Run(from+"/removed", func(t *testing.T) {
+			prepared, err := PrepareEtcd(etcdArguments(t, true, "--name=node", "--experimental-compact-hash-check-enabled=true"), from, EtcdLatestTo)
+			if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonEtcdExperimentalWitness {
+				t.Fatalf("prepared=%+v err=%v", prepared, err)
+			}
+			report, err := cncfcheck.Check("etcd", prepared.CanonicalInputJSON, mustTime("2026-09-12T07:38:00Z"))
+			if err != nil || len(report.Check.Claims) == 0 {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+			for _, claim := range report.Check.Claims {
+				if claim.Status != "BLOCKED" {
+					t.Fatalf("claim=%+v", claim)
+				}
+			}
+		})
+		t.Run(from+"/replacement", func(t *testing.T) {
+			prepared, err := PrepareEtcd(etcdArguments(t, true, "--name=node", "--feature-gates=CompactHashCheck=true"), from, EtcdLatestTo)
+			if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonEtcdExperimentalAbsent {
+				t.Fatalf("prepared=%+v err=%v", prepared, err)
+			}
+			report, err := cncfcheck.Check("etcd", prepared.CanonicalInputJSON, mustTime("2026-09-12T07:38:00Z"))
+			if err != nil || len(report.Check.Claims) == 0 {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+			if from == "3.6.14" {
+				if len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "PASS" {
+					t.Fatalf("adjacent replacement report=%+v", report)
+				}
+				return
+			}
+			blocked, passed := 0, 0
+			for _, claim := range report.Check.Claims {
+				switch claim.Status {
+				case "BLOCKED":
+					blocked++
+				case "PASS":
+					passed++
+				}
+			}
+			if blocked != 1 || passed != 1 {
+				t.Fatalf("skipped replacement must remain hop-blocked: %+v", report)
+			}
+		})
+	}
+}
+
+func TestPrepareEtcdLatestMissingAmbiguousAndWrongPairsRemainUnknown(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		declared bool
+		argv     []string
+		from     string
+		to       string
+		reason   Reason
+	}{
+		{"missing declaration", false, []string{"--experimental-memory-mlock=true"}, "3.6.14", EtcdLatestTo, ReasonEtcdAuthorityMissing},
+		{"ambiguous separated value", true, []string{"--feature-gates", "CompactHashCheck=true"}, "3.6.14", EtcdLatestTo, ReasonEtcdArgvUnsupported},
+		{"unsupported inferred replacement", true, []string{"--compact-hash-check-enabled=true"}, "3.6.14", EtcdLatestTo, ReasonEtcdArgvUnsupported},
+		{"duplicate", true, []string{"--name=node", "--name=other"}, "3.6.14", EtcdLatestTo, ReasonEtcdArgvUnsupported},
+		{"wrong origin", true, []string{"--feature-gates=CompactHashCheck=true"}, "3.6.13", EtcdLatestTo, ReasonEtcdUnsupportedPair},
+		{"wrong target", true, []string{"--feature-gates=CompactHashCheck=true"}, "3.6.14", "3.7.0", ReasonEtcdUnsupportedPair},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareEtcd(etcdArguments(t, tc.declared, tc.argv...), tc.from, tc.to)
+			if err != nil || prepared.State != StateUnknown || prepared.Reason != tc.reason || strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue"`) {
+				t.Fatalf("prepared=%+v err=%v input=%s", prepared, err, prepared.CanonicalInputJSON)
+			}
+		})
+	}
+}
