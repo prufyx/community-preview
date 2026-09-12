@@ -1,0 +1,58 @@
+# Offline operator role signer
+
+`prufyx-maintainer knowledge-sign` is a local, offline helper for one operator.
+It creates four encrypted Ed25519 role keys and signs the exact canonical
+payload prepared for one `targets`, `snapshot`, or `timestamp` role. It never
+fetches, publishes, uploads a key, configures a feed, or activates a root.
+
+Initialize only in a new absolute `0700` directory outside any Git checkout. The expiry must be exact UTC RFC3339, future, and no more than 366 days ahead.
+The command reads the passphrase twice from a terminal with echo disabled; it
+accepts no passphrase flag, environment variable, file, default, or redirected
+standard input.
+
+```sh
+umask 077
+mkdir -m 700 /absolute/operator-private
+prufyx-maintainer knowledge-sign init \
+  --key-dir /absolute/operator-private/prufyx-keys \
+  --root-expires 2027-09-12T00:00:00Z
+```
+
+Initialization writes `root.json` and four mode-`0600` encrypted key files:
+`root.key.pem`, `targets.key.pem`, `snapshot.key.pem`, and `timestamp.key.pem`.
+Each is a PKCS#8 key wrapped in `ENCRYPTED SIGSTORE PRIVATE KEY` PEM using the
+vendored scrypt and secretbox implementation with the `encrypted.OWASP` KDF
+parameters. The code makes a best effort to overwrite its own temporary
+passphrase and key byte slices; Go does not provide a general memory-erasure
+guarantee.
+
+Keep an encrypted copy of the private key directory and an independently held
+passphrase backup outside Git. Move `root.key.pem` offline after initialization.
+This helper does not prove custody, backup recovery, rotation, revocation, or
+an official trust root.
+
+Sign one publisher-prepared role with the matching role key. All paths are
+absolute. The root digest and payload digest come from an independently checked
+publisher request; the signer derives the payload again from the exact unsigned
+role and rejects a mismatch before writing a new signature envelope.
+
+```sh
+prufyx-maintainer knowledge-sign sign-role \
+  --root /absolute/operator-private/prufyx-keys/root.json \
+  --root-digest sha256:<root> --role targets \
+  --unsigned /absolute/publisher/targets-step/targets.unsigned.json \
+  --payload-digest sha256:<payload> \
+  --key /absolute/operator-private/prufyx-keys/targets.key.pem \
+  --output /absolute/publisher/targets-signatures.json
+```
+
+The key must be a single-link, owner-owned regular `0600` file. The envelope output must be a new absolute name below a physical, owner-owned `0700` directory outside a Git checkout. Plaintext PEM,
+extra PEM data, a wrong role key, wrong passphrase, modified unsigned metadata,
+wrong root digest, or an unauthorized role key are rejected. The signer calls
+the publisher role finalizer before producing the envelope, so root policy,
+role authorization, threshold, and exact payload binding are checked locally.
+
+Outputs are new `0600` files. A failed write leaves any newly created path for
+explicit operator cleanup; the helper never deletes an output path after a
+failure. A valid signature envelope is still not a published package or a
+configured update source.

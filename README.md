@@ -60,6 +60,17 @@ selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
 contains the exact capabilities and source bindings.
 
+Explicit adopter-managed refresh continues through the existing signed TUF
+import/update path. A Community CLI built from this source reports authenticated
+TUF freshness separately from source-evidence expiry and exposes the fixed CNCF
+target contract. The maintainer binary can export a complete compatible
+replacement target, prepare each sequential signing payload, sign public role
+metadata with encrypted local role keys, and verify the final package. See the
+[adopter update overview](cli/docs/knowledge-updates.md), [publisher
+workflow](cli/docs/knowledge-publisher.md), and [offline signer
+workflow](cli/docs/knowledge-signer.md). No official Prufyx root or feed is
+configured by these source tools.
+
 The 2026-09-12 development-preview expansion currently admits **115 selected
 exact project/version pairs across 23 projects**. Each row uses five selected
 earlier stable releases and one exact reviewed target; it does not claim five
@@ -68,6 +79,9 @@ distinguishes native input from operator declarations and states the predicate
 and `UNKNOWN` boundary for every project. Notation remains an explicit
 qualification gap. Jaeger's retained `1.76.0` to `2.20.0` route is additional
 to the selected-pair count, and one selected Cortex pair was already present.
+Prometheus also has an additional canonical `2.55.1` to `3.14.0` depth
+route over existing declared facts; it does not change the 23-project,
+115-selected-pair matrix.
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 

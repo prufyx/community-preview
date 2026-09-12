@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/maintainer/contribution"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgeexport"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/localkind"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasegate"
@@ -59,6 +60,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 	switch args[0] {
 	case "package-knowledge":
 		return runPackageKnowledge(args[1:], stderr)
+	case "export-knowledge":
+		return runExportKnowledge(args[1:])
+	case "knowledge-publish":
+		return runKnowledgePublish(args[1:], stdout)
+	case "knowledge-sign":
+		return runKnowledgeSign(args[1:], stdout, stderr)
 	case "support-inventory":
 		return runSupportInventory(args[1:], stderr)
 	case "release-gate":
@@ -97,7 +104,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <contribution|contribution-candidates|selected-source-import|source-corpus|public-source-capture|package-knowledge|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <contribution|contribution-candidates|selected-source-import|source-corpus|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()
@@ -297,6 +304,21 @@ func runPackageKnowledge(args []string, stderr io.Writer) error {
 	}
 	if err := knowledgepack.WritePackage(*input, *output, *profile); err != nil {
 		return &commandError{code: 2, message: "package-knowledge: packaging rejected", err: err}
+	}
+	return nil
+}
+
+func runExportKnowledge(args []string) error {
+	flags := flag.NewFlagSet("export-knowledge", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	profile := flags.String("profile", "", "fixed public source profile")
+	revision := flags.String("revision", "", "positive external semantic revision")
+	output := flags.String("output", "", "new unsigned public target file")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *profile == "" || *revision == "" || *output == "" {
+		return &commandError{code: 2, message: "export-knowledge: command rejected"}
+	}
+	if err := knowledgeexport.Write(knowledgeexport.Options{Profile: *profile, Revision: *revision, Output: *output}); err != nil {
+		return &commandError{code: 2, message: "export-knowledge: command rejected", err: err}
 	}
 	return nil
 }

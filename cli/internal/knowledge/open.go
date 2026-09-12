@@ -251,7 +251,7 @@ func inspectProfile(storeRoot string, profile profileSpec) (Status, error) {
 	now := time.Now().UTC()
 	if err := checkProfileMarker(store, profile, false); err != nil {
 		if profile.marked() && errors.Is(err, ErrNoSelection) {
-			return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no operator trust root or knowledge revision is established", NextAction: "import a signed package with an explicit bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
+			return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no operator trust root or knowledge revision is established", NextAction: "import a signed package with an explicit bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", TrustFreshness: "not_established", SourceEvidenceFreshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
 		}
 		return Status{}, err
 	}
@@ -263,13 +263,13 @@ func inspectProfile(storeRoot string, profile profileSpec) (Status, error) {
 	if err != nil {
 		if errors.Is(err, ErrNoSelection) {
 			if pending != nil {
-				return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "RECOVERY_REQUIRED", Reason: "an interrupted knowledge import must be resumed", NextAction: "retry the exact same signed package and bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
+				return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "RECOVERY_REQUIRED", Reason: "an interrupted knowledge import must be resumed", NextAction: "retry the exact same signed package and bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", TrustFreshness: "not_established", SourceEvidenceFreshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
 			}
 			empty, checkErr := store.emptyForProfile(profile)
 			if checkErr != nil || !empty {
 				return Status{}, ErrIntegrity
 			}
-			return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no operator trust root or knowledge revision is established", NextAction: "import a signed package with an explicit bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
+			return Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no operator trust root or knowledge revision is established", NextAction: "import a signed package with an explicit bootstrap root", CheckedAt: now.Format(time.RFC3339), TrustSource: "none", CurrentEligible: false, Freshness: "not_established", TrustFreshness: "not_established", SourceEvidenceFreshness: "not_established", NetworkChecked: false, CurrentNonRevocation: "not_checked_offline"}, nil
 		}
 		return Status{}, err
 	}
@@ -280,7 +280,7 @@ func inspectProfile(storeRoot string, profile profileSpec) (Status, error) {
 	if now.Before(floor) {
 		return Status{}, fmt.Errorf("status clock rollback: %w", ErrRollback)
 	}
-	s := Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no verified knowledge revision is selected", NextAction: "import a valid signed knowledge package", CheckedAt: now.Format(time.RFC3339), TrustSource: "OPERATOR_PROVISIONED", TrustStateDigest: material.stateDigest, RootVersion: material.state.Root.Version, TimestampVersion: material.state.Timestamp.Version, SnapshotVersion: material.state.Snapshot.Version, TargetsVersion: material.state.Targets.Version, NetworkChecked: false, CurrentNonRevocation: "not_checked_offline", Freshness: "fresh"}
+	s := Status{APIVersion: "prufyx.io/knowledge-status/v1", State: "NO_SELECTION", Reason: "no verified knowledge revision is selected", NextAction: "import a valid signed knowledge package", CheckedAt: now.Format(time.RFC3339), TrustSource: "OPERATOR_PROVISIONED", TrustStateDigest: material.stateDigest, RootVersion: material.state.Root.Version, TimestampVersion: material.state.Timestamp.Version, SnapshotVersion: material.state.Snapshot.Version, TargetsVersion: material.state.Targets.Version, NetworkChecked: false, CurrentNonRevocation: "not_checked_offline", Freshness: "fresh", TrustFreshness: "fresh", SourceEvidenceFreshness: "not_assessed"}
 	for _, role := range []RoleReceipt{material.state.Root, material.state.Timestamp, material.state.Snapshot, material.state.Targets} {
 		if role.Version == 0 {
 			continue
@@ -321,11 +321,16 @@ func inspectProfile(storeRoot string, profile profileSpec) (Status, error) {
 						integrityOK = true
 						s.Freshness = "expired"
 					}
+					if stateMatches && (verified.refreshErr == nil || errors.Is(classifyTUFError(verified.refreshErr), ErrExpired)) {
+						projectSourceEvidenceFreshness(&s, receipt, now)
+					}
 				}
 			}
 		}
 		s.CurrentEligible = integrityOK && selection.TrustStateDigest == material.stateDigest && s.Freshness == "fresh"
 		if !integrityOK {
+			s.SourceEvidenceFreshness = "not_assessed"
+			s.SourceEvidenceExpiresAt = ""
 			s.Freshness = "integrity_failure"
 			s.State = "INTEGRITY_FAILURE"
 			s.Reason = "selected knowledge admission failed integrity checks"
@@ -359,7 +364,31 @@ func inspectProfile(storeRoot string, profile profileSpec) (Status, error) {
 		s.NextAction = "retry the exact same signed package"
 		s.CurrentEligible = false
 	}
+	s.TrustFreshness = s.Freshness
 	return s, nil
+}
+
+// projectSourceEvidenceFreshness projects the trusted receipt's aggregate
+// expiry without claiming that it proves current review or per-rule usability.
+// A future earliest expiry proves only that covered entries are not expired;
+// a past earliest expiry proves only that some or all entries may be expired.
+func projectSourceEvidenceFreshness(status *Status, receipt TrustReceipt, now time.Time) {
+	status.SourceEvidenceExpiresAt = receipt.EvidenceExpiresAt
+	if receipt.EvidenceExpiresAt == "" {
+		status.SourceEvidenceFreshness = "no_rules"
+		return
+	}
+	expiresAt, err := parseTime(receipt.EvidenceExpiresAt)
+	if err != nil {
+		status.SourceEvidenceFreshness = "not_assessed"
+		status.SourceEvidenceExpiresAt = ""
+		return
+	}
+	if now.Before(expiresAt) {
+		status.SourceEvidenceFreshness = "not_expired"
+		return
+	}
+	status.SourceEvidenceFreshness = "some_or_all_expired"
 }
 
 func assertSelection(s selectionPointer, req SelectionRequest, mode SelectionMode) error {

@@ -16,6 +16,8 @@ import (
 const (
 	externalBundleSchema     = "prufyx.io/operator-cncf-knowledge/v1alpha1"
 	externalSourceAuthority  = "DECLARED_RULE_SOURCE_REFERENCES"
+	externalProfileName      = "cncf"
+	externalTargetPath       = "knowledge/constraints.v1.json"
 	maxExternalBundleBytes   = 1 << 20
 	maxExternalEntries       = 512
 	maxExternalFacts         = 64
@@ -76,6 +78,21 @@ type ProfileRequirements struct {
 	PolicyDigest           string
 	RegistryDigest         string
 	LandscapeFileDigest    string
+}
+
+// ExternalProfileContract is the public scalar construction contract enforced
+// for an external CNCF target. It is not trust material and grants no feed,
+// signing, or source-review authority.
+type ExternalProfileContract struct {
+	Profile                 string
+	TargetPath              string
+	Purpose                 string
+	Requirements            ProfileRequirements
+	MaxBundleBytes          int
+	MaxEntries              int
+	MaxFactsPerEntry        int
+	ExplicitSelectionOnly   bool
+	RequiresIndependentRoot bool
 }
 
 // ParseExternalBundle admits a complete operator-provided target envelope.
@@ -149,6 +166,56 @@ func ExternalProfileRequirements() (ProfileRequirements, error) {
 		PolicyDigest: base.pack.PolicyDigest, RegistryDigest: base.registry.Digest(),
 		LandscapeFileDigest: base.landscape.LandscapeFileDigest,
 	}, nil
+}
+
+// ExternalProfileContractForCNCF exposes the fixed public construction
+// contract for an operator-provided CNCF target. It reads only embedded bytes.
+func ExternalProfileContractForCNCF() (ExternalProfileContract, error) {
+	requirements, err := ExternalProfileRequirements()
+	if err != nil {
+		return ExternalProfileContract{}, err
+	}
+	return ExternalProfileContract{
+		Profile: externalProfileName, TargetPath: externalTargetPath,
+		Purpose: "operator_provided", Requirements: requirements,
+		MaxBundleBytes: maxExternalBundleBytes, MaxEntries: maxExternalEntries,
+		MaxFactsPerEntry: maxExternalFacts, ExplicitSelectionOnly: true,
+		RequiresIndependentRoot: true,
+	}, nil
+}
+
+// ExportEmbeddedExternalBundle returns a complete unsigned operator-provided
+// target made from the embedded public CNCF pack. The caller supplies the
+// positive semantic revision. It never signs, fetches, or exports a local
+// store, trust root, selection, or operator input.
+func ExportEmbeddedExternalBundle(revision string) ([]byte, error) {
+	if !validExternalRevision(revision) {
+		return nil, ErrInvalid
+	}
+	base, err := load()
+	if err != nil {
+		return nil, err
+	}
+	capability, err := externalCapabilityDigest(base)
+	if err != nil {
+		return nil, ErrIntegrity
+	}
+	pack := base.pack
+	pack.Revision = revision
+	raw, err := json.Marshal(struct {
+		Schema                 string   `json:"schema"`
+		Revision               string   `json:"revision"`
+		Purpose                string   `json:"purpose"`
+		EngineCapabilityDigest string   `json:"engineCapabilityDigest"`
+		Pack                   rulePack `json:"pack"`
+	}{externalBundleSchema, revision, "operator_provided", capability, pack})
+	if err != nil {
+		return nil, ErrIntegrity
+	}
+	if _, err := ParseExternalBundle(raw); err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), raw...), nil
 }
 
 // Admission returns the parser-issued semantic summary.

@@ -29,6 +29,7 @@ func (r runtime) database(ctx context.Context, args []string) int {
   prufyx db import FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256] [--expected-revision REVISION] [--expected-bundle-digest SHA256] [--format human|json]
   prufyx db update --source HTTPS_URL --package-out FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256] [--expected-revision REVISION] [--expected-bundle-digest SHA256] [--format human|json]
   prufyx db status --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--format human|json]
+  prufyx db capabilities --profile cncf [--format human|json]
 
 Verify, import and status are offline. Verify requires an independently trusted
 bootstrap root and does not inspect a store or establish import eligibility.
@@ -48,6 +49,8 @@ accepts operator-provisioned roots and reports synthetic test knowledge explicit
 		return r.databaseUpdate(ctx, args[1:])
 	case "status":
 		return r.databaseStatus(args[1:])
+	case "capabilities":
+		return r.databaseCapabilities(args[1:])
 	default:
 		return r.usage("unknown database command; use prufyx db --help")
 	}
@@ -247,7 +250,11 @@ func validKnowledgeProfile(profile string) bool {
 }
 
 func writeKnowledgeStatusHuman(w io.Writer, status knowledge.Status) {
-	fmt.Fprintf(w, "knowledge database state: %s\nreason: %s\nnext action: %s\nfreshness: %s\nchecked at: %s\ntrust source: %s\npurpose: %s\nselected revision: %s\nbundle digest: %s\ntrust receipt digest: %s\ncurrent eligible: %t\ncurrent non-revocation: %s\nnetwork used: false\n", status.State, status.Reason, status.NextAction, status.Freshness, status.CheckedAt, status.TrustSource, status.Purpose, status.SelectedRevision, status.SelectedBundleDigest, status.TrustReceiptDigest, status.CurrentEligible, status.CurrentNonRevocation)
+	trustFreshness := status.TrustFreshness
+	if trustFreshness == "" {
+		trustFreshness = status.Freshness
+	}
+	fmt.Fprintf(w, "knowledge database state: %s\nreason: %s\nnext action: %s\nfreshness: %s\ntrust freshness: %s\nsource evidence freshness: %s\nsource evidence earliest expiry: %s\nchecked at: %s\ntrust source: %s\npurpose: %s\nselected revision: %s\nbundle digest: %s\ntrust receipt digest: %s\ncurrent eligible: %t\ncurrent non-revocation: %s\nnetwork used: false\nreadiness scope: selected-store integrity only; individual rules may remain UNKNOWN\n", status.State, status.Reason, status.NextAction, status.Freshness, trustFreshness, status.SourceEvidenceFreshness, status.SourceEvidenceExpiresAt, status.CheckedAt, status.TrustSource, status.Purpose, status.SelectedRevision, status.SelectedBundleDigest, status.TrustReceiptDigest, status.CurrentEligible, status.CurrentNonRevocation)
 }
 
 func databaseStatusExit(status knowledge.Status) int {

@@ -46,6 +46,12 @@ of the five selected pairs above. Jaeger also retains the earlier
 `1.76.0` to `2.20.0` rule; that historical route is additional to this
 115-pair selection.
 
+Prometheus also has an additional canonical `2.55.1` to `3.14.0` depth
+route over the existing Alertmanager API and classic-histogram facts. It is
+outside the curated five-origin selection above and does not increase the
+23-project or 115-pair counts. Missing declarations, custom or unresolved
+configuration, runtime behavior, and whole-upgrade safety remain `UNKNOWN`.
+
 Notation was source-qualified for this review wave, but no substantive target
 predicate was established for an executable rule. It remains an explicit
 qualification gap and is excluded from the project and pair counts.

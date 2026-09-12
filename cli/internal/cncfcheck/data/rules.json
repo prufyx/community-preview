@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-12.9",
+  "revision": "cncf-2026-09-12.10",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
@@ -11321,6 +11321,96 @@
       }
     },
     {
+      "description": "Prometheus 3.14.0 no longer accepts Alertmanager api_version v1 for this exact 2.55.1 to 3.14.0 configuration transition. The selected mapping is caller supplied; this does not prove target reachability, delivery, or whole-upgrade safety.",
+      "project": "prometheus",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/prometheus/prometheus",
+          "description": "The selected native Alertmanager entry's literal api_version choice, or the exact target source-derived v2 default when omitted. Addresses, credentials, paths, and unrelated settings are discarded.",
+          "enumTokens": [
+            "omitted_default_v2",
+            "v1",
+            "v2"
+          ],
+          "id": "component.prometheus.alertmanager_api_version_selection",
+          "side": "proposed",
+          "type": "enum"
+        }
+      ],
+      "rule": {
+        "condition": {
+          "component": "pkg:github/prometheus/prometheus",
+          "enumValue": "v1",
+          "factId": "component.prometheus.alertmanager_api_version_selection",
+          "side": "proposed"
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-12T17:28:04Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "endLine": 1029,
+              "id": "prometheus-v2-55-1-alertmanager-api-parser",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 959,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "endLine": 184,
+              "id": "prometheus-v2-55-1-config-default-v2",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 178,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 1397,
+              "id": "prometheus-v3-14-alertmanager-default-application",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 1393,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 219,
+              "id": "prometheus-v3-14-alertmanager-default-v2",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 213,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:fdaed8daa147b95b696e2f653a90ac232c6fdf0742b581eebeb842b7e40c8b01",
+              "endLine": 253,
+              "id": "prometheus-v3-14-alertmanager-migration",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 249,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/docs/migration.md"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 1360,
+              "id": "prometheus-v3-14-alertmanager-parser",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 1329,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T17:28:04Z"
+        },
+        "id": "prometheus.alertmanager-api-v1-removed.2-55-1-to-3-14-0",
+        "nextAction": "Replace api_version: v1 with v2 in the selected Alertmanager mapping, then separately verify target support, reachability, alert delivery, and the complete target configuration.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/prometheus/prometheus",
+          "from": "2.55.1",
+          "to": "3.14.0"
+        }
+      }
+    },
+    {
       "project": "prometheus",
       "description": "Prometheus selected Alertmanager api_version v1 removal only; the selected mapping is caller supplied rather than observed running configuration, and Alertmanager compatibility, reachability, alert delivery, complete configuration and whole-upgrade behavior remain unverified.",
       "requiredFacts": [
@@ -11832,6 +11922,79 @@
         "subject": {
           "component": "pkg:github/prometheus/prometheus",
           "from": "3.9.1",
+          "to": "3.14.0"
+        }
+      }
+    },
+    {
+      "description": "Prometheus 3.14.0 uses always_scrape_classic_histograms for the selected scrape configuration; the older scrape_classic_histograms key is not the target key for this exact 2.55.1 to 3.14.0 transition. The declaration is configuration scope only and does not prove runtime behavior.",
+      "project": "prometheus",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/prometheus/prometheus",
+          "description": "Which reviewed classic-histogram setting key is explicitly present in one caller-selected complete native scrape_config. The key value, job name and unrelated configuration are discarded.",
+          "enumTokens": [
+            "always_scrape_classic_histograms",
+            "scrape_classic_histograms"
+          ],
+          "id": "component.prometheus.scrape_classic_histograms_key",
+          "side": "proposed",
+          "type": "enum"
+        }
+      ],
+      "rule": {
+        "condition": {
+          "component": "pkg:github/prometheus/prometheus",
+          "enumValue": "scrape_classic_histograms",
+          "factId": "component.prometheus.scrape_classic_histograms_key",
+          "side": "proposed"
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-12T17:28:04Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "endLine": 638,
+              "id": "prometheus-v2-55-1-scrape-key",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 637,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 792,
+              "id": "prometheus-v3-14-scrape-key-binding",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 789,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:fdaed8daa147b95b696e2f653a90ac232c6fdf0742b581eebeb842b7e40c8b01",
+              "endLine": 58,
+              "id": "prometheus-v3-14-scrape-key-migration",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 53,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/docs/migration.md"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 86,
+              "id": "prometheus-v3-14-strict-yaml-loader",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 75,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T17:28:04Z"
+        },
+        "id": "prometheus.scrape-classic-histograms-key-renamed.2-55-1-to-3-14-0",
+        "nextAction": "Rename scrape_classic_histograms to always_scrape_classic_histograms in the selected scrape configuration, then separately validate the complete target configuration.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/prometheus/prometheus",
+          "from": "2.55.1",
           "to": "3.14.0"
         }
       }

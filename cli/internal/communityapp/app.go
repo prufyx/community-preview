@@ -153,6 +153,7 @@ Usage:
   prufyx db import FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256]
   prufyx db update --source HTTPS_URL --package-out FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256]
   prufyx db status --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--format human|json]
+  prufyx db capabilities --profile cncf [--format human|json]
   prufyx check cert-manager-values --from VERSION --to VERSION --values FILE [--schema-validation required|disabled] [--values-digest SHA256] [--format human|json]
   prufyx check prometheus-mode --demo [--format human|json]
   prufyx check prometheus-mode --observation-root DIR --proposed-workload FILE --proposed-digest SHA256 --captured-at RFC3339 --now RFC3339 --max-age DURATION [--format human|json]

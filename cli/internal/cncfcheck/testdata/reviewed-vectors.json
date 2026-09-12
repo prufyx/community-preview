@@ -26947,6 +26947,165 @@
     ]
   },
   {
+    "cases": [
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "v1",
+                    "id": "component.prometheus.alertmanager_api_version_selection",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "blocked",
+        "status": "BLOCKED"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "v2",
+                    "id": "component.prometheus.alertmanager_api_version_selection",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "pass",
+        "status": "PASS"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "id": "component.prometheus.alertmanager_api_version_selection",
+                    "state": "unsupported"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "unsupported",
+        "status": "UNKNOWN"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "v1",
+                    "id": "component.prometheus.alertmanager_api_version_selection",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.1"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "outside-pair",
+        "status": "UNKNOWN"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "missing-fact",
+        "status": "UNKNOWN"
+      }
+    ],
+    "project": "prometheus",
+    "ruleId": "prometheus.alertmanager-api-v1-removed.2-55-1-to-3-14-0"
+  },
+  {
     "project": "prometheus",
     "ruleId": "prometheus.alertmanager-api-v1-removed.3-1",
     "cases": [
@@ -27775,6 +27934,165 @@
     ],
     "project": "prometheus",
     "ruleId": "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"
+  },
+  {
+    "cases": [
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "scrape_classic_histograms",
+                    "id": "component.prometheus.scrape_classic_histograms_key",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "blocked",
+        "status": "BLOCKED"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "always_scrape_classic_histograms",
+                    "id": "component.prometheus.scrape_classic_histograms_key",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "pass",
+        "status": "PASS"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "id": "component.prometheus.scrape_classic_histograms_key",
+                    "state": "unsupported"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "unsupported",
+        "status": "UNKNOWN"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "scrape_classic_histograms",
+                    "id": "component.prometheus.scrape_classic_histograms_key",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.1"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "outside-pair",
+        "status": "UNKNOWN"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "missing-fact",
+        "status": "UNKNOWN"
+      }
+    ],
+    "project": "prometheus",
+    "ruleId": "prometheus.scrape-classic-histograms-key-renamed.2-55-1-to-3-14-0"
   },
   {
     "project": "prometheus",

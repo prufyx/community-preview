@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 156 || len(vectors) != 156 {
+	if len(b.pack.Entries) != 158 || len(vectors) != 158 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 832 {
+	if caseCount != 842 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -120,6 +120,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				}
 				if strings.HasPrefix(vector.RuleID, "harbor.installer-with-chartmuseum-flag-removed.2-") && strings.HasSuffix(vector.RuleID, "-to-2-15") {
 					clock = time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+				}
+				if strings.HasSuffix(vector.RuleID, ".2-55-1-to-3-14-0") {
+					clock = time.Date(2026, 9, 12, 17, 29, 0, 0, time.UTC)
 				}
 				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {
@@ -508,7 +511,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 		t.Fatal("cert-manager existing check lost or double counted")
 	}
 	prometheus, err := Catalog(false, "prometheus")
-	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 12 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
+	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 14 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
 		t.Fatal("Prometheus existing check or source rule lost or double counted")
 	}
 	fluentd, err := Catalog(false, "fluentd")

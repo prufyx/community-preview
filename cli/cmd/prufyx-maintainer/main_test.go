@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -22,7 +23,7 @@ func TestMaintainerCLI_Help(t *testing.T) {
 }
 
 func TestMaintainerCLI_FlagErrorsAreSanitized(t *testing.T) {
-	tests := [][]string{{"package-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"support-inventory", "--PRIVATE_ARGUMENT_CANARY"}, {"contribution", "validate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-gate", "generate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-metadata", "--PRIVATE_ARGUMENT_CANARY"}, {"staging-receipt", "create", "--PRIVATE_ARGUMENT_CANARY"}}
+	tests := [][]string{{"export-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"package-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-publish", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-sign", "--PRIVATE_ARGUMENT_CANARY"}, {"support-inventory", "--PRIVATE_ARGUMENT_CANARY"}, {"contribution", "validate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-gate", "generate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-metadata", "--PRIVATE_ARGUMENT_CANARY"}, {"staging-receipt", "create", "--PRIVATE_ARGUMENT_CANARY"}}
 	for _, args := range tests {
 		var out, errOut bytes.Buffer
 		err := run(args, &out, &errOut)
@@ -165,5 +166,74 @@ func TestMaintainerCLI_SupportInventory_CheckAcceptedFiles(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if err = run(args, &out, &errOut); err != nil {
 		t.Fatalf("check failed: %v stderr=%q", err, errOut.String())
+	}
+}
+
+func TestMaintainerCLIExportKnowledgeWritesNewTarget(t *testing.T) {
+	output := filepath.Join(t.TempDir(), "constraints.v1.json")
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"export-knowledge", "--profile", "cncf", "--revision", "73", "--output", output}, &stdout, &stderr); err != nil {
+		t.Fatalf("export failed: %v stderr=%q", err, stderr.String())
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("unexpected output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	info, err := os.Stat(output)
+	if err != nil || info.Mode().Perm() != 0o644 {
+		t.Fatalf("output info=%v err=%v", info, err)
+	}
+	if err := run([]string{"export-knowledge", "--profile", "cncf", "--revision", "73", "--output", output}, &stdout, &stderr); err == nil {
+		t.Fatal("existing output accepted")
+	}
+}
+
+func TestMaintainerCLIKnowledgeSignRejectsNonTTYWithoutEchoingArguments(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyDir := filepath.Join(parent, "PRIVATE_PATH_CANARY")
+	readEnd, writeEnd, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalStdin := os.Stdin
+	os.Stdin = readEnd
+	defer func() {
+		os.Stdin = originalStdin
+		_ = readEnd.Close()
+		_ = writeEnd.Close()
+	}()
+	var stdout, stderr bytes.Buffer
+	expires := time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	err = run([]string{"knowledge-sign", "init", "--key-dir", keyDir, "--root-expires", expires}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("non-TTY signing initialization accepted")
+	}
+	if strings.Contains(err.Error(), "PRIVATE_PATH_CANARY") || strings.Contains(stdout.String()+stderr.String(), "PRIVATE_PATH_CANARY") || strings.Contains(stderr.String(), "Passphrase") {
+		t.Fatalf("path or prompt leaked err=%q stdout=%q stderr=%q", err, stdout.String(), stderr.String())
+	}
+	if _, statErr := os.Stat(keyDir); !os.IsNotExist(statErr) {
+		t.Fatalf("key directory changed stat=%v", statErr)
+	}
+}
+
+func TestMaintainerCLIKnowledgeSignHelpDoesNotPromptOrWrite(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"knowledge-sign", "init", "--help"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "knowledge-sign init") || stderr.Len() != 0 {
+		t.Fatalf("unexpected help stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	stdout.Reset()
+	if err := run([]string{"knowledge-sign", "sign-role", "--help"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "knowledge-sign sign-role") || stderr.Len() != 0 {
+		t.Fatalf("unexpected help stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }

@@ -247,8 +247,8 @@ func TestKnowledgeStatusExitParityForNoSelectionAndReady(t *testing.T) {
 		t.Fatalf("ready status code=%d", code)
 	}
 	var human bytes.Buffer
-	writeKnowledgeStatusHuman(&human, knowledge.Status{State: "TRUST_ADVANCED", Reason: "trusted metadata advanced beyond the selected revision", NextAction: "import a valid package matching the current trusted metadata", Freshness: "fresh"})
-	for _, want := range []string{"TRUST_ADVANCED", "trusted metadata advanced", "import a valid package"} {
+	writeKnowledgeStatusHuman(&human, knowledge.Status{State: "TRUST_ADVANCED", Reason: "trusted metadata advanced beyond the selected revision", NextAction: "import a valid package matching the current trusted metadata", Freshness: "fresh", TrustFreshness: "fresh", SourceEvidenceFreshness: "some_or_all_expired", SourceEvidenceExpiresAt: "2026-09-12T17:00:00Z"})
+	for _, want := range []string{"TRUST_ADVANCED", "trusted metadata advanced", "import a valid package", "trust freshness: fresh", "source evidence freshness: some_or_all_expired", "readiness scope: selected-store integrity only"} {
 		if !strings.Contains(human.String(), want) {
 			t.Fatalf("trust-advanced human output missing %q: %s", want, human.String())
 		}

@@ -486,6 +486,22 @@
       "role": "documentation"
     },
     {
+      "path": "cli/docs/knowledge-status-adopter.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/knowledge-export.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/knowledge-publisher.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/knowledge-signer.md",
+      "role": "documentation"
+    },
+    {
       "path": "cli/docs/upstream-contributions.md",
       "role": "documentation"
     },
