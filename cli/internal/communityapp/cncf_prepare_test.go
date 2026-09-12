@@ -151,6 +151,25 @@ func TestKyvernoPreparationPreflightAndPrivateAdmissionStaySanitized(t *testing.
 	}
 }
 
+func TestCNCFPreparationRejectsKubernetesAndCiliumFlagsBeforeInputRead(t *testing.T) {
+	privateInput := filepath.Join(t.TempDir(), "private-not-read.json")
+	base := []string{"prepare", "cncf", "--project", "kyverno", "--input", privateInput, "--container", "selected", "--from", "1.12.5", "--to", "1.13.0"}
+	for _, extra := range [][]string{
+		{"--cilium-config-map", privateInput},
+		{"--cilium-config-map-digest", "sha256:" + strings.Repeat("0", 64)},
+		{"--cilium-config-complete=false"},
+		{"--cilium-config-precedence-resolved=false"},
+		{"--cilium-distribution", "custom_build"},
+		{"--target-api-apply-required=false"},
+		{"--resource-scope-complete=false"},
+	} {
+		code, stdout, stderr := runCNCFCLI(t, append(append([]string{}, base...), extra...)...)
+		if code != ExitUsage || stdout != "" || strings.Contains(stderr, privateInput) {
+			t.Fatalf("cross-project flags admitted input: args=%q code=%d stdout=%q stderr=%q", extra, code, stdout, stderr)
+		}
+	}
+}
+
 type failedPreparationWriter struct{}
 
 func (failedPreparationWriter) Write([]byte) (int, error) {

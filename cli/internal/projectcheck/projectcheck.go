@@ -128,6 +128,8 @@ func definitions() []constraintengine.FactDefinition {
 		{ID: "component.kibana.status_page_bypass_monitor_privilege", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
 		{ID: "component.loki.compactor_legacy_shared_store_present", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
 		{ID: "component.loki.structured_metadata_requires_tsdb_v13", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
+		{ID: "component.mariadb.innodb_defragmentation_required", Component: "pkg:github/mariadb/server", Type: constraintengine.FactBool},
+		{ID: "component.mariadb.upstream_distribution", Component: "pkg:github/mariadb/server", Type: constraintengine.FactBool},
 	}
 }
 
@@ -154,7 +156,7 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 		return bundle{}, ErrIntegrity
 	}
 	b.registryDigest, b.packDigest = digest(registryRaw), digest(packRaw)
-	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 6 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
+	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 7 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
 		return bundle{}, ErrIntegrity
 	}
 	b.identities = map[string]identity{}
@@ -282,6 +284,22 @@ func Check(project string, inputRaw []byte, now time.Time) (Report, error) {
 		return Report{}, err
 	}
 	return checkWithBundle(b, project, inputRaw, now)
+}
+
+// ValidateCanonicalInput verifies a prepared neutral community-project input
+// against the compiled registry without evaluating a rule or reading external state.
+func ValidateCanonicalInput(project string, inputRaw []byte) error {
+	b, err := load()
+	if err != nil {
+		return err
+	}
+	if _, ok := b.identities[project]; !ok {
+		return ErrInvalid
+	}
+	if _, err := constraintengine.ParseInput(inputRaw, b.registry); err != nil {
+		return ErrInvalid
+	}
+	return nil
 }
 
 // CheckRule evaluates one rule selected by a native input route. The caller
@@ -423,6 +441,19 @@ func Projects() ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// Component returns the immutable compiled component identity for a project.
+func Component(project string) (string, error) {
+	b, err := load()
+	if err != nil {
+		return "", err
+	}
+	identity, ok := b.identities[project]
+	if !ok {
+		return "", ErrInvalid
+	}
+	return identity.Component, nil
 }
 
 func digest(raw []byte) string {

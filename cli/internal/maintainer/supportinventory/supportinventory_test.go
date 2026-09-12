@@ -133,6 +133,8 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 		"cortex":     {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
 		"nats":       {"--nats-config", "implemented_native_json_configuration_minimizer"},
 		"flux":       {"--native-resource", "implemented_native_rendered_resource_minimizer"},
+		"kubernetes": {"--target-api-apply-required", "implemented_native_rendered_resource_minimizer"},
+		"cilium":     {"--cilium-config-map", "implemented_native_selected_configmap_minimizer"},
 		"prometheus": {"--scrape-config", "implemented_native_selected_scrape_config_minimizer"},
 	}
 	for _, project := range document.Projects {

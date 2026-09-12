@@ -352,6 +352,15 @@
       "role": "documentation"
     },
     {
+      "path": "cli/docs/batch-checks.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/examples/batch",
+      "recursive": true,
+      "role": "example"
+    },
+    {
       "path": "cli/docs/community-project-checks.md",
       "role": "documentation"
     },

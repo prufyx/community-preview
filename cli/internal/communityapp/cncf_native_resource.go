@@ -52,7 +52,7 @@ func prometheusNativeRuleID(from, to string, alertmanager bool) string {
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
-func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, args []string) int {
+func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, kubernetesDistribution string, targetAPIApplyRequired bool, ciliumDistribution string, args []string) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
 	prometheusAlertmanagerMode := project == "prometheus" && anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
 	if project == "cloudnativepg" {
@@ -61,6 +61,10 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"nats-config", "nats-config-digest"}
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
+	} else if project == "kubernetes" {
+		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete", "distribution", "target-api-apply-required"}
+	} else if project == "cilium" {
+		allowed = []string{"cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution"}
 	} else if project == "prometheus" {
 		if prometheusAlertmanagerMode {
 			allowed = []string{"alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved"}
@@ -79,7 +83,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var selectedRuleID string
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -107,6 +111,16 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			selectedRuleID = opentelemetryLoggingRuleID
 		} else if project == "flux" {
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
+		} else if project == "kubernetes" {
+			if kubernetesDistribution != "" && kubernetesDistribution != "official_upstream" && kubernetesDistribution != "custom_build" {
+				return r.usage("invalid Kubernetes distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, from, to, kubernetesDistribution, targetAPIApplyRequired, resourceScopeComplete)
+		} else if project == "cilium" {
+			if ciliumDistribution != "" && ciliumDistribution != "official_upstream" && ciliumDistribution != "custom_build" {
+				return r.usage("invalid Cilium distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareCiliumClusterName(raw, from, to, ciliumDistribution, complete, precedenceResolved)
 		} else if prometheusAlertmanagerMode {
 			prepared, err = cncfprepare.PreparePrometheusAlertmanagerConfig(raw, from, to, complete, precedenceResolved)
 			selectedRuleID = prometheusNativeRuleID(from, to, true)

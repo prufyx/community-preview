@@ -13,7 +13,7 @@ import (
 
 func TestClosedRegistryAndScopedResults(t *testing.T) {
 	projects, err := Projects()
-	if err != nil || len(projects) != 6 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" || projects[5] != "loki" {
+	if err != nil || len(projects) != 7 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" || projects[5] != "loki" || projects[6] != "mariadb" {
 		t.Fatalf("projects=%v err=%v", projects, err)
 	}
 	now := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
@@ -430,6 +430,41 @@ func TestEvidenceExpiryReturnsUnknown(t *testing.T) {
 	report, err := Check("grafana", prepared.CanonicalInputJSON, time.Date(2026, 12, 10, 19, 30, 0, 0, time.UTC))
 	if err != nil || ClaimExit(report) != 11 || len(report.Check.Claims) != 1 || report.Check.Claims[0].ReasonCode != "RULE_EVIDENCE_STALE" {
 		t.Fatalf("expired report=%+v err=%v", report, err)
+	}
+}
+
+func TestMariaDBExactRuleOutcomesAndFreshness(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, raw string
+		now       time.Time
+		want      int
+		reason    string
+	}{
+		{"blocked-required", "[mariadb]\ninnodb_defragment=ON\n", time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC), 10, "REVIEWED_SOURCE_CONSTRAINT"},
+		{"blocked-required-absent", "[server]\nmax_connections=10\n", time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC), 10, "REVIEWED_SOURCE_CONSTRAINT"},
+		{"pass-waived-off", "[mariadbd]\ninnodb_defragment=OFF\n", time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC), 0, "REVIEWED_SOURCE_CONSTRAINT"},
+		{"stale", "[mariadbd]\ninnodb_defragment=ON\n", time.Date(2026, 12, 11, 12, 0, 0, 0, time.UTC), 11, "RULE_EVIDENCE_STALE"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require := tc.want != 0
+			if tc.name == "stale" {
+				require = true
+			}
+			prepared, err := projectprepare.PrepareMariaDBEffectiveConfig([]byte(tc.raw), projectprepare.MariaDBFrom, projectprepare.MariaDBTo, true, true, true, true, require)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := Check(projectprepare.MariaDBProject, prepared.CanonicalInputJSON, tc.now)
+			if err != nil || ClaimExit(report) != tc.want || len(report.Check.Claims) != 1 || report.Check.Claims[0].ReasonCode != tc.reason {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+			encoded, err := MarshalReport(report)
+			if err != nil || bytes.Contains(encoded, []byte("private")) || bytes.Contains(encoded, []byte("max_connections")) || bytes.Contains(encoded, []byte("innodb_defragment=ON")) {
+				t.Fatalf("report leaked private config: err=%v report=%s", err, encoded)
+			}
+		})
 	}
 }
 

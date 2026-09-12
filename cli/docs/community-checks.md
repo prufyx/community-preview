@@ -38,6 +38,29 @@ installer or inspect Harbor configuration, charts, database state, or runtime.
 Use the private-copy walkthrough in
 [`examples/cncf/harbor-installer-argv`](../examples/cncf/harbor-installer-argv/README.md).
 
+## containerd selected official runtime shim
+
+For containerd `1.7.28` to `2.0.0`, the native TOML route checks the
+`runtime_type` of one explicitly selected CRI runtime handler. It admits config
+version 2 under `plugins."io.containerd.grpc.v1.cri"` and config version 3
+under `plugins."io.containerd.cri.v1.runtime"`. The target automatically
+migrates version 2 configuration and the reviewed migration preserves
+`runtime_type`, so version 2 alone never blocks.
+
+The two removed official bundled runtime types are
+`io.containerd.runtime.v1.linux` and `io.containerd.runc.v1`.
+`io.containerd.runc.v2` clears only this selected shim-availability constraint.
+The complete, precedence-resolved, official-upstream, and
+official-bundled-runtimes-only flags are caller declarations. The last one
+means that no separately installed custom shim supplies the legacy runtime
+name. Imports, `runtime_path` overrides, custom runtime types, missing handlers,
+wrong plugin tables, or omitted declarations remain UNKNOWN. The parser does
+not read imports, search the host, run containerd or a shim, inspect a cluster,
+or prove configuration startup, container creation, or whole-upgrade behavior.
+
+See the private-copy walkthrough and BLOCKED, PASS, and UNKNOWN examples in
+[`examples/cncf/containerd-runtime-shim`](../examples/cncf/containerd-runtime-shim/README.md).
+
 ## cert-manager removed monitor values
 
 ```sh

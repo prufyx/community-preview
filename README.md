@@ -55,7 +55,7 @@ this example as proof that a cluster was converted or that traffic is safe.
 
 ## What is covered
 
-The current generated inventory reports **64 executable projects**, **110
+The current generated inventory reports **65 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
 contains the exact capabilities and source bindings.
@@ -85,7 +85,7 @@ route over existing declared facts; it does not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The original twenty-four documented scenario examples are:
+The twenty-eight documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -98,6 +98,8 @@ The original twenty-four documented scenario examples are:
 | NATS | 2.10.0 → 2.11.0 rejects ASCII spaces in supplied selected names | native JSON configuration subset |
 | Contour | 1.19.0 → 1.20.0 selected `networking.x-k8s.io/v1alpha1` resources need explicit migration | Kubernetes resource JSON |
 | CNI | spec 0.4.0 → 1.0.0 removes non-List configuration | plugin configuration JSON |
+| Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON |
+| containerd | 1.7.28 → 2.0.0 removes two selected official bundled v1 runtime shims; upstream migration preserves the selected runtime type | complete, precedence-resolved native config.toml with an explicit handler and upstream/bundled-runtime declarations |
 | Distribution | 2.8.3 → 3.0.0 removes schema 1 manifests | manifest JSON |
 | Emissary-Ingress | 3.10.0 → 4.0.1 removes `diagd --metrics-endpoint` | caller-selected argv JSON |
 | Fluent Bit | 3.2.0 → 4.0.0 requires an intended OpenTelemetry HTTP/2 setting to stay enabled | complete classic configuration plus current-default and preservation declarations |
@@ -106,8 +108,10 @@ The original twenty-four documented scenario examples are:
 | Harbor | 2.7.0 → 2.8.0 removes the installer `--with-chartmuseum` option | caller-declared complete literal installer argv JSON |
 | Kibana | 8.18.0 → 9.0.0 removes `xpack.reporting.roles.allow` | complete, precedence-resolved `kibana.yml` |
 | KubeVirt | 1.8.4 → 1.9.0 rejects interfaces with no or multiple bindings | VM/VMI JSON |
+| Kubernetes | 1.31.0 → 1.32.0 removes the selected flowcontrol v1beta3 GVKs | complete rendered target apply-set JSON with official-upstream distribution and target API apply intent |
 | Grafana Loki | 2.9.8 → 3.0.0 removes legacy compactor shared-store settings | complete, precedence-resolved native Loki YAML |
 | Grafana Loki | 2.9.8 → 3.0.0 requires `store: tsdb` and `schema: v13` when structured metadata is enabled | complete, precedence-resolved native Loki schema configuration YAML |
+| MariaDB | 10.11.8 → 11.4.2 cannot preserve the removed upstream InnoDB defragmentation behavior; the old option is accepted only as an ignored compatibility input | complete, precedence-resolved native option file with explicit upstream-distribution and behavior-requirement declarations |
 | OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 removes the selected `logging` exporter | complete, precedence-resolved native Collector YAML with declared official distribution |
@@ -117,7 +121,7 @@ The original twenty-four documented scenario examples are:
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
 Custodian and Prometheus, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
-(Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, and Grafana Loki), with the input contract
+(Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, and MariaDB), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
 an exact reviewed source contract. They do not identify a running installation.
 CNI numbers are specification editions, not a library release claim. OpenFGA's

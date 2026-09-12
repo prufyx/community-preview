@@ -39,6 +39,22 @@ func Check(project string, inputRaw []byte, now time.Time) (Report, error) {
 	return b.check(project, "", inputRaw, now)
 }
 
+// ValidateCanonicalInput verifies a prepared input against the compiled CNCF
+// registry without evaluating a rule or reading external state.
+func ValidateCanonicalInput(project string, inputRaw []byte) error {
+	b, err := load()
+	if err != nil {
+		return err
+	}
+	if !b.hasProject(project) {
+		return ErrInvalid
+	}
+	if _, err := constraintengine.ParseInput(inputRaw, b.registry); err != nil {
+		return ErrInvalid
+	}
+	return nil
+}
+
 // CheckRule evaluates one closed maintainer-selected rule. It is intended for
 // native routes whose parser inspected exactly that capability. Callers cannot
 // use it to suppress arbitrary unknown claims: the rule must belong to project.

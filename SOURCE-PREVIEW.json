@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:6567ef3d4c8c8ffa8e34059268b05f72289f47a65a9ef4b1c9a16459269aeefd",
+    "inventorySha256": "sha256:8359d46e458832e5220ba53824c46700b68a0e341708aafc88eceb9d1297df8f",
     "counts": {
-      "executableProjects": 64,
+      "executableProjects": 65,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "documentedScenarioExamples": 24
+      "documentedScenarioExamples": 28
     },
     "latestUpgradeCoverage": {
       "asOf": "2026-09-12",
@@ -73,6 +73,14 @@
       "versionKind": "CNI specification editions, not library releases",
       "rule": "non-List configuration is removed",
       "input": "plugin configuration JSON"
+    },
+    {
+      "project": "containerd",
+      "repository": "https://github.com/containerd/containerd",
+      "from": "1.7.28",
+      "to": "2.0.0",
+      "rule": "one selected official bundled v1 runtime shim is removed while config version 2 is migrated",
+      "input": "caller-supplied complete and precedence-resolved native config.toml with explicit handler and upstream/bundled-runtime declarations"
     },
     {
       "project": "contour",
@@ -225,6 +233,30 @@
       "to": "0.111.0",
       "rule": "existing logging-exporter removal constraint through a new native input route",
       "input": "caller-selected complete, precedence-resolved native Collector YAML with declared official distribution"
+    },
+    {
+      "project": "mariadb",
+      "repository": "https://github.com/MariaDB/server",
+      "from": "10.11.8",
+      "to": "11.4.2",
+      "rule": "explicitly required upstream InnoDB defragmentation behavior is unavailable; the target accepts the old option only as an ignored compatibility input",
+      "input": "caller-selected complete, precedence-resolved native server option file with declared upstream distribution and explicit true or false behavior requirement"
+    },
+    {
+      "project": "kubernetes",
+      "repository": "https://github.com/kubernetes/kubernetes",
+      "from": "1.31.0",
+      "to": "1.32.0",
+      "rule": "complete target apply set contains a removed flowcontrol.apiserver.k8s.io/v1beta3 FlowSchema or PriorityLevelConfiguration",
+      "input": "caller-selected complete rendered Kubernetes JSON apply set with official-upstream distribution and target-API-apply intent"
+    },
+    {
+      "project": "cilium",
+      "repository": "https://github.com/cilium/cilium",
+      "from": "1.16.19",
+      "to": "1.17.18",
+      "rule": "whitespace-trimmed selected ConfigMap cluster-name violates target syntax",
+      "input": "caller-selected complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON"
     }
   ],
   "resultScope": [

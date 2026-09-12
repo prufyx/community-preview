@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-12.10",
+  "revision": "cncf-2026-09-12.13",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:8d93486f3895a6a99b07779050a464be40ef99a89bee132462fb5a75d9b973fb",
+  "registryDigest": "sha256:1b7d145692318baef5d26f48467f066fe1b40268ceeca11d8f0d1c5bb5a20086",
   "entries": [
     {
       "description": "Argo CD v3.5.2 uses Helm 4; this checks one effective official Helm repository with OCI enabled and caller-declared plain-HTTP transport for the documented force-HTTP flag requirement and direct-repository conflicting TLS flags.",
@@ -1050,6 +1050,92 @@
     },
     {
       "project": "cilium",
+      "description": "Cilium v1.17.18 rejects an invalid effective cluster-name after trimming the ConfigMap-mounted value. This narrow check evaluates only a caller-selected complete, precedence-resolved official-upstream ConfigMap; it does not claim ClusterMesh, networking, name-collision, runtime, or whole-upgrade safety.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.cilium.invalid_effective_cluster_name",
+          "component": "pkg:github/cilium/cilium",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the effective literal cluster-name is invalid after target-equivalent whitespace trimming: empty, more than 32 bytes, non-lowercase-ASCII-alphanumeric/dash, or non-alphanumeric first or last byte. It is declared only for one caller-selected complete, precedence-resolved official-upstream v1 ConfigMap."
+        }
+      ],
+      "rule": {
+        "id": "cilium.cluster-name-invalid.1-16-19-to-1-17-18",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/cilium/cilium",
+          "from": "1.16.19",
+          "to": "1.17.18"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/cilium/cilium",
+          "factId": "component.cilium.invalid_effective_cluster_name",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T10:00:00Z",
+          "validUntil": "2026-12-11T10:00:00Z",
+          "sources": [
+            {
+              "id": "source-cilium-1-16-19-cluster-name-log",
+              "url": "https://github.com/cilium/cilium/blob/011fab6e7b798edd17e0337307dc034ed4916653/pkg/clustermesh/types/option.go",
+              "revision": "011fab6e7b798edd17e0337307dc034ed4916653",
+              "contentDigest": "sha256:1c3ce195c92fcaaafb49625e8f768c90c166e65f42b077fd2f1900a732a19932",
+              "startLine": 85,
+              "endLine": 94
+            },
+            {
+              "id": "source-cilium-1-17-18-cluster-name-error",
+              "url": "https://github.com/cilium/cilium/blob/e5796ad1eb6003acf44d8f6a7dc726699a37c1c0/pkg/clustermesh/types/option.go",
+              "revision": "e5796ad1eb6003acf44d8f6a7dc726699a37c1c0",
+              "contentDigest": "sha256:2534c98967e32d247328b58acdb91e51216b031246fdede59a05807e81d59c6e",
+              "startLine": 83,
+              "endLine": 91
+            },
+            {
+              "id": "source-cilium-1-17-18-cluster-name-target-boundary",
+              "url": "https://github.com/cilium/cilium/blob/e5796ad1eb6003acf44d8f6a7dc726699a37c1c0/pkg/clustermesh/types/types.go",
+              "revision": "e5796ad1eb6003acf44d8f6a7dc726699a37c1c0",
+              "contentDigest": "sha256:ce889418c28eece42a0ef7409faec4dc0644540cb8419e0930794462b0ed3189",
+              "startLine": 64,
+              "endLine": 79
+            },
+            {
+              "id": "source-cilium-1-17-18-cluster-name-target-validation",
+              "url": "https://github.com/cilium/cilium/blob/e5796ad1eb6003acf44d8f6a7dc726699a37c1c0/pkg/option/config.go",
+              "revision": "e5796ad1eb6003acf44d8f6a7dc726699a37c1c0",
+              "contentDigest": "sha256:a971bc73778618865e81c6cd641353608bbfd594854324e71160249689423a0d",
+              "startLine": 2693,
+              "endLine": 2703
+            },
+            {
+              "id": "source-cilium-1-17-18-configmap-01-trim",
+              "url": "https://github.com/cilium/cilium/blob/e5796ad1eb6003acf44d8f6a7dc726699a37c1c0/pkg/option/config.go",
+              "revision": "e5796ad1eb6003acf44d8f6a7dc726699a37c1c0",
+              "contentDigest": "sha256:a971bc73778618865e81c6cd641353608bbfd594854324e71160249689423a0d",
+              "startLine": 2784,
+              "endLine": 2784
+            },
+            {
+              "id": "source-cilium-1-17-18-configmap-02-load",
+              "url": "https://github.com/cilium/cilium/blob/e5796ad1eb6003acf44d8f6a7dc726699a37c1c0/pkg/option/config.go",
+              "revision": "e5796ad1eb6003acf44d8f6a7dc726699a37c1c0",
+              "contentDigest": "sha256:a971bc73778618865e81c6cd641353608bbfd594854324e71160249689423a0d",
+              "startLine": 2874,
+              "endLine": 2874
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Set cluster-name to a nonempty lower-case ASCII alphanumeric-or-dash value of at most 32 bytes with alphanumeric first and last bytes, then recheck the complete precedence-resolved target ConfigMap."
+      }
+    },
+    {
+      "project": "cilium",
       "description": "Cilium v1.19.7 CNP and CCNP CRD schemas require fromRequires/toRequires arrays to be empty (maxItems: 0). This narrow check evaluates only an operator-declared complete relevant set; it does not claim support-removal history, API-server/runtime behavior, or whole-upgrade safety.",
       "requiredFacts": [
         {
@@ -1942,6 +2028,122 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Use a CRI v1 client with containerd 2.0 and validate the actual CRI endpoint separately."
+      }
+    },
+    {
+      "project": "containerd",
+      "description": "containerd 2.0.0 removes the official io.containerd.runtime.v1.linux and io.containerd.runc.v1 shims. This checks one explicitly selected effective CRI runtime handler only when the caller binds the configuration to the upstream distribution and official bundled runtimes without an external runtime_path override.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.containerd.official_bundled_runtimes_only",
+          "component": "pkg:github/containerd/containerd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller declares that only the reviewed official containerd runtime bundle is available, without a separately installed custom legacy shim."
+        },
+        {
+          "side": "proposed",
+          "id": "component.containerd.official_upstream_distribution",
+          "component": "pkg:github/containerd/containerd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller binds the target to the reviewed upstream containerd distribution."
+        },
+        {
+          "side": "proposed",
+          "id": "component.containerd.selected_runtime_uses_removed_official_shim",
+          "component": "pkg:github/containerd/containerd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the explicitly selected CRI runtime handler uses io.containerd.runtime.v1.linux or io.containerd.runc.v1 in the effective version 2 or version 3 configuration."
+        }
+      ],
+      "rule": {
+        "id": "containerd.selected-official-runtime-shim-removed.1-7-28-to-2-0-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/containerd/containerd",
+          "from": "1.7.28",
+          "to": "2.0.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/containerd/containerd",
+          "factId": "component.containerd.selected_runtime_uses_removed_official_shim",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/containerd/containerd",
+            "factId": "component.containerd.official_bundled_runtimes_only",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/containerd/containerd",
+            "factId": "component.containerd.official_upstream_distribution",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T12:00:00Z",
+          "validUntil": "2026-12-11T12:00:00Z",
+          "sources": [
+            {
+              "id": "containerd-v1-7-28-runc-v1-bundled",
+              "url": "https://github.com/containerd/containerd/blob/b98a3aace656320842a23f4a392a33f46af97866/cmd/containerd-shim-runc-v1/main.go",
+              "revision": "b98a3aace656320842a23f4a392a33f46af97866",
+              "contentDigest": "sha256:1a2ac61881b105bc2f4a1b4d284d1f64e7f1526af38612a1bc91dbc55b2e1e9f",
+              "startLine": 21,
+              "endLine": 28
+            },
+            {
+              "id": "containerd-v1-7-28-runtime-v1-linux-bundled",
+              "url": "https://github.com/containerd/containerd/blob/b98a3aace656320842a23f4a392a33f46af97866/runtime/v1/linux/runtime.go",
+              "revision": "b98a3aace656320842a23f4a392a33f46af97866",
+              "contentDigest": "sha256:56d09e531533d25248f7a3950665e4ee06615c5a7dad69e3839ce179081630f5",
+              "startLine": 56,
+              "endLine": 83
+            },
+            {
+              "id": "containerd-v2-0-0-config-v2-migration",
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/docs/containerd-2.0.md",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "contentDigest": "sha256:45961feeb1ea6f9140991c4c99a2ca9f9c98c1c449721fb2735a58deec36d729",
+              "startLine": 35,
+              "endLine": 37
+            },
+            {
+              "id": "containerd-v2-0-0-cri-runtime-migration-copy",
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/plugins/cri/runtime/plugin.go",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "contentDigest": "sha256:ba6eca750068afaef430942ff39cdd73b72663d384c690f05d31df1c2ea7afb0",
+              "startLine": 54,
+              "endLine": 65
+            },
+            {
+              "id": "containerd-v2-0-0-cri-runtime-migration-preserves-runtime-type",
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/plugins/cri/runtime/plugin.go",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "contentDigest": "sha256:ba6eca750068afaef430942ff39cdd73b72663d384c690f05d31df1c2ea7afb0",
+              "startLine": 201,
+              "endLine": 217
+            },
+            {
+              "id": "containerd-v2-0-0-removed-official-runtimes",
+              "url": "https://github.com/containerd/containerd/blob/207ad711eabd375a01713109a8a197d197ff6542/docs/containerd-2.0.md",
+              "revision": "207ad711eabd375a01713109a8a197d197ff6542",
+              "contentDigest": "sha256:45961feeb1ea6f9140991c4c99a2ca9f9c98c1c449721fb2735a58deec36d729",
+              "startLine": 123,
+              "endLine": 125
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Change the selected handler to io.containerd.runc.v2, or explicitly provide and verify a custom shim outside the official bundle; then separately validate runtime creation and rollback."
       }
     },
     {
@@ -7677,6 +7879,52 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "For a legacy observation, replace the import with `from kfp import dsl` and the bare decorator with `@dsl.component`; for `dsl_component`, retain that form. Separately validate inputs, outputs, dependencies, base image, compilation, backend, and runtime."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.32 stops serving FlowSchema and PriorityLevelConfiguration through flowcontrol.apiserver.k8s.io/v1beta3. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains either documented flowcontrol.apiserver.k8s.io/v1beta3 kind."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.flowcontrol-v1beta3-removed.1-31-0-to-1-32-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.31.0",
+          "to": "1.32.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T10:00:00Z",
+          "validUntil": "2026-12-11T10:00:00Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v132-flowcontrol-removal",
+              "url": "https://github.com/kubernetes/website/blob/4e63ceb05c36a5db816c3244856a2996ddc23793/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "4e63ceb05c36a5db816c3244856a2996ddc23793",
+              "contentDigest": "sha256:e8713b66cc6e8778589ad721d4aa36e390d1095ad2ad9e86db2d6e0e42bbec4b",
+              "startLine": 23,
+              "endLine": 34
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named FlowSchema or PriorityLevelConfiguration manifest to flowcontrol.apiserver.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
       }
     },
     {

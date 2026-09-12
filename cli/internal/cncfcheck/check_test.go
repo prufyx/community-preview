@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 158 || len(vectors) != 158 {
+	if len(b.pack.Entries) != 161 || len(vectors) != 161 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 842 {
+	if caseCount != 855 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -80,6 +80,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				}
 				if vector.Project == "opentelemetry" {
 					clock = time.Date(2026, 9, 12, 2, 35, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "containerd.selected-official-runtime-shim-removed.1-7-28-to-2-0-0" {
+					clock = time.Date(2026, 9, 12, 12, 30, 0, 0, time.UTC)
 				}
 				if vector.RuleID == "fluentd.z-literal-treatment.1-17-1-to-1-18-0" || vector.RuleID == "prometheus.alertmanager-api-v1-removed.3-1" {
 					clock = time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC)
@@ -113,6 +116,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 					clock = time.Date(2026, 9, 12, 9, 34, 0, 0, time.UTC)
 				}
 				if strings.HasPrefix(vector.RuleID, "flux.latest-beta-api-removal.") {
+					clock = time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "kubernetes.flowcontrol-v1beta3-removed.1-31-0-to-1-32-0" || vector.RuleID == "cilium.cluster-name-invalid.1-16-19-to-1-17-18" {
 					clock = time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
 				}
 				if strings.HasPrefix(vector.RuleID, "jaeger.explicit-config-required-for-non-memory.target.") {

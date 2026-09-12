@@ -246,9 +246,10 @@ func TestSyntheticGraduatedCNCFJourneys(t *testing.T) {
 			},
 		},
 		{
-			name:    "containerd CRI",
-			project: "containerd",
-			fixture: "containerd-input.json",
+			name:      "containerd CRI",
+			project:   "containerd",
+			fixture:   "containerd-input.json",
+			multiRule: true,
 			pass: func(document map[string]any) {
 				setProposedEnumFact(t, document, "component.containerd.cri_api", "v1")
 			},
@@ -402,7 +403,11 @@ func TestSyntheticGraduatedCNCFJourneys(t *testing.T) {
 					if info.Mode().Perm() != 0o600 {
 						t.Fatalf("input mode=%o, want 0600", info.Mode().Perm())
 					}
-					args := []string{"check", "cncf", "--project", journey.project, "--input", path, "--input-digest", cncfDigest(input), "--now", "2026-09-10T04:00:00Z", "--format", "json"}
+					now := "2026-09-10T04:00:00Z"
+					if journey.project == "containerd" {
+						now = "2026-09-12T12:30:00Z"
+					}
+					args := []string{"check", "cncf", "--project", journey.project, "--input", path, "--input-digest", cncfDigest(input), "--now", now, "--format", "json"}
 					code, stdout, stderr := runCNCFCLI(t, args...)
 					wantCode := tc.wantCode
 					if journey.multiRule {

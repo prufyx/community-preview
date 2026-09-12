@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-source-rule-pack/v1alpha1",
-  "revision": "community-project-rules-2026-09-12.5",
+  "revision": "community-project-rules-2026-09-12.6",
   "policyId": "community-project-source-preview-v1",
   "policyDigest": "sha256:16b3a461dfc639f997c6f048d4dc6f0cf5bda3c02c12fdc4f390bf52fc2ff144",
   "entries": [
@@ -2416,6 +2416,108 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Use schema v13 with tsdb, or disable allow_structured_metadata, then separately review Loki storage, index, retention, and data-access migration guidance."
+      }
+    },
+    {
+      "project": "mariadb",
+      "description": "MariaDB 10.11.8 provides InnoDB defragmentation while 11.4.2 registers innodb-defragment only as a removed compatibility option that warns and does nothing. This checks only an explicit caller requirement for that removed behavior in the exact upstream transition; option presence alone never blocks startup.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.mariadb.innodb_defragmentation_required",
+          "component": "pkg:github/mariadb/server",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly requires InnoDB defragmentation behavior to remain available in the proposed MariaDB target."
+        },
+        {
+          "side": "proposed",
+          "id": "component.mariadb.upstream_distribution",
+          "component": "pkg:github/mariadb/server",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly binds the selected configuration to the reviewed upstream MariaDB distribution."
+        }
+      ],
+      "rule": {
+        "id": "mariadb.innodb-defragmentation-required.10-11-8-to-11-4-2",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/mariadb/server",
+          "from": "10.11.8",
+          "to": "11.4.2"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/mariadb/server",
+          "factId": "component.mariadb.innodb_defragmentation_required",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/mariadb/server",
+            "factId": "component.mariadb.upstream_distribution",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T12:00:00Z",
+          "validUntil": "2026-12-11T12:00:00Z",
+          "sources": [
+            {
+              "id": "mariadb-v10-11-8-innodb-defragment-definition",
+              "url": "https://github.com/MariaDB/server/blob/3a069644682e336e445039e48baae9693f9a08ee/storage/innobase/handler/ha_innodb.cc",
+              "revision": "3a069644682e336e445039e48baae9693f9a08ee",
+              "contentDigest": "sha256:d4044534167584837501ecbc49f0ab18d772016ea48a21f8590dc74ff048c2d8",
+              "startLine": 19108,
+              "endLine": 19114
+            },
+            {
+              "id": "mariadb-v10-11-8-innodb-defragment-registration",
+              "url": "https://github.com/MariaDB/server/blob/3a069644682e336e445039e48baae9693f9a08ee/storage/innobase/handler/ha_innodb.cc",
+              "revision": "3a069644682e336e445039e48baae9693f9a08ee",
+              "contentDigest": "sha256:d4044534167584837501ecbc49f0ab18d772016ea48a21f8590dc74ff048c2d8",
+              "startLine": 19771,
+              "endLine": 19778
+            },
+            {
+              "id": "mariadb-v11-4-2-innodb-registration-gap",
+              "url": "https://github.com/MariaDB/server/blob/3fca5ed772fb75e3e57c507edef2985f8eba5b12/storage/innobase/handler/ha_innodb.cc",
+              "revision": "3fca5ed772fb75e3e57c507edef2985f8eba5b12",
+              "contentDigest": "sha256:b6a105b287042ef653acb036f881f82eefd1c002454fa7e04381df4d2bd771d2",
+              "startLine": 19704,
+              "endLine": 19723
+            },
+            {
+              "id": "mariadb-v11-4-2-removed-option-handler",
+              "url": "https://github.com/MariaDB/server/blob/3fca5ed772fb75e3e57c507edef2985f8eba5b12/sql/mysqld.cc",
+              "revision": "3fca5ed772fb75e3e57c507edef2985f8eba5b12",
+              "contentDigest": "sha256:0f9cb54b1e8bf459124ee41522e7147841751a9ed17c62fb2dc2afa1bcf328bd",
+              "startLine": 8049,
+              "endLine": 8052
+            },
+            {
+              "id": "mariadb-v11-4-2-removed-option-macro",
+              "url": "https://github.com/MariaDB/server/blob/3fca5ed772fb75e3e57c507edef2985f8eba5b12/sql/mysqld.cc",
+              "revision": "3fca5ed772fb75e3e57c507edef2985f8eba5b12",
+              "contentDigest": "sha256:0f9cb54b1e8bf459124ee41522e7147841751a9ed17c62fb2dc2afa1bcf328bd",
+              "startLine": 4836,
+              "endLine": 4838
+            },
+            {
+              "id": "mariadb-v11-4-2-removed-option-registration",
+              "url": "https://github.com/MariaDB/server/blob/3fca5ed772fb75e3e57c507edef2985f8eba5b12/sql/mysqld.cc",
+              "revision": "3fca5ed772fb75e3e57c507edef2985f8eba5b12",
+              "contentDigest": "sha256:0f9cb54b1e8bf459124ee41522e7147841751a9ed17c62fb2dc2afa1bcf328bd",
+              "startLine": 5273,
+              "endLine": 5278
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Choose and verify an alternative to removed InnoDB defragmentation, or explicitly waive that behavior requirement. Deleting the ignored option alone does not restore the feature."
       }
     }
   ]

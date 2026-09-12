@@ -133,6 +133,13 @@ func TestExternalKnowledgeEndToEndEmptyThenActiveAndNoFallback(t *testing.T) {
 	}
 }
 
+func TestEvaluateVerifiedRejectsUnissuedCapability(t *testing.T) {
+	_, err := cncfknowledge.EvaluateVerified(knowledge.VerifiedRevision{}, cncfknowledge.CheckInput{Project: "kyverno", Input: []byte(kyvernoInputFalse), InputDigest: digest([]byte(kyvernoInputFalse))})
+	if !errors.Is(err, cncfknowledge.ErrIntegrity) {
+		t.Fatalf("unissued capability error=%v", err)
+	}
+}
+
 func mustMarshalReport(t *testing.T, report cncfknowledge.Report) []byte {
 	t.Helper()
 	raw, err := cncfknowledge.MarshalReport(report)

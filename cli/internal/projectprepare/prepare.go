@@ -129,6 +129,11 @@ func PrepareEffectiveConfig(project string, raw []byte, from, to string, complet
 	case LokiProject:
 		component, factID = LokiComponent, LokiFact
 		found, supported, err = lokiCompactorLegacySharedStore(raw)
+	case MariaDBProject:
+		// The generic entry point cannot bind the upstream-distribution guard.
+		// Call PrepareMariaDBEffectiveConfig for this project so the guard is
+		// represented in the canonical input rather than inferred.
+		return PrepareMariaDBEffectiveConfig(raw, from, to, complete, precedenceResolved, false, false, false)
 	default:
 		return Prepared{}, ErrInvalid
 	}

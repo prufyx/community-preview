@@ -24,6 +24,8 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project argo-cd --input FILE --from 3.0.23|3.1.16|3.2.12|3.3.14|3.4.8 --to 3.5.2 --distribution official_upstream|custom_build --repository-settings-resolved true|false --repository-uses-plain-http true|false [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.6 --to 1.19.0 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.13 --to 1.19.7 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project cilium --cilium-config-map FILE --from 1.16.19 --to 1.17.18 --cilium-distribution official_upstream|custom_build --cilium-config-complete --cilium-config-precedence-resolved [--cilium-config-map-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project kubernetes --input FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project metallb|contour --input FILE --from VERSION --to VERSION [--input-digest SHA256] [--format human|json|input]
@@ -39,6 +41,7 @@ func (r runtime) prepareCNCF(args []string) int {
 	   or: prufyx prepare cncf --project fluentd --input FILE --from 1.17.1 --to 1.18.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project distribution --input FILE --from 2.8.3 --to 3.0.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project container-network-interface-cni --input FILE --from 0.4.0 --to 1.0.0 --operation configuration-spec-migration [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project containerd --input FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only [--input-digest SHA256] [--format human|json|input]
 
 Prepare a minimized declaration from one private local supported resource JSON or declaration.
 Select the Kyverno container explicitly. A scoped result requires an explicit
@@ -135,6 +138,14 @@ and explicit configuration-spec-migration intent. Its versions identify the
 specification, not the CNI Go library, plugins, or a runtime. It checks only
 single-plugin versus plugin-list configuration shape.
 
+containerd accepts one private effective config.toml and one explicit CRI
+runtime-handler selector. Config versions 2 and 3 are supported at their exact
+reviewed plugin table paths; version 2 is migrated by containerd 2.0 and is not
+itself a blocker. The adapter retains only whether the selected runtime_type is
+one of the two removed official shims. Imports, custom runtime types, missing
+handlers, runtime_path overrides, custom distributions, and separately supplied
+shims remain UNKNOWN.
+
 --format input writes only the canonical declaration for check cncf. Redirect
 with umask 077 to a new file so it remains private. --format json also includes
 the source digest, preparation reason and omissions, without raw workload data.
@@ -143,8 +154,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	fs := flag.NewFlagSet("prepare cncf", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, harbor, openfga, opencost, cloud-custodian, fluentd, distribution, or container-network-interface-cni")
-	input := fs.String("input", "", "private proposed input JSON")
+	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, kubernetes, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, harbor, openfga, opencost, cloud-custodian, fluentd, distribution, container-network-interface-cni, or containerd")
+	input := fs.String("input", "", "private proposed input JSON or supported native configuration")
 	container := fs.String("container", "", "explicit local Kyverno container selector")
 	from := fs.String("from", "", "actual declared current component version")
 	to := fs.String("to", "", "actual declared proposed component version")
@@ -155,14 +166,41 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	repositorySettingsResolved := fs.String("repository-settings-resolved", "", "explicit Argo CD repository setting completeness and precedence: true or false")
 	repositoryUsesPlainHTTP := fs.String("repository-uses-plain-http", "", "explicit selected Argo CD repository transport intent: true or false")
 	completeCNPCCNPSet := fs.String("complete-cnp-ccnp-set", "", "explicit Cilium CNP and CCNP policy-set completeness: true or false")
+	ciliumConfigMap := fs.String("cilium-config-map", "", "private selected Cilium v1 ConfigMap YAML or JSON")
+	ciliumConfigMapPin := fs.String("cilium-config-map-digest", "", "optional exact Cilium ConfigMap SHA-256")
+	ciliumConfigComplete := fs.Bool("cilium-config-complete", false, "caller declaration that selected Cilium ConfigMap is complete")
+	ciliumConfigPrecedenceResolved := fs.Bool("cilium-config-precedence-resolved", false, "caller declaration that Cilium ConfigMap precedence is resolved")
+	ciliumDistribution := fs.String("cilium-distribution", "", "Cilium distribution: official_upstream or custom_build")
+	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that selected rendered resource set is complete")
+	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that selected resource set is required for target API apply")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
 	jaegerOfficialDistribution := fs.String("official-jaeger-distribution", "", "explicit Jaeger official distribution declaration: true or false")
 	operation := fs.String("operation", "", "explicit operation for profiles that require one")
 	effectiveConfigComplete := fs.Bool("effective-config-complete", false, "caller declaration that OpenFGA file, environment, and flag precedence is resolved")
+	containerdRuntimeHandler := fs.String("runtime-handler", "", "explicit selected containerd CRI runtime handler")
+	containerdConfigComplete := fs.Bool("containerd-config-complete", false, "caller declaration that the selected containerd configuration is complete")
+	containerdConfigPrecedenceResolved := fs.Bool("containerd-config-precedence-resolved", false, "caller declaration that containerd configuration precedence is resolved")
+	containerdOfficialUpstream := fs.Bool("containerd-official-upstream", false, "bind the target to the reviewed upstream containerd distribution")
+	containerdOfficialBundledRuntimesOnly := fs.Bool("containerd-official-bundled-runtimes-only", false, "declare that no separately installed custom shim supplies the selected runtime")
 	pin := fs.String("input-digest", "", "optional exact source file SHA-256")
 	format := fs.String("format", "human", "human, json or input")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
 		return r.usage("invalid CNCF preparation arguments; use --help")
+	}
+	if *project != "cilium" && anyFlagProvided(args, "cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution") {
+		return r.usage("Cilium ConfigMap flags require Cilium preparation")
+	}
+	if *project != "kubernetes" && flagProvided(args, "target-api-apply-required") {
+		return r.usage("--target-api-apply-required is only valid for Kubernetes preparation")
+	}
+	if *project != "kubernetes" && flagProvided(args, "resource-scope-complete") {
+		return r.usage("--resource-scope-complete is only valid for Kubernetes preparation")
+	}
+	if *project == "cilium" && *ciliumConfigMap != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "cilium-config-map-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*ciliumConfigMapPin)) {
+			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *ciliumConfigMap, *ciliumConfigMapPin
 	}
 	if concreteCNCFPreparationProject(*project) && (fs.NArg() != 0 || *input == "" || *from == "" || *to == "" || (*format != "human" && *format != "json" && *format != "input") || (flagProvided(args, "input-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*pin))) {
 		if *project == "linkerd" {
@@ -173,6 +211,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "cilium" {
 			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "kubernetes" {
+			return r.fail("KUBERNETES_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		if *project == "jaeger" {
 			return r.fail("JAEGER_PREPARATION_INPUT_INVALID", ExitUsage)
@@ -196,6 +237,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	if *project != "argo-cd" && flagProvided(args, "repository-uses-plain-http") {
 		return r.usage("--repository-uses-plain-http is only valid for Argo CD preparation")
+	}
+	containerdFlags := anyFlagProvided(args, "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only")
+	if *project != "containerd" && containerdFlags {
+		return r.usage("containerd configuration flags require project containerd")
 	}
 	// Validate project-specific flags before opening the private input. This keeps
 	// malformed cross-project invocations from admitting any local file.
@@ -233,10 +278,16 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "cilium":
-		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
-			flagProvided(args, "operation") ||
+		configMapMode := *ciliumConfigMap != ""
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") ||
+			(!configMapMode && (flagProvided(args, "distribution") || flagProvided(args, "cilium-config-map") || flagProvided(args, "cilium-config-map-digest") || flagProvided(args, "cilium-config-complete") || flagProvided(args, "cilium-config-precedence-resolved") || flagProvided(args, "cilium-distribution") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required"))) ||
+			(configMapMode && (flagProvided(args, "distribution") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || *ciliumDistribution == "" || (*ciliumDistribution != "official_upstream" && *ciliumDistribution != "custom_build"))) ||
 			(flagProvided(args, "complete-cnp-ccnp-set") && *completeCNPCCNPSet != "true" && *completeCNPCCNPSet != "false") {
 			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "kubernetes":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "cilium-config-map") || flagProvided(args, "cilium-config-map-digest") || flagProvided(args, "cilium-config-complete") || flagProvided(args, "cilium-config-precedence-resolved") || flagProvided(args, "cilium-distribution") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || (*distribution != "official_upstream" && *distribution != "custom_build") {
+			return r.fail("KUBERNETES_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "etcd":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -267,6 +318,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "container-network-interface-cni":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || cncfOptionProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") {
 			return r.fail("CNI_SPEC_CONFIGURATION_INPUT_INVALID", ExitUsage)
+		}
+	case "containerd":
+		if *containerdRuntimeHandler == "" || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || flagProvided(args, "effective-config-complete") {
+			return r.fail("CONTAINERD_CONFIG_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "openfga":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -331,12 +386,18 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			prepared, err = cncfprepare.PrepareArgoCD(raw, *from, *to, required)
 		}
 	case "cilium":
-		var complete *bool
-		if *completeCNPCCNPSet != "" {
-			value := *completeCNPCCNPSet == "true"
-			complete = &value
+		if *ciliumConfigMap != "" {
+			prepared, err = cncfprepare.PrepareCiliumClusterName(raw, *from, *to, *ciliumDistribution, *ciliumConfigComplete, *ciliumConfigPrecedenceResolved)
+		} else {
+			var complete *bool
+			if *completeCNPCCNPSet != "" {
+				value := *completeCNPCCNPSet == "true"
+				complete = &value
+			}
+			prepared, err = cncfprepare.PrepareCilium(raw, *from, *to, complete)
 		}
-		prepared, err = cncfprepare.PrepareCilium(raw, *from, *to, complete)
+	case "kubernetes":
+		prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, *from, *to, *distribution, *targetAPIApplyRequired, *resourceScopeComplete)
 	case "etcd":
 		prepared, err = cncfprepare.PrepareEtcd(raw, *from, *to)
 	case "jaeger":
@@ -360,6 +421,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareDistributionManifest(raw, *from, *to)
 	case "container-network-interface-cni":
 		prepared, err = cncfprepare.PrepareCNISpecConfiguration(raw, *from, *to, *operation)
+	case "containerd":
+		prepared, err = cncfprepare.PrepareContainerdConfig(raw, *containerdRuntimeHandler, *from, *to, *containerdConfigComplete, *containerdConfigPrecedenceResolved, *containerdOfficialUpstream, *containerdOfficialBundledRuntimesOnly)
 	case "emissary-ingress":
 		prepared, err = cncfprepare.PrepareEmissary(raw, *from, *to)
 	case "harbor":
@@ -454,6 +517,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Argo CD"
 	} else if label == "cilium" {
 		label = "Cilium"
+	} else if label == "kubernetes" {
+		label = "Kubernetes"
 	} else if label == "jaeger" {
 		label = "Jaeger"
 	} else if label == "metallb" {
@@ -511,7 +576,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {

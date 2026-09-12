@@ -15,8 +15,8 @@ import (
 var projectDigestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type projectArguments struct {
-	project, config, schemaConfig, workload, osdMetadata, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, now, format                                                                  string
-	complete, precedenceResolved, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled, requireHTTP2, fullStatusWithoutMonitor, fullStatusWithoutMonitorDeclared bool
+	project, config, schemaConfig, workload, osdMetadata, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, now, format, requireInnoDBDefragmentation                                                                                                string
+	complete, precedenceResolved, upstreamDistribution, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled, requireHTTP2, fullStatusWithoutMonitor, fullStatusWithoutMonitorDeclared, requireInnoDBDefragmentationDeclared bool
 }
 
 func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
@@ -39,6 +39,8 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.StringVar(&result.format, "format", "human", "human, json, or input")
 	fs.BoolVar(&result.complete, "effective-config-complete", false, "declare complete effective configuration")
 	fs.BoolVar(&result.precedenceResolved, "precedence-resolved", false, "declare environment and CLI precedence resolved")
+	fs.BoolVar(&result.upstreamDistribution, "upstream-distribution", false, "declare the reviewed upstream project distribution")
+	fs.StringVar(&result.requireInnoDBDefragmentation, "require-innodb-defragmentation", "", "explicit true or false requirement for removed InnoDB defragmentation behavior")
 	fs.BoolVar(&result.useReviewedTargetDefault, "use-reviewed-target-default", false, "explicitly use the reviewed target default for an omitted Loki setting")
 	fs.BoolVar(&result.currentDefaultWasUsed, "current-default-was-used", false, "declare that the reviewed current default was used")
 	fs.BoolVar(&result.preserveHTTP2Enabled, "preserve-http2-enabled", false, "declare intent to preserve an enabled HTTP/2 setting")
@@ -50,6 +52,10 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 		return projectArguments{}, false
 	}
 	result.fullStatusWithoutMonitorDeclared = flagProvided(args, "full-status-without-monitor-required")
+	result.requireInnoDBDefragmentationDeclared = flagProvided(args, "require-innodb-defragmentation")
+	if result.requireInnoDBDefragmentationDeclared && result.requireInnoDBDefragmentation != "true" && result.requireInnoDBDefragmentation != "false" {
+		return projectArguments{}, false
+	}
 	modes := 0
 	for _, path := range []string{result.config, result.schemaConfig, result.workload, result.osdMetadata} {
 		if path != "" {
@@ -77,6 +83,9 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 		}
 	}
 	if result.project != projectprepare.KibanaProject && anyFlagProvided(args, "full-status-without-monitor-required") {
+		return projectArguments{}, false
+	}
+	if result.project != projectprepare.MariaDBProject && anyFlagProvided(args, "upstream-distribution", "require-innodb-defragmentation") {
 		return projectArguments{}, false
 	}
 	if result.project == projectprepare.KibanaProject && anyFlagProvided(args, "full-status-without-monitor-required") && (result.to != "9.5.3" || !projectprepare.KibanaLatestOrigin(result.from)) {
@@ -111,6 +120,7 @@ func (r runtime) prepareProject(args []string) int {
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false [--effective-config-digest SHA256] [--format human|json|input]")
 		return ExitOK
 	}
 	request, ok := parseProjectArguments(args, false)
@@ -170,6 +180,7 @@ func (r runtime) project(args []string) int {
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "This preview is embedded-only. --knowledge-db, --profile, and replay flags are not supported for community projects.")
 		return ExitOK
 	}
@@ -265,6 +276,8 @@ func (r runtime) prepareProjectInput(request projectArguments) (projectprepare.P
 			}
 		} else if request.project == projectprepare.KibanaProject && request.to == "9.5.3" && projectprepare.KibanaLatestOrigin(request.from) {
 			prepared, err = projectprepare.PrepareKibanaStatusPage(raw, request.from, request.to, request.complete, request.precedenceResolved, request.fullStatusWithoutMonitorDeclared, request.fullStatusWithoutMonitor)
+		} else if request.project == projectprepare.MariaDBProject {
+			prepared, err = projectprepare.PrepareMariaDBEffectiveConfig(raw, request.from, request.to, request.complete, request.precedenceResolved, request.upstreamDistribution, request.requireInnoDBDefragmentationDeclared, request.requireInnoDBDefragmentation == "true")
 		} else {
 			prepared, err = projectprepare.PrepareEffectiveConfig(request.project, raw, request.from, request.to, request.complete, request.precedenceResolved)
 		}

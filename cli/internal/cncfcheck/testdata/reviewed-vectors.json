@@ -1571,6 +1571,32 @@
   },
   {
     "project": "cilium",
+    "ruleId": "cilium.cluster-name-invalid.1-16-19-to-1-17-18",
+    "cases": [
+      {
+        "name": "valid-effective-name",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": false}]}]}},
+        "status": "PASS"
+      },
+      {
+        "name": "invalid-effective-name",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": true}]}]}},
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing-effective-name-fact",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": []}]}},
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside-reviewed-endpoint",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.20", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": true}]}]}},
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "cilium",
     "ruleId": "cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7",
     "cases": [
       {
@@ -2995,6 +3021,217 @@
                     "id": "component.containerd.cri_api",
                     "state": "declared",
                     "enumValue": "v1alpha2"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "containerd",
+    "ruleId": "containerd.selected-official-runtime-shim-removed.1-7-28-to-2-0-0",
+    "cases": [
+      {
+        "name": "runc-v2-pass",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "1.7.28",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "2.0.0",
+                "facts": [
+                  {
+                    "id": "component.containerd.official_bundled_runtimes_only",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.official_upstream_distribution",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.selected_runtime_uses_removed_official_shim",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "legacy-official-shim-blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "1.7.28",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "2.0.0",
+                "facts": [
+                  {
+                    "id": "component.containerd.official_bundled_runtimes_only",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.official_upstream_distribution",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.selected_runtime_uses_removed_official_shim",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing-runtime-fact",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "1.7.28",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "2.0.0",
+                "facts": [
+                  {
+                    "id": "component.containerd.official_bundled_runtimes_only",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.official_upstream_distribution",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "custom-shim-scope-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "1.7.28",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "2.0.0",
+                "facts": [
+                  {
+                    "id": "component.containerd.official_bundled_runtimes_only",
+                    "state": "declared",
+                    "boolValue": false
+                  },
+                  {
+                    "id": "component.containerd.official_upstream_distribution",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.selected_runtime_uses_removed_official_shim",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside-transition",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "1.7.27",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/containerd/containerd",
+                "version": "2.0.0",
+                "facts": [
+                  {
+                    "id": "component.containerd.official_bundled_runtimes_only",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.official_upstream_distribution",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.containerd.selected_runtime_uses_removed_official_shim",
+                    "state": "declared",
+                    "boolValue": true
                   }
                 ]
               }
@@ -17406,6 +17643,32 @@
             ]
           }
         },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.flowcontrol-v1beta3-removed.1-31-0-to-1-32-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": false}]}]}},
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": true}]}]}},
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": []}]}},
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.1", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": true}]}]}},
         "status": "UNKNOWN"
       }
     ]
