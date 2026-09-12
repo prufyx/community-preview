@@ -9,6 +9,16 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- Local batch checks for up to 64 prepared canonical inputs, with descriptor-relative
+  file admission, deterministic scoped reports, embedded or explicitly selected
+  signed local CNCF knowledge, and no cluster, network, subprocess, or database
+  update operation.
+- Exact native CNCF predicates for Kubernetes `1.31.0` to `1.32.0` flow-control
+  v1beta3 resources, Cilium `1.16.19` to `1.17.18` effective ConfigMap cluster
+  names, and containerd `1.7.28` to `2.0.0` selected official runtime shims.
+- A scoped MariaDB `10.11.8` to `11.4.2` native option-file predicate for an
+  explicitly required removed InnoDB defragmentation behavior.
+
 - An explicit adopter-managed CNCF metadata refresh workflow. The existing
   Community CLI import, update, and check path can consume a compatible signed
   rule revision without changing that binary. A Community CLI built from this

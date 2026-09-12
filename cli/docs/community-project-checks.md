@@ -18,7 +18,8 @@ test "$(go env GOVERSION)" = go1.26.8
   go build -trimpath -buildvcs=false -o "$PREVIEW_DIR/prufyx-community" ./cmd/prufyx-community)
 ```
 
-Five checks inspect native effective-configuration files locally:
+The closed community registry includes these native effective-configuration
+checks:
 
 - Grafana `10.4.0` → `11.0.0`: whether a proposed `grafana.ini` explicitly
   sets `[alerting] enabled=true`, which Grafana 11 rejects during settings
@@ -45,6 +46,41 @@ Five checks inspect native effective-configuration files locally:
   `shared_store_key_prefix`, which the reviewed 3.0 compactor configuration
   removes. Passing this predicate does not validate Loki startup, storage,
   schema, index, retention, data migration, or data access.
+- MariaDB `10.11.8` → `11.4.2`: whether the caller explicitly requires the
+  removed InnoDB defragmentation behavior. The old source registers the
+  feature; the target registers `innodb-defragment` as an ignored
+  compatibility option that warns and does nothing. The rule requires
+  `--upstream-distribution` and an explicit
+  `--require-innodb-defragmentation true|false`. Option presence, absence, or
+  value alone never blocks startup or authorizes a behavior requirement.
+
+The MariaDB examples exercise the three scoped outcomes:
+
+```sh
+umask 077
+cp cli/examples/projects/mariadb/broken.cnf "$PREVIEW_DIR/mariadb.cnf"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project mariadb \
+  --effective-config "$PREVIEW_DIR/mariadb.cnf" \
+  --from 10.11.8 --to 11.4.2 \
+  --effective-config-complete --precedence-resolved \
+  --upstream-distribution \
+  --require-innodb-defragmentation true \
+  --now 2026-09-12T12:00:00Z
+```
+
+`broken.cnf` is BLOCKED only with the explicit `true` behavior requirement.
+`fixed.cnf` is a scoped PASS when checked with `false`, which records that the
+removed behavior has been waived or replaced and verified separately; its
+retained option demonstrates that deleting an ignored key does not restore the
+feature. `unknown.cnf` stays UNKNOWN because its include graph is unresolved.
+Omitting the requirement also stays UNKNOWN. Exact lowercase `[mariadb]`, `[mariadbd]`,
+`[mysqld]`, and `[server]` groups are admitted; an exact `[client]` group is
+ignored. Other groups, group suffixes, case variants, includes, option
+prefixes, aliases, non-ASCII whitespace, and unsupported option shapes remain
+UNKNOWN. Reports retain only the Boolean behavior requirement and distribution
+guard plus content digests, never paths, raw option values, or private group
+contents.
 
 The Fluent Bit example files are native classic configuration snippets. Copy
 one to a private file and declare the current default and preservation intent:

@@ -613,6 +613,18 @@ func (route nativeCNCFInputRoute) inventoryValue() map[string]any {
 }
 
 var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
+	"containerd": {
+		{
+			"command":       []any{"prepare", "cncf", "--project", "containerd", "--input", "FILE", "--runtime-handler", "NAME", "--containerd-config-complete", "--containerd-config-precedence-resolved", "--containerd-official-upstream", "--containerd-official-bundled-runtimes-only"},
+			"metadataState": "implemented_native_selected_containerd_config_preparer",
+			"limit":         "Prepares only the selected CRI runtime_type predicate from one caller-supplied native containerd config version 2 or 3. Version-pair coverage is selected by the rule pack. Imports, runtime_path overrides, custom runtimes, missing handlers, host shim availability, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		},
+		{
+			"command":       []any{"check", "cncf", "--project", "containerd", "--containerd-config", "FILE", "--runtime-handler", "NAME", "--from", "1.7.28", "--to", "2.0.0", "--containerd-config-complete", "--containerd-config-precedence-resolved", "--containerd-official-upstream", "--containerd-official-bundled-runtimes-only"},
+			"metadataState": "implemented_native_selected_containerd_config_minimizer",
+			"limit":         "Checks only whether one explicitly selected CRI handler uses an official bundled runtime shim removed in 2.0. Config version 2 is admitted through the reviewed target migration. Caller declarations bind completeness, precedence, upstream distribution, and absence of a separately installed custom shim; startup, container creation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		},
+	},
 	"thanos": {{
 		"command":       []any{"check", "cncf", "--project", "thanos", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_kubernetes_workload_minimizer",
@@ -632,6 +644,16 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 		"command":       []any{"check", "cncf", "--project", "flux", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_rendered_resource_minimizer",
 		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for the historical five beta API versions and the additive Flux 2.9.5 beta2 union; latest coverage is limited to the reviewed toolkit kinds and five exact origins, while source-watcher, extensions, and unreviewed API versions remain UNKNOWN. Absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+	}},
+	"kubernetes": {{
+		"command":       []any{"check", "cncf", "--project", "kubernetes", "--native-resource", "FILE", "--from", "1.31.0", "--to", "1.32.0", "--distribution", "official_upstream", "--target-api-apply-required", "--resource-scope-complete"},
+		"metadataState": "implemented_native_rendered_resource_minimizer",
+		"limit":         "Checks one caller-selected complete non-paginated rendered target apply set for FlowSchema and PriorityLevelConfiguration at flowcontrol.apiserver.k8s.io/v1beta3 under caller-declared official-upstream distribution and target API apply intent. General manifest admission, CRDs, stored objects, runtime clients, API-server configuration, and whole-upgrade safety remain UNKNOWN.",
+	}},
+	"cilium": {{
+		"command":       []any{"check", "cncf", "--project", "cilium", "--cilium-config-map", "FILE", "--from", "1.16.19", "--to", "1.17.18", "--cilium-distribution", "official_upstream", "--cilium-config-complete", "--cilium-config-precedence-resolved"},
+		"metadataState": "implemented_native_selected_configmap_minimizer",
+		"limit":         "Checks only the whitespace-trimmed literal cluster-name in one caller-selected complete, precedence-resolved official-upstream v1 ConfigMap for the exact Cilium 1.16.19 to 1.17.18 transition. ClusterMesh, networking, name collisions, source configuration discovery, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
 	}},
 	"prometheus": {
 		{
@@ -728,6 +750,8 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			limit = "Scoped literal argv constraint for one selected native Kubernetes workload container; it does not assert CNCF membership, whole-upgrade safety, or runtime behavior."
 		} else if project == "ceph" {
 			limit = "Scoped current-backend constraint for one explicitly selected caller-supplied OSD metadata object; it does not assert other OSDs, cluster inventory, target deployment, whole-upgrade safety, or runtime behavior."
+		} else if project == "mariadb" {
+			limit = "Scoped explicit requirement for removed upstream MariaDB InnoDB defragmentation behavior; option presence alone does not assert startup failure, packaged or fork behavior, whole-upgrade safety, or runtime behavior."
 		}
 		grouped[project] = append(grouped[project], map[string]any{"ruleID": id, "transition": tr, "evidence": normalized, "evidenceState": "active", "limit": limit})
 	}
@@ -748,6 +772,8 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project}, "metadataState": "implemented_native_selected_current_osd_metadata_minimizer", "limit": "Requires one caller-selected current OSD metadata object, an exact matching numeric OSD id, and explicit object completeness; it does not inspect a cluster or target deployment."}
 		} else if project == "fluent-bit" {
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "3.2.0", "--to", "4.0.0", "--effective-config-complete", "--current-default-was-used", "--preserve-http2-enabled"}, "metadataState": "implemented_native_classic_configuration_minimizer", "limit": "Requires one caller-selected complete classic [OUTPUT] configuration and caller declarations that the current default was used and HTTP/2 must remain enabled; it evaluates only that setting. Unsupported syntax remains UNKNOWN."}
+		} else if project == "mariadb" {
+			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "10.11.8", "--to", "11.4.2", "--effective-config-complete", "--precedence-resolved", "--upstream-distribution", "--require-innodb-defragmentation", "true|false"}, "metadataState": "implemented_native_mariadb_option_file_minimizer", "limit": "Requires one caller-selected complete, precedence-resolved upstream MariaDB option file and an explicit true or false removed-behavior requirement. Includes, aliases, prefixes, unsupported groups, packaged or fork-specific behavior remain UNKNOWN."}
 		}
 		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
 		if project == "loki" {

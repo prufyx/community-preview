@@ -74,13 +74,15 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		return r.writeEnvelope(envelope{SchemaVersion: legacyEnvelopeAPIVersion, Command: "version", Result: envelopeResult{Status: "OK", Scope: "local build identity", Reason: "build_identity_reported"}, Data: identity}, ExitOK)
 	case "check":
 		if len(args) == 2 && help(args[1]) {
-			fmt.Fprintln(stdout, "Usage: prufyx check <cert-manager-values|prometheus-mode|cncf|project|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
+			fmt.Fprintln(stdout, "Usage: prufyx check <batch|cert-manager-values|prometheus-mode|cncf|project|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
 			return ExitOK
 		}
 		if len(args) < 2 {
-			return r.usage("Usage: prufyx check <cert-manager-values|prometheus-mode|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
+			return r.usage("Usage: prufyx check <batch|cert-manager-values|prometheus-mode|cncf|project|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup> [flags]")
 		}
 		switch args[1] {
+		case "batch":
+			return r.batch(args[2:])
 		case "cncf":
 			return r.cncf(args[2:])
 		case "project":
@@ -121,6 +123,7 @@ func (r runtime) rootHelp() int {
 
 Usage:
   prufyx prepare project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]
+  prufyx prepare project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false [--effective-config-digest SHA256] [--format human|json|input]
   prufyx prepare project --project loki --loki-schema-config FILE --from 2.9.8 --to 3.0.0 --effective-config-complete --precedence-resolved [--use-reviewed-target-default] [--loki-schema-config-digest SHA256] [--format human|json|input]
   prufyx prepare project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled [--effective-config-digest SHA256] [--format human|json|input]
   prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]
@@ -133,6 +136,7 @@ Usage:
   prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
   prufyx prepare cncf --project opencost --input FILE --from 1.119.0 --to 1.120.0 [--input-digest SHA256] [--format human|json|input]
   prufyx prepare cncf --project harbor --input FILE --from 2.7.0 --to 2.8.0 or 2.10.3|2.11.2|2.12.4|2.13.5|2.14.4 --to 2.15.2 [--input-digest SHA256] [--format human|json|input]
+  prufyx prepare cncf --project containerd --input FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only [--input-digest SHA256] [--format human|json|input]
   prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]
   prufyx check cncf --project argo-cd --config-map FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] --now RFC3339 [--config-map-digest SHA256] [--format human|json]
   prufyx check cncf --project argo-cd --resource-exclusions-config-map FILE --from 2.14.0 --to 3.0.0 --resource-exclusions-config-complete --resource-exclusions-precedence-resolved [--requires-v2-visibility-of-v3-default-excluded-resources true] --now RFC3339 [--resource-exclusions-config-map-digest SHA256] [--format human|json]
@@ -141,9 +145,11 @@ Usage:
   prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
   prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved --now RFC3339 [--scrape-config-digest SHA256] [--format human|json]
   prufyx check cncf --project prometheus --alertmanager-config FILE --from 2.55.1 --to 3.1.0 --alertmanager-config-complete --alertmanager-config-precedence-resolved --now RFC3339 [--alertmanager-config-digest SHA256] [--format human|json]
+  prufyx check cncf --project containerd --containerd-config FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only --now RFC3339 [--containerd-config-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --now RFC3339 [--input-digest SHA256] [--format human|json]
   prufyx check cncf --project SLUG --input FILE --knowledge-db DIR [--input-digest SHA256] [--format human|json]
   prufyx check project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
+  prufyx check project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
   prufyx check project --project loki --loki-schema-config FILE --from 2.9.8 --to 3.0.0 --effective-config-complete --precedence-resolved --now RFC3339 [--use-reviewed-target-default] [--loki-schema-config-digest SHA256] [--format human|json]
   prufyx check project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled --now RFC3339 [--effective-config-digest SHA256] [--format human|json]
   prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]
@@ -155,6 +161,7 @@ Usage:
   prufyx db status --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--format human|json]
   prufyx db capabilities --profile cncf [--format human|json]
   prufyx check cert-manager-values --from VERSION --to VERSION --values FILE [--schema-validation required|disabled] [--values-digest SHA256] [--format human|json]
+  prufyx check batch --plan FILE --root DIR (--now RFC3339 | --knowledge-db DIR) [--format human|json] [--exit-mode legacy|detailed]
   prufyx check prometheus-mode --demo [--format human|json]
   prufyx check prometheus-mode --observation-root DIR --proposed-workload FILE --proposed-digest SHA256 --captured-at RFC3339 --now RFC3339 --max-age DURATION [--format human|json]
   prufyx check spiffe-x509-svid --certificate FILE --now RFC3339 [--certificate-digest SHA256] [--format human|json]
@@ -170,7 +177,8 @@ Exit status for check cert-manager-values: 0 scoped PASS, 10 scoped BLOCKED, 11 
 Exit status for check prometheus-mode: 0 scoped PASS, 11 ATTENTION or UNKNOWN. The legacy alias always exits 11 because its aggregate remains UNKNOWN.
 Exit status for check spiffe-x509-svid: 0 scoped PASS, 10 scoped FAIL, 11 UNKNOWN, 2 invalid input, 3 integrity failure.
 Exit status for check cloudevents-structured-json: 0 scoped PASS, 10 scoped FAIL, 11 UNKNOWN, 2 invalid input, 3 integrity failure.
-Exit status for check tikv-gcp-v2-wif-backup: 0 scoped PASS, 10 scoped BLOCKED, 11 UNKNOWN, 2 invalid input, 3 integrity failure.`)
+Exit status for check tikv-gcp-v2-wif-backup: 0 scoped PASS, 10 scoped BLOCKED, 11 UNKNOWN, 2 invalid input, 3 integrity failure.
+Exit status for check batch: legacy mode preserves 0 PASS, 10 BLOCKED, 11 UNKNOWN or stale, 2 invalid input, 3 integrity failure; detailed mode uses 12 stale evidence and 13 evaluation clock before review.`)
 	return ExitOK
 }
 

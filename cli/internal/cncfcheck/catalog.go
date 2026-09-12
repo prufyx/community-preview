@@ -31,6 +31,22 @@ type Catalogue struct {
 	Projects            []Project `json:"projects"`
 }
 
+// Component returns the compiled package identity for one admitted project.
+// It is a binding helper for callers that already validate canonical inputs;
+// it does not expose mutable registry state.
+func Component(project string) (string, error) {
+	b, err := load()
+	if err != nil {
+		return "", err
+	}
+	for _, identity := range b.landscape.Projects {
+		if identity.Slug == project {
+			return subjectComponent(identity.Slug, identity.RepositoryURL), nil
+		}
+	}
+	return "", ErrInvalid
+}
+
 // Catalog separates landscape identity from source-rule and runtime coverage.
 // Counters describe the full embedded generic pack, even in a filtered listing.
 func Catalog(priorityOnly bool, selectedProject string) (Catalogue, error) {

@@ -30,6 +30,16 @@ type Request struct {
 	InputDigest    string
 }
 
+// CheckInput contains only the item-specific values evaluated against an
+// already verified revision. It carries no store path and cannot create or
+// forge a VerifiedRevision capability.
+type CheckInput struct {
+	Project        string
+	SelectedRuleID string
+	Input          []byte
+	InputDigest    string
+}
+
 type KnowledgeBinding struct {
 	Origin                 string                 `json:"origin"`
 	TrustSource            string                 `json:"trustSource"`
@@ -81,13 +91,24 @@ type HistoricalReplay struct {
 type replaySeal struct{}
 
 func validateRequest(req Request) error {
-	if len(req.Input) == 0 || len(req.Input) > 1<<20 || req.Project == "" || req.Selection.StoreRoot == "" {
+	if req.Selection.StoreRoot == "" {
+		return ErrInvalid
+	}
+	return validateCheckInput(req.checkInput())
+}
+
+func validateCheckInput(req CheckInput) error {
+	if len(req.Input) == 0 || len(req.Input) > 1<<20 || req.Project == "" {
 		return ErrInvalid
 	}
 	if req.InputDigest != "" && req.InputDigest != digestBytes(req.Input) {
 		return ErrIntegrity
 	}
 	return nil
+}
+
+func (r Request) checkInput() CheckInput {
+	return CheckInput{Project: r.Project, SelectedRuleID: r.SelectedRuleID, Input: r.Input, InputDigest: r.InputDigest}
 }
 
 // EvaluateCurrent uses the verifier's actual current clock. An operator cannot
@@ -100,10 +121,23 @@ func EvaluateCurrent(req Request) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	return evaluateSelected(req.checkInput(), selected)
+}
+
+// EvaluateVerified evaluates one typed CNCF input against the exact immutable
+// current revision that a caller opened once. Historical capabilities are
+// rejected here so batch checks cannot backdate current selection.
+func EvaluateVerified(selected knowledge.VerifiedRevision, req CheckInput) (Report, error) {
+	if selected.Mode() != knowledge.SelectionCurrent {
+		return Report{}, ErrIntegrity
+	}
+	if err := validateCheckInput(req); err != nil {
+		return Report{}, err
+	}
 	return evaluateSelected(req, selected)
 }
 
-func evaluateSelected(req Request, selected knowledge.VerifiedRevision) (Report, error) {
+func evaluateSelected(req CheckInput, selected knowledge.VerifiedRevision) (Report, error) {
 	if !selected.Valid() {
 		return Report{}, ErrIntegrity
 	}
@@ -217,7 +251,7 @@ func ReplayHistorical(req Request, expected []byte) (HistoricalReplay, error) {
 	if err != nil {
 		return HistoricalReplay{}, err
 	}
-	reproduced, err := evaluateSelected(req, selected)
+	reproduced, err := evaluateSelected(req.checkInput(), selected)
 	if err != nil {
 		return HistoricalReplay{}, err
 	}

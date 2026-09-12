@@ -525,7 +525,7 @@ func ReadBoundedFileInfo(path string, limit int) (result []byte, info os.FileInf
 		return nil, nil, fmt.Errorf("bounded input read: %w", ErrInvalid)
 	}
 	after, err := file.Stat()
-	if err != nil || !os.SameFile(before, after) || artifactLinkCount(after) != 1 || after.Size() != before.Size() || int64(len(b)) != after.Size() {
+	if err != nil || !os.SameFile(before, after) || !artifactChangeTimesMatch(before, after) || artifactLinkCount(after) != 1 || after.Size() != before.Size() || int64(len(b)) != after.Size() {
 		return nil, nil, fmt.Errorf("bounded input changed during read: %w", ErrIntegrity)
 	}
 	return b, after, nil

@@ -74,11 +74,14 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project cri-o --image-status-request FILE --artifact-operation named-reference-resolution --from 1.34.0 --to 1.35.0 (--now RFC3339 | --knowledge-db DIR) [--image-status-request-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project distribution --image-manifest FILE --from 2.8.3 --to 3.0.0 (--now RFC3339 | --knowledge-db DIR) [--image-manifest-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project container-network-interface-cni --cni-configuration FILE --from 0.4.0 --to 1.0.0 [--operation configuration-spec-migration] (--now RFC3339 | --knowledge-db DIR) [--cni-configuration-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project containerd --containerd-config FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only (--now RFC3339 | --knowledge-db DIR) [--containerd-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project emissary-ingress --diagd-argv FILE --from 3.10.0 --to 4.0.1 (--now RFC3339 | --knowledge-db DIR) [--diagd-argv-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project openfga --effective-config FILE --from 1.17.1 --to 1.18.0 [--effective-config-complete] (--now RFC3339 | --knowledge-db DIR) [--effective-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project buildpacks --current-lifecycle-config FILE --proposed-lifecycle-config FILE --from 0.16.5 --to 0.17.7 --current-platform-api 0.11 --proposed-platform-api 0.12|0.13 (--now RFC3339 | --knowledge-db DIR) [--current-lifecycle-config-digest SHA256] [--proposed-lifecycle-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project metallb|contour|kubevirt|thanos|cortex --native-resource FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
 	 or: prufyx check cncf --project flux --native-resource FILE --from VERSION --to VERSION [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
+	 or: prufyx check cncf --project kubernetes --native-resource FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
+	 or: prufyx check cncf --project cilium --cilium-config-map FILE --from 1.16.19 --to 1.17.18 --cilium-distribution official_upstream|custom_build --cilium-config-complete --cilium-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--cilium-config-map-digest SHA256] [--replay-report FILE] [--format human|json]
 	 or: prufyx check cncf --project nats --nats-config FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project opentelemetry --otel-collector-config FILE --otel-distribution official|custom --otel-config-complete --otel-config-precedence-resolved --from 0.110.0 --to 0.111.0 (--now RFC3339 | --knowledge-db DIR) [--otel-collector-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--scrape-config-digest SHA256] [--replay-report FILE] [--format human|json]
@@ -165,6 +168,12 @@ storage, pull, platform, or runtime behavior. The CNI mode reads one private
 configuration for specification 0.4.0 -> 1.0.0 and keeps library/plugin/runtime
 identity separate. It requires caller-declared configuration-spec-migration
 intent for a scoped result; missing or unsupported intent stays UNKNOWN.
+The containerd mode reads one private config.toml and one explicitly selected
+CRI runtime handler for 1.7.28 -> 2.0.0. It accepts config versions 2 and 3 at
+their reviewed plugin paths and never treats version 2 itself as a blocker.
+Imports, custom runtime types, runtime_path overrides, missing handlers, and
+unresolved completeness, precedence, distribution, or bundled-runtime scope
+stay UNKNOWN. PASS clears only the selected removed-official-shim constraint.
 The Emissary-Ingress mode reads one private direct diagd JSON argv array for
 the exact 3.10.0 -> 4.0.1 reviewed option removal. The OpenFGA mode reads one
 private, strictly parsed nested effective-configuration JSON file for 1.17.1
@@ -213,6 +222,13 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	imageManifestPin := fs.String("image-manifest-digest", "", "optional exact image manifest SHA-256")
 	cniConfiguration := fs.String("cni-configuration", "", "private CNI configuration JSON")
 	cniConfigurationPin := fs.String("cni-configuration-digest", "", "optional exact CNI configuration SHA-256")
+	containerdConfig := fs.String("containerd-config", "", "private effective containerd config.toml")
+	containerdConfigPin := fs.String("containerd-config-digest", "", "optional exact containerd config.toml SHA-256")
+	containerdRuntimeHandler := fs.String("runtime-handler", "", "explicit selected containerd CRI runtime handler")
+	containerdConfigComplete := fs.Bool("containerd-config-complete", false, "caller declaration that selected containerd configuration is complete")
+	containerdConfigPrecedenceResolved := fs.Bool("containerd-config-precedence-resolved", false, "caller declaration that containerd configuration precedence is resolved")
+	containerdOfficialUpstream := fs.Bool("containerd-official-upstream", false, "bind the target to the reviewed upstream containerd distribution")
+	containerdOfficialBundledRuntimesOnly := fs.Bool("containerd-official-bundled-runtimes-only", false, "declare that no separately installed custom shim supplies the selected runtime")
 	diagdArgv := fs.String("diagd-argv", "", "private direct Emissary diagd JSON argv array")
 	diagdArgvPin := fs.String("diagd-argv-digest", "", "optional exact diagd argv SHA-256")
 	effectiveConfig := fs.String("effective-config", "", "private resolved OpenFGA effective configuration JSON")
@@ -221,7 +237,14 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	operation := fs.String("operation", "", "caller-declared scoped operation")
 	nativeResource := fs.String("native-resource", "", "private selected native Kubernetes JSON resource")
 	nativeResourcePin := fs.String("native-resource-digest", "", "optional exact native resource SHA-256")
-	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that the selected Flux rendered-resource JSON set is complete")
+	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that the selected rendered-resource JSON set is complete")
+	distribution := fs.String("distribution", "", "Kubernetes distribution: official_upstream or custom_build")
+	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that the selected resource set is required for target API apply")
+	ciliumConfigMap := fs.String("cilium-config-map", "", "private selected Cilium v1 ConfigMap YAML or JSON")
+	ciliumConfigMapPin := fs.String("cilium-config-map-digest", "", "optional exact Cilium ConfigMap SHA-256")
+	ciliumConfigComplete := fs.Bool("cilium-config-complete", false, "caller declaration that the selected Cilium ConfigMap is complete")
+	ciliumConfigPrecedenceResolved := fs.Bool("cilium-config-precedence-resolved", false, "caller declaration that Cilium ConfigMap precedence is resolved")
+	ciliumDistribution := fs.String("cilium-distribution", "", "Cilium distribution: official_upstream or custom_build")
 	natsConfig := fs.String("nats-config", "", "private standalone NATS JSON-like configuration")
 	natsConfigPin := fs.String("nats-config-digest", "", "optional exact NATS configuration SHA-256")
 	otelCollectorConfig := fs.String("otel-collector-config", "", "private selected OpenTelemetry Collector YAML configuration")
@@ -253,7 +276,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "cilium-config-map-digest") && !digestRE.MatchString(*ciliumConfigMapPin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "containerd-config-digest") && !digestRE.MatchString(*containerdConfigPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -261,24 +284,33 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 			return r.usage("invalid external CNCF knowledge selection; use --help")
 		}
 	}
+	if flagProvided(args, "knowledge-db") && flagProvided(args, "now") {
+		return r.usage("external CNCF checks use verifier time; omit --now")
+	}
 	nativeFlags := anyFlagProvided(args, "native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest")
 	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
+	kubernetesNativeRequested := *project == "kubernetes" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete", "distribution", "target-api-apply-required")
+	ciliumNativeRequested := *project == "cilium" && anyFlagProvided(args, "cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
 	otelFlags := anyFlagProvided(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved")
 	prometheusScrapeFlags := anyFlagProvided(args, "scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved")
 	prometheusAlertmanagerFlags := anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
-	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux"
-	if (nativeFlags || flagProvided(args, "resource-scope-complete")) && !nativeProject {
-		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, or flux; use --help")
+	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux" || *project == "kubernetes" || *project == "cilium"
+	containerdFlags := anyFlagProvided(args, "containerd-config", "containerd-config-digest", "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only")
+	if (nativeFlags || flagProvided(args, "resource-scope-complete") || flagProvided(args, "distribution") || flagProvided(args, "target-api-apply-required") || ciliumNativeRequested) && !nativeProject {
+		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, flux, kubernetes, or cilium; use --help")
 	}
-	if nativeProject && (nativeFlags || fluxNativeRequested) {
-		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, args)
+	if nativeProject && (nativeFlags || fluxNativeRequested || kubernetesNativeRequested) {
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, *distribution, *targetAPIApplyRequired, "", args)
+	}
+	if ciliumNativeRequested {
+		return r.cncfNativeResourceCheck(*project, *ciliumConfigMap, *ciliumConfigMapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *ciliumConfigComplete, *ciliumConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, *ciliumDistribution, args)
 	}
 	if natsFlags && *project != "nats" {
 		return r.usage("NATS configuration flags require project nats; use --help")
 	}
 	if *project == "nats" && natsFlags {
-		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
 	}
 	if otelFlags && *project != "opentelemetry" {
 		return r.usage("OpenTelemetry Collector configuration flags require project opentelemetry; use --help")
@@ -287,19 +319,28 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *otelCollectorConfig == "" || *otelDistribution == "" || cncfUnexpectedModeFlag(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved") {
 			return r.usage("invalid OpenTelemetry Collector configuration arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
 	}
 	if prometheusScrapeFlags && *project != "prometheus" {
 		return r.usage("Prometheus scrape configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusScrapeFlags {
-		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
 	}
 	if prometheusAlertmanagerFlags && *project != "prometheus" {
 		return r.usage("Prometheus Alertmanager configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusAlertmanagerFlags {
-		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
+	}
+	if containerdFlags && *project != "containerd" {
+		return r.usage("containerd configuration flags require project containerd; use --help")
+	}
+	if *project == "containerd" && containerdFlags {
+		if *containerdConfig == "" || *containerdRuntimeHandler == "" || *from == "" || *to == "" || cncfUnexpectedModeFlag(args, "containerd-config", "containerd-config-digest", "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only") {
+			return r.usage("invalid containerd configuration check arguments; use --help")
+		}
+		return r.cncfContainerdConfig(*containerdConfig, *containerdConfigPin, *containerdRuntimeHandler, *from, *to, *containerdConfigComplete, *containerdConfigPrecedenceResolved, *containerdOfficialUpstream, *containerdOfficialBundledRuntimesOnly, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format)
 	}
 	resourceExclusionsArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "resource-exclusions-config-map", "resource-exclusions-config-map-digest", "resource-exclusions-config-complete", "resource-exclusions-precedence-resolved", "requires-v2-visibility-of-v3-default-excluded-resources")
 	rawArgoRequested := *project == "argo-cd" && !resourceExclusionsArgoRequested && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
@@ -562,7 +603,8 @@ var cncfModeInputFlags = []string{
 	"metanode-config", "metanode-config-digest", "phase",
 	"image-status-request", "image-status-request-digest", "artifact-operation",
 	"native-resource", "native-resource-digest",
-	"resource-scope-complete",
+	"resource-scope-complete", "distribution", "target-api-apply-required",
+	"cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution",
 	"nats-config", "nats-config-digest",
 	"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved",
 	"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved",
@@ -570,6 +612,7 @@ var cncfModeInputFlags = []string{
 	"current-resource", "current-resource-digest", "resource", "resource-digest",
 	"image-manifest", "image-manifest-digest",
 	"cni-configuration", "cni-configuration-digest", "operation",
+	"containerd-config", "containerd-config-digest", "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only",
 	"effective-config", "effective-config-complete",
 	"effective-config-digest", "diagd-argv", "diagd-argv-digest",
 }

@@ -12,6 +12,23 @@ From `cli/`, build the local command once with the accepted offline vendor set:
 go build -mod=vendor -buildvcs=false -o ./prufyx-community ./cmd/prufyx-community
 ```
 
+## Kubernetes v1.32 flow-control GVK removal
+
+Kubernetes `1.31.0` -> `1.32.0` checks one caller-selected complete rendered
+target apply set for the two removed `flowcontrol.apiserver.k8s.io/v1beta3`
+GVKs: `FlowSchema` and `PriorityLevelConfiguration`. It requires explicit
+official-upstream distribution and target API apply intent. See the
+[`kubernetes`](kubernetes/README.md) example. This does not validate general
+manifest schema or admission, CRDs, stored objects, runtime clients, API-server
+configuration, or whole-upgrade safety.
+
+## Cilium v1.17.18 cluster-name validation
+
+Cilium `1.16.19` -> `1.17.18` checks the whitespace-trimmed `cluster-name` in
+one caller-selected complete, precedence-resolved official-upstream v1
+ConfigMap. See the [`cilium`](cilium/README.md) example. It does not establish
+ClusterMesh, networking, name-collision, runtime, or whole-upgrade safety.
+
 Run the MetalLB example directly from its native resource:
 
 ```sh
