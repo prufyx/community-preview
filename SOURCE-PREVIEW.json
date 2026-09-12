@@ -4,7 +4,7 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:da020ce688761d18b12159e909d08b267fc69963e0219bef2e9f28d103caeb93",
+    "inventorySha256": "sha256:6567ef3d4c8c8ffa8e34059268b05f72289f47a65a9ef4b1c9a16459269aeefd",
     "counts": {
       "executableProjects": 64,
       "selectedSourceRecords": 110,
@@ -20,6 +20,7 @@
       "inputAuthority": "Bounded native input or explicit minimized operator declarations, as stated per matrix row.",
       "claimScope": "Exact endpoints and named predicates only; missing, custom, incomplete, ambiguous, runtime, cluster, data-migration, and whole-upgrade facts remain UNKNOWN.",
       "additionalPreservedRoute": "Jaeger 1.76.0 to 2.20.0 is retained outside the selected-pair count.",
+      "additionalDepthRoute": "Prometheus 2.55.1 to 3.14.0 adds two canonical constraints over existing declared facts outside the selected-pair count.",
       "preexistingSelectedPair": "Cortex 1.17.2 to 1.21.1 was already present and is included in the selected-pair count.",
       "qualificationGaps": [
         {

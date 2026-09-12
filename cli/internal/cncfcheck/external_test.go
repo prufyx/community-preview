@@ -3,6 +3,7 @@ package cncfcheck
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -319,5 +320,71 @@ func TestExternalBundleEvidenceStatesRemainScoped(t *testing.T) {
 				t.Fatalf("evidence state=%+v err=%v", report.Check.Claims, err)
 			}
 		})
+	}
+}
+
+func TestExportEmbeddedExternalBundlePreservesCompletePack(t *testing.T) {
+	base, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := ExportEmbeddedExternalBundle("73")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseExternalBundle(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admission, err := parsed.Admission()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admission.Revision != "73" || admission.Purpose != "operator_provided" || !admission.HasRule {
+		t.Fatalf("admission=%+v", admission)
+	}
+	var document externalFixtureDocument
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	want := base.pack
+	want.Revision = "73"
+	wantRaw, err := json.Marshal(want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotRaw, err := json.Marshal(document.Pack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotRaw, wantRaw) {
+		t.Fatal("export changed embedded rule-pack content other than revision")
+	}
+	if len(document.Pack.Entries) != len(base.pack.Entries) || len(document.Pack.Entries) != 158 {
+		t.Fatalf("exported entries=%d embedded=%d", len(document.Pack.Entries), len(base.pack.Entries))
+	}
+}
+
+func TestExportEmbeddedExternalBundleRejectsInvalidRevision(t *testing.T) {
+	for _, revision := range []string{"", "0", "01", "main", "2147483648"} {
+		t.Run(revision, func(t *testing.T) {
+			if _, err := ExportEmbeddedExternalBundle(revision); err == nil {
+				t.Fatalf("revision %q accepted", revision)
+			}
+		})
+	}
+}
+
+func TestExternalProfileContractMatchesEnforcedRequirements(t *testing.T) {
+	contract, err := ExternalProfileContractForCNCF()
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements, err := ExternalProfileRequirements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contract.Profile != "cncf" || contract.TargetPath != "knowledge/constraints.v1.json" || contract.Purpose != "operator_provided" || !reflect.DeepEqual(contract.Requirements, requirements) || contract.MaxBundleBytes != maxExternalBundleBytes || contract.MaxEntries != maxExternalEntries || contract.MaxFactsPerEntry != maxExternalFacts || !contract.ExplicitSelectionOnly || !contract.RequiresIndependentRoot {
+		t.Fatalf("contract=%+v requirements=%+v", contract, requirements)
 	}
 }

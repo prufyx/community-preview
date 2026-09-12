@@ -57,6 +57,8 @@ prufyx db import revision-1.tar --profile cncf --db-root ./cncf-store \
 prufyx db status --profile cncf --db-root ./cncf-store --format json
 ```
 
+For a quick local status summary, see the [adopter status guide](knowledge-status-adopter.md).
+
 Obtain and verify the initial root identity through your own trusted process;
 the package cannot choose its own trust anchor. On later imports omit the
 bootstrap flags and retain the same store. Profile identity, descriptor-relative

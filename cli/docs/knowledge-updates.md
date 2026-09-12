@@ -4,8 +4,8 @@ This unreleased Community source capability downloads a complete signed package
 from an operator-selected HTTPS URL, retains it locally, and imports it through
 the existing TUF verifier. Checks and historical replay continue to run offline.
 There is no configured Prufyx feed, official trust root, startup refresh, account,
-telemetry, or upload API. The repository and downloads remain private during
-pre-announcement review.
+telemetry, or upload API. The Community source preview is public. Official
+metadata packages and a Prufyx trust root are not yet published.
 
 ## Download and verify
 
@@ -55,6 +55,16 @@ prufyx check cncf --project kyverno --input ./kyverno-input.json \
 Provide a private minimized input as described in the [CNCF guide](CNCF-SOURCE-PREVIEW.md).
 Select the updated store explicitly with `--knowledge-db`. Updating a store
 does not change the embedded rules or the default selection used without that flag.
+Use `prufyx db status --profile cncf --db-root ./cncf-store` to inspect the
+selected store; the status command does not import packages or change the
+selection, but it advances the existing local clock floor after a successful
+clock check. The status fields distinguish authenticated TUF metadata freshness
+from source-review freshness. A selected pack with a future earliest source
+expiry is `not_expired`; a past earliest expiry is `some_or_all_expired` because
+the receipt summary cannot establish that every rule is expired. `not_expired`
+does not establish that the source is currently reviewed or usable. `READY` means the
+selected store passed its local integrity checks and does not make every rule
+usable or every claim known.
 
 For the next update, use a new package filename and omit the bootstrap flags.
 Keep the same profile and store so that trust history and rollback protection
@@ -112,18 +122,35 @@ facts can use the current binary when those facts are declared manually. Optiona
 `prepare cncf` adapters support only documented pairs, so extending raw-input
 preparation can require a CLI update even without a new fact type.
 
-## Assemble an already signed package
+## Prepare a signed package
 
-Maintainers can use `go run ./cli/cmd/prufyx-maintainer package-knowledge --help` to assemble
-an operator-prepared tree of signed metadata and content-addressed target bytes
-into the bounded canonical archive. The helper is offline. It does not sign,
-validate signatures, change review dates, or establish that source rules are
-correct. Admit the result with the matching binary and an independently trusted
-root before making it available to consumers.
+The offline maintainer workflow is implemented, but no official Prufyx root or
+feed is configured. From the `cli` directory, export the complete compatible
+CNCF replacement target:
+
+```sh
+go run ./cmd/prufyx-maintainer export-knowledge \
+  --profile cncf --revision 1 --output /absolute/constraints.v1.json
+```
+
+Then follow the [publisher preparation and finalization
+workflow](knowledge-publisher.md). It emits exact sequential targets, snapshot,
+and timestamp payloads, accepts signature envelopes, and verifies the complete
+package through the existing consumer verifier. The [offline signer
+workflow](knowledge-signer.md) can initialize four encrypted role keys and sign
+those exact payloads for a single operator; key custody, root bootstrap,
+hosting, and publication remain separate operator gates. The [export
+contract](knowledge-export.md) and `db capabilities --profile cncf` describe
+the target shape accepted by the matching binary.
+
+The older `package-knowledge` helper can still assemble an
+operator-prepared tree of signed metadata and content-addressed target bytes
+into the bounded canonical archive. It does not sign, validate signatures,
+change review dates, or establish that source rules are correct.
 
 The existing [contributor workflow](upstream-contributions.md#workflow-and-authority)
-names maintainer Spas Atanasov (`@airstand`) for the maintainer acceptance and
-future signing/publication handoff. Production key custody, root distribution,
+names maintainer Spas Atanasov (`@airstand`) for maintainer acceptance and
+publication review. Production key custody, root distribution,
 reviewed rule publication and hosted feed operation remain separate release gates.
 Existing examples use ephemeral
 test keys and synthetic review dates solely to exercise the protocol; they are

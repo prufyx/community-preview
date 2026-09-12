@@ -172,9 +172,15 @@ type Status struct {
 	SelectedBundleDigest string `json:"selectedBundleDigest,omitempty"`
 	TrustReceiptDigest   string `json:"trustReceiptDigest,omitempty"`
 	CurrentEligible      bool   `json:"currentEligible"`
-	Freshness            string `json:"freshness"`
-	NetworkChecked       bool   `json:"networkChecked"`
-	CurrentNonRevocation string `json:"currentNonRevocation"`
+	// Freshness is retained as the legacy TUF metadata freshness field. The
+	// explicit projections below prevent callers from confusing it with source
+	// review freshness.
+	Freshness               string `json:"freshness"`
+	TrustFreshness          string `json:"trustFreshness,omitempty"`
+	SourceEvidenceFreshness string `json:"sourceEvidenceFreshness,omitempty"`
+	SourceEvidenceExpiresAt string `json:"sourceEvidenceExpiresAt,omitempty"`
+	NetworkChecked          bool   `json:"networkChecked"`
+	CurrentNonRevocation    string `json:"currentNonRevocation"`
 }
 
 // VerifiedRevision is an immutable in-process capability. Callers can only

@@ -35,7 +35,19 @@ type SemanticArtifacts struct {
 // generated evidence dates are synthetic and do not renew maintainer review.
 // No private key is returned or persisted.
 func GenerateConstraints(now time.Time) (Artifacts, error) {
+	return generateConstraints(now, now.UTC().Add(24*time.Hour))
+}
+
+// GenerateConstraintsWithEvidenceExpiry is a test-only variant that keeps TUF
+// metadata current while assigning the active rule an independently supplied
+// source-evidence expiry. It never persists signing keys.
+func GenerateConstraintsWithEvidenceExpiry(now, evidenceExpiry time.Time) (Artifacts, error) {
+	return generateConstraints(now, evidenceExpiry)
+}
+
+func generateConstraints(now, evidenceExpiry time.Time) (Artifacts, error) {
 	now = now.UTC().Truncate(time.Second)
+	evidenceExpiry = evidenceExpiry.UTC().Truncate(time.Second)
 	if now.IsZero() {
 		return Artifacts{}, errors.New("generation time is required")
 	}
@@ -72,7 +84,7 @@ func GenerateConstraints(now time.Time) (Artifacts, error) {
 	if err != nil {
 		return Artifacts{}, err
 	}
-	continuation, err := constraintsBundle("3", now, true)
+	continuation, err := constraintsBundle("3", now, true, evidenceExpiry)
 	if err != nil {
 		return Artifacts{}, err
 	}
@@ -88,7 +100,7 @@ func GenerateConstraints(now time.Time) (Artifacts, error) {
 	if err != nil {
 		return Artifacts{}, err
 	}
-	active, err := constraintsBundle("2", now, true)
+	active, err := constraintsBundle("2", now, true, evidenceExpiry)
 	if err != nil {
 		return Artifacts{}, err
 	}
@@ -197,7 +209,11 @@ func GenerateConstraintsSemantic(now time.Time) (SemanticArtifacts, error) {
 	}, nil
 }
 
-func constraintsBundle(revision string, now time.Time, active bool) ([]byte, error) {
+func constraintsBundle(revision string, now time.Time, active bool, expiry ...time.Time) ([]byte, error) {
+	evidenceExpiry := now.Add(24 * time.Hour)
+	if len(expiry) == 1 {
+		evidenceExpiry = expiry[0]
+	}
 	requirements, err := cncfcheck.ExternalProfileRequirements()
 	if err != nil {
 		return nil, err
@@ -229,7 +245,7 @@ func constraintsBundle(revision string, now time.Time, active bool) ([]byte, err
 		}
 		// These generated dates are test data, not a new maintainer review.
 		evidence["reviewedAt"], _ = json.Marshal(now.Add(-time.Hour).Format(time.RFC3339))
-		evidence["validUntil"], _ = json.Marshal(now.Add(24 * time.Hour).Format(time.RFC3339))
+		evidence["validUntil"], _ = json.Marshal(evidenceExpiry.Format(time.RFC3339))
 		rule["evidence"], _ = json.Marshal(evidence)
 		entries[0].Rule, err = json.Marshal(rule)
 		if err != nil {

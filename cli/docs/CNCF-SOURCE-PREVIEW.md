@@ -185,8 +185,8 @@ prufyx catalog cncf --project helm --format json
 
 The generic check accepts one local JSON file containing minimized, operator-declared current and proposed component identities and facts. The file must be a regular private file with mode `0600`; symlinks, permissive files, oversized files, malformed JSON, and untyped values are rejected. The CLI reads bytes locally and does not collect a cluster, inspect live state, invoke a model, download a database, or upload data.
 
-The current embedded preview has 156 exact rules across 54 rule projects, 123
-registered boolean or finite-enum facts, and 832 rule-scoped cases. The
+The current embedded preview has 158 exact rules across 54 rule projects, 123
+registered boolean or finite-enum facts, and 842 rule-scoped cases. The
 separate SPIFFE X.509-SVID and CloudEvents structured JSON
 standards-conformance profiles have no from/to pairs and do not alter these
 transition-rule totals. SPIFFE does not duplicate the SPIRE project's
@@ -203,6 +203,14 @@ target source-derived v2 default; complete-entry and resolved-precedence flags
 remain caller declarations. It does not parse a full `prometheus.yml`, prove
 Alertmanager compatibility or reachability, or establish alert delivery. See
 the [native resource examples](../examples/cncf/native-resources/README.md).
+
+The same canonical Prometheus facts also support two additional exact
+`2.55.1` → `3.14.0` operator-declared constraints: the selected
+Alertmanager API must not be literal `v1`, and the selected scrape
+configuration must not use `scrape_classic_histograms`. Missing either fact,
+custom or unresolved configuration, and runtime behavior remain `UNKNOWN`.
+This depth route is additional to the 115 selected latest-target pairs in the
+2026-09-12 matrix.
 
 OpenTelemetry Collector has one independently selected `0.110.0` → `0.111.0`
 native route for the existing logging-exporter removal constraint. It reads one
@@ -662,8 +670,8 @@ Examples are in
 The earlier Fluentd Ruby-minimum facts are entered locally; the literal route
 has the documented preparation adapter. The current rules use 123 registered
 facts, so this binary requires its own compatible CNCF database store. Preserve
-older stores and binaries for older reports. The embedded CNCF rule pack has 156
-constraints across 54 rule projects and 832 rule-scoped cases; the separate
+older stores and binaries for older reports. The embedded CNCF rule pack has 158
+constraints across 54 rule projects and 842 rule-scoped cases; the separate
 community-project pack has 32 constraints across 6 projects. Runtime
 reproduction remains zero.
 

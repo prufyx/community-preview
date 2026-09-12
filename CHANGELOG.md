@@ -9,6 +9,16 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- An explicit adopter-managed CNCF metadata refresh workflow. The existing
+  Community CLI import, update, and check path can consume a compatible signed
+  rule revision without changing that binary. A Community CLI built from this
+  source reports TUF and source-evidence freshness separately and exposes the
+  fixed target contract. The maintainer binary exports a complete compatible
+  replacement target, prepares deterministic sequential TUF role payloads,
+  signs public role metadata with encrypted local role keys, and verifies the
+  final package through the existing consumer path. These source tools do not
+  configure an official root or feed, publish bytes, or enable automatic
+  startup refresh.
 - A development-preview latest-target matrix, checked on 2026-09-12, covering
   115 selected exact project/version pairs across 23 projects. Each project
   contributes five selected earlier stable releases to one exact target. The
@@ -16,6 +26,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
   scoped predicate and `UNKNOWN` boundary, preserves an additional historical
   Jaeger route, and records Notation as a qualification gap. It does not claim
   universal minor-line coverage, runtime proof, or whole-upgrade safety.
+- Two additional canonical Prometheus `2.55.1` to `3.14.0` constraints over
+  existing operator-declared facts. They cover the selected Alertmanager
+  `api_version` and classic-histogram key only, remain outside the
+  23-project/115-selected-pair matrix, and preserve `UNKNOWN` for missing,
+  custom, unresolved, runtime, and whole-upgrade state.
 - A bounded offline collection verifier for multiple private source-corpus shards.
   It verifies retained bytes, rejects conflicting metadata and duplicate records,
   counts shared objects once, and binds per-shard receipts. Source interpretation,

@@ -1374,3 +1374,42 @@ v1.19.7 CNP and CCNP CRD schemas set the relevant array `maxItems` to `0`. It
 does not establish historical support removal, API-server admission, pruning,
 startup, traffic, or whole-upgrade safety. The aggregate assessment remains
 `UNKNOWN`.
+
+## Check Prometheus 2.55.1 to 3.14.0 configuration declarations
+
+[`prometheus-2-55-1-to-3-14-0.json`](prometheus-2-55-1-to-3-14-0.json) is a
+synthetic operator declaration for two independent target configuration
+predicates. It includes both facts so the canonical `check cncf` route can
+select both reviewed rules: `api_version: v1` for the selected Alertmanager
+mapping and the old `scrape_classic_histograms` key for the selected scrape
+configuration.
+
+Run this from the repository root after placing `prufyx` on your `PATH`:
+
+```sh
+set -eu
+umask 077
+example_dir="$(mktemp -d)"
+trap 'rm -rf "$example_dir"' EXIT
+cp cli/examples/cncf/prometheus-2-55-1-to-3-14-0.json "$example_dir/input.json"
+chmod 600 "$example_dir/input.json"
+input_digest="$(shasum -a 256 "$example_dir/input.json" | awk '{print $1}')"
+set +e
+prufyx check cncf --project prometheus --input "$example_dir/input.json" \
+  --input-digest "sha256:${input_digest}" \
+  --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --format json \
+  > "$example_dir/report.json"
+status=$?
+set -e
+chmod 600 "$example_dir/report.json"
+printf 'Prometheus scoped check exit: %s\n' "$status"
+```
+
+The supplied declaration produces two scoped `BLOCKED` claims and exit `10`.
+To test the fixed declaration, change both proposed enum values to
+`v2` and `always_scrape_classic_histograms`; both scoped predicates can then
+pass, while the whole-upgrade assessment remains `UNKNOWN`. Missing or
+unsupported facts and a different version pair remain `UNKNOWN`. These are
+operator-declared configuration facts; the check does not parse a live
+Prometheus configuration, inspect an image, validate Alertmanager reachability
+or delivery, or establish complete 2.x to 3.x upgrade safety.
