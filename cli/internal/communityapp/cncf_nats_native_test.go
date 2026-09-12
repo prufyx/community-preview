@@ -28,6 +28,40 @@ func TestNATSNativeConfigChecksSelectedLiteralNames(t *testing.T) {
 	}
 }
 
+func TestNATSLatestNativeConfigAllExactOrigins(t *testing.T) {
+	for _, from := range []string{"2.12.15", "2.11.17", "2.10.29", "2.9.25", "2.8.4"} {
+		for _, tc := range []struct {
+			name, raw, status string
+			want              int
+		}{
+			{"ascii-space-blocked", `{"cluster":{"name":"edge cluster"}}`, "BLOCKED", ExitBlocked},
+			{"literal-name-pass", `{"server_name":"edge-west","gateway":{"name":"edge-gateway"}}`, "PASS", ExitOK},
+			{"include-unknown", `{"include":"private.conf","server_name":"edge-west"}`, "UNKNOWN", ExitUnknown},
+			{"unicode-escape-unknown", `{"server_name":"edge\u0020west"}`, "UNKNOWN", ExitUnknown},
+			{"dotted-key-unknown", `{"cluster.name":"edge-west"}`, "UNKNOWN", ExitUnknown},
+			{"variable-unknown", `{"server_name":"$NAME"}`, "UNKNOWN", ExitUnknown},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				path := writeCNCFFile(t, "nats-latest.json", []byte(tc.raw), 0o600)
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "nats", "--nats-config", path, "--from", from, "--to", "2.14.6", "--now", "2026-09-12T08:47:00Z", "--format", "json")
+				if code != tc.want || stderr != "" || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || strings.Contains(stdout, "edge cluster") || strings.Contains(stdout, "private.conf") {
+					t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+				}
+				if tc.status != "UNKNOWN" && !strings.Contains(stdout, `"status":"`+tc.status+`"`) {
+					t.Fatalf("missing status %s: %s", tc.status, stdout)
+				}
+			})
+		}
+	}
+	for _, tc := range []struct{ from, to string }{{"2.12.14", "2.14.6"}, {"2.12.15", "2.14.5"}} {
+		path := writeCNCFFile(t, "nats-latest-wrong-pair.json", []byte(`{"server_name":"edge node"}`), 0o600)
+		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "nats", "--nats-config", path, "--from", tc.from, "--to", tc.to, "--now", "2026-09-12T08:47:00Z", "--format", "json")
+		if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, "RULE_TRANSITION_NOT_REVIEWED") || strings.Contains(stdout, "edge node") {
+			t.Fatalf("pair=%s/%s code=%d stdout=%q stderr=%q", tc.from, tc.to, code, stdout, stderr)
+		}
+	}
+}
+
 func TestNATSNativeConfigRejectsInvalidAndMixedModes(t *testing.T) {
 	raw := []byte(`{"server_name":"edge"}`)
 	path := writeCNCFFile(t, "nats.json", raw, 0o600)

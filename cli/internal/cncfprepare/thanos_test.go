@@ -59,6 +59,66 @@ func TestPrepareThanosUnknownForAmbiguousOrUnsupportedWorkload(t *testing.T) {
 	}
 }
 
+func TestPrepareThanosLatestTargetPairsHaveBlockedPassAndUnknownOutcomes(t *testing.T) {
+	for _, from := range []string{"0.37.2", "0.38.0", "0.39.2", "0.40.1", "0.41.0"} {
+		for _, tc := range []struct {
+			name, container string
+			state           State
+			reason          Reason
+		}{
+			{"blocker", `{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":["receive","--shipper.ignore-unequal-block-size"]}`, StatePrepared, ReasonThanosRemovedFlagPresent},
+			{"scoped absence", `{"name":"thanos","image":"thanosio/thanos:v0.42.4","command":["/bin/thanos"],"args":["store","--log.level=info"]}`, StatePrepared, ReasonThanosRemovedFlagAbsent},
+			{"legacy command spelling is unsupported", `{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["thanos"],"args":["receive"]}`, StateUnknown, ReasonThanosWorkloadUnsupported},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				prepared, err := PrepareThanos([]byte(thanosWorkload(tc.container)), from, ThanosLatestTo)
+				if err != nil || prepared.State != tc.state || prepared.Reason != tc.reason {
+					t.Fatalf("PrepareThanos() = %#v, %v", prepared, err)
+				}
+			})
+		}
+	}
+}
+
+func TestPrepareThanosLatestTargetAdmitsSourceDerivedEntrypoint(t *testing.T) {
+	tests := []struct {
+		name, container, wantOmission string
+	}{
+		{"source-derived", `{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","args":["receive","--log.level=info"]}`, "DEFAULT_ENTRYPOINT_SOURCE_DERIVED_FOR_EXACT_ADMITTED_IMAGE_NOT_RUNTIME_OBSERVATION"},
+		{"explicit", `{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":["receive","--log.level=info"]}`, "DEFAULT_ENTRYPOINT_NOT_INFERRED"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareThanos([]byte(thanosWorkload(tc.container)), "0.41.0", ThanosLatestTo)
+			if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonThanosRemovedFlagAbsent {
+				t.Fatalf("PrepareThanos() = %#v, %v", prepared, err)
+			}
+			for _, omission := range prepared.Omissions {
+				if omission == tc.wantOmission {
+					return
+				}
+			}
+			t.Fatalf("omissions = %#v, want %q", prepared.Omissions, tc.wantOmission)
+		})
+	}
+}
+
+func TestPrepareThanosLatestTargetRejectsBareOptionBeforeRemovedLookingValue(t *testing.T) {
+	raw := thanosWorkload(`{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":["receive","--config.file","--shipper.ignore-unequal-block-size"]}`)
+	prepared, err := PrepareThanos([]byte(raw), "0.41.0", ThanosLatestTo)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonThanosWorkloadUnsupported {
+		t.Fatalf("PrepareThanos() = %#v, %v", prepared, err)
+	}
+}
+
+func TestPrepareThanosRejectsUnreviewedVersionPair(t *testing.T) {
+	raw := thanosWorkload(`{"name":"thanos","image":"quay.io/thanos/thanos:v0.42.4","command":["/bin/thanos"],"args":["receive"]}`)
+	prepared, err := PrepareThanos([]byte(raw), "0.41.1", ThanosLatestTo)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonThanosTransitionUnsupported {
+		t.Fatalf("PrepareThanos() = %#v, %v", prepared, err)
+	}
+}
+
 func thanosWorkload(containers string) string {
 	return `{"apiVersion":"apps/v1","kind":"StatefulSet","metadata":{"name":"receive","namespace":"observability"},"spec":{"template":{"spec":{"containers":[` + containers + `]}}}}`
 }

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/prufyx/prufyx-cli/internal/cncfprepare"
 )
 
 func TestPrometheusSelectedAlertmanagerExamples(t *testing.T) {
@@ -47,7 +49,7 @@ func TestPrometheusSelectedAlertmanagerDirectChecks(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			path := writeCNCFFile(t, "private-alertmanager.yml", []byte(test.raw), 0o600)
-			args := []string{"check", "cncf", "--project", "prometheus", "--alertmanager-config", path, "--from", test.from, "--to", test.to, "--now", "2026-09-12T00:30:00Z", "--format", "json"}
+			args := []string{"check", "cncf", "--project", "prometheus", "--alertmanager-config", path, "--from", test.from, "--to", test.to, "--now", "2026-09-12T09:03:00Z", "--format", "json"}
 			if test.complete {
 				args = append(args, "--alertmanager-config-complete")
 			}
@@ -55,7 +57,8 @@ func TestPrometheusSelectedAlertmanagerDirectChecks(t *testing.T) {
 				args = append(args, "--alertmanager-config-precedence-resolved")
 			}
 			code, stdout, stderr := runCNCFCLI(t, args...)
-			if code != test.want || stderr != "" || !strings.Contains(stdout, test.wantReason) || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusAlertmanagerRuleID+`"`) {
+			selectedLegacy := test.from == cncfprepare.PrometheusFrom && test.to == cncfprepare.PrometheusTo
+			if code != test.want || stderr != "" || !strings.Contains(stdout, test.wantReason) || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || (selectedLegacy && !strings.Contains(stdout, `"selectedRuleId":"`+prometheusAlertmanagerRuleID+`"`)) || (!selectedLegacy && strings.Contains(stdout, `"selectedRuleId"`)) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 			}
 			for _, private := range []string{"private-alertmanager", "private.example", "9093", path} {
@@ -135,5 +138,43 @@ func TestPrometheusSelectedAlertmanagerExternalStoreNoFallbackAndReplayPinsRaw(t
 	code, stdout, stderr = runCNCFCLI(t, append(withoutRawPin, "--replay-report", report)...)
 	if code != ExitUsage || stdout != "" || !strings.Contains(stderr, "external native CNCF replay requires every raw resource digest") {
 		t.Fatalf("missing raw replay pin code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestPrometheusLatestAlertmanagerTargetPairsEndToEnd(t *testing.T) {
+	for _, from := range []string{"3.9.1", "3.10.0", "3.11.3", "3.12.0", "3.13.3"} {
+		t.Run(from, func(t *testing.T) {
+			for _, scenario := range []struct {
+				name, version string
+				want          int
+			}{
+				{"blocker", "v1", ExitBlocked},
+				{"scoped-pass", "v2", ExitOK},
+			} {
+				path := writeCNCFFile(t, scenario.name+".yml", []byte("api_version: "+scenario.version+"\nscheme: http\n"), 0o600)
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--alertmanager-config", path, "--alertmanager-config-complete", "--alertmanager-config-precedence-resolved", "--from", from, "--to", "3.14.0", "--now", "2026-09-12T09:03:00Z", "--format", "json")
+				if code != scenario.want || stderr != "" || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusNativeRuleID(from, "3.14.0", true)+`"`) {
+					t.Fatalf("%s code=%d stdout=%q stderr=%q", scenario.name, code, stdout, stderr)
+				}
+			}
+		})
+	}
+}
+
+func TestPrometheusLatestAlertmanagerExamples(t *testing.T) {
+	root := filepath.Join("..", "..", "examples", "cncf", "native-resources", "prometheus")
+	for name, want := range map[string]int{
+		"latest-v3.14.0-alertmanager-blocked.yml": ExitBlocked,
+		"latest-v3.14.0-alertmanager-fixed.yml":   ExitOK,
+	} {
+		raw, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := writeCNCFFile(t, name, raw, 0o600)
+		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--alertmanager-config", path, "--alertmanager-config-complete", "--alertmanager-config-precedence-resolved", "--from", "3.13.3", "--to", "3.14.0", "--now", "2026-09-12T09:03:00Z", "--format", "json")
+		if code != want || stderr != "" || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusNativeRuleID("3.13.3", "3.14.0", true)+`"`) {
+			t.Fatalf("%s code=%d stdout=%q stderr=%q", name, code, stdout, stderr)
+		}
 	}
 }

@@ -15,6 +15,15 @@ const (
 	jaegerDirectInvocationAuthority = "OPERATOR_DECLARED_DIRECT_OFFICIAL_JAEGER_V2_ARGUMENTS_ONLY"
 )
 
+var jaegerExplicitConfigPairs = map[string]bool{
+	"1.76.0\x002.20.0": true,
+	"2.15.1\x002.20.0": true,
+	"2.16.0\x002.20.0": true,
+	"2.17.0\x002.20.0": true,
+	"2.18.0\x002.20.0": true,
+	"2.19.0\x002.20.0": true,
+}
+
 var ErrInvalidJaeger = ErrInvalid
 
 const (
@@ -41,7 +50,7 @@ func PrepareJaeger(raw []byte, from, to string, nonMemoryStorage, officialDistri
 	}
 
 	factState, factValue, reason, state := "missing", (*bool)(nil), ReasonJaegerArgumentsUnknown, StateUnknown
-	if from != JaegerFrom || to != JaegerTo {
+	if !jaegerExplicitConfigPairs[from+"\x00"+to] {
 		reason = ReasonJaegerUnsupportedPair
 	} else if jaegerSingletonLiteral(root) {
 		present := true

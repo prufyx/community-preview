@@ -48,6 +48,36 @@ func TestCortexNativeWorkloadCheckEvaluatesLiteralTargetArgs(t *testing.T) {
 	}
 }
 
+func TestCortexNativeWorkloadRejectsUnlistedLatestExpansionPair(t *testing.T) {
+	raw := cortexNativeWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`)
+	path := writeCNCFFile(t, "cortex-workload.json", []byte(raw), 0o600)
+	code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "cortex", "--native-resource", path, "--from", "1.20.2", "--to", "1.21.1", "--now", "2026-09-12T07:38:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, "RULE_TRANSITION_NOT_REVIEWED") || strings.Contains(stdout, "private-cortex") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestCortexLatestTargetPairsEndToEnd(t *testing.T) {
+	for _, from := range []string{"1.16.1", "1.17.2", "1.18.1", "1.19.1", "1.20.1"} {
+		for _, tc := range []struct {
+			name, container, reason string
+			want                    int
+		}{
+			{"blocker", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["--querier.at-modifier-enabled=true"]}`, "REVIEWED_SOURCE_CONSTRAINT", ExitBlocked},
+			{"scoped pass", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`, "REVIEWED_SOURCE_CONSTRAINT", ExitOK},
+			{"unsupported image", `{"name":"cortex","image":"registry.example/cortex:v1.21.1","command":["/bin/cortex"],"args":["--target=all"]}`, "RULE_APPLICABILITY_FACT_UNAVAILABLE", ExitUnknown},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				path := writeCNCFFile(t, "cortex-latest.json", []byte(cortexNativeWorkload(tc.container)), 0o600)
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "cortex", "--native-resource", path, "--from", from, "--to", "1.21.1", "--now", "2026-09-12T07:38:00Z", "--format", "json")
+				if code != tc.want || stderr != "" || !strings.Contains(stdout, tc.reason) || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || strings.Contains(stdout, "private-cortex") {
+					t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+				}
+			})
+		}
+	}
+}
+
 func TestCortexNativeWorkloadRejectsMixedOrMissingInput(t *testing.T) {
 	raw := []byte(cortexNativeWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":[]}`))
 	path := writeCNCFFile(t, "cortex-workload.json", raw, 0o600)

@@ -16,7 +16,10 @@ const (
 	CloudCustodianFact      = "component.cloud_custodian.iam_access_key_json_diff_present"
 	CloudCustodianFrom      = "0.9.50"
 	CloudCustodianTo        = "0.9.51"
+	CloudCustodianLatestTo  = "0.9.52"
 )
+
+var cloudCustodianLatestOrigins = [...]string{"0.9.51", "0.9.50", "0.9.49", "0.9.48", "0.9.47"}
 
 const (
 	ReasonCloudCustodianJsonDiffPresent Reason = "CLOUD_CUSTODIAN_JSON_DIFF_PRESENT"
@@ -33,13 +36,16 @@ func PrepareCloudCustodian(raw []byte, from, to string) (Prepared, error) {
 	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
 		return Prepared{}, ErrInvalid
 	}
+	if to == CloudCustodianLatestTo && sourceContractDigest(cloudCustodianLatestSourceContract) != CloudCustodianLatestSourceContractDigest {
+		return Prepared{}, ErrInvalid
+	}
 	value, err := decodeStrict(raw)
 	if err != nil {
 		return Prepared{}, ErrInvalid
 	}
 	state, reason := StateUnknown, ReasonCloudCustodianUnsupported
 	var present bool
-	if from != CloudCustodianFrom || to != CloudCustodianTo {
+	if !cloudCustodianPairSupported(from, to) {
 		reason = ReasonCloudCustodianUnsupportedPair
 	} else if policy, ok := cloudCustodianPolicy(value); ok {
 		if filters, ok := policy["filters"].([]any); ok {
@@ -73,6 +79,21 @@ func PrepareCloudCustodian(raw []byte, from, to string) (Prepared, error) {
 			"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
 		},
 	}, nil
+}
+
+func cloudCustodianPairSupported(from, to string) bool {
+	if from == CloudCustodianFrom && to == CloudCustodianTo {
+		return true
+	}
+	if to != CloudCustodianLatestTo {
+		return false
+	}
+	for _, origin := range cloudCustodianLatestOrigins {
+		if from == origin {
+			return true
+		}
+	}
+	return false
 }
 
 func cloudCustodianPolicy(value any) (map[string]any, bool) {

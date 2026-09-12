@@ -89,3 +89,13 @@ func TestPrepareOpenCostCloudSourceExtractsFactsOutsideReviewedPair(t *testing.T
 		t.Fatalf("future pair = %#v, %v", prepared, err)
 	}
 }
+
+func TestPrepareOpenCostLatestRoutes(t *testing.T) {
+	raw := []byte(`{"schema":"` + OpenCostDeclarationSchema + `","current":{"cloudCostEnabled":true,"sourceSelectionComplete":true,"selectedSource":"provider_derived"},"proposed":{"cloudCostEnabled":true,"sourceSelectionComplete":true,"selectedSource":"cloud_integration","cloudIntegrationConfigSource":"present"}}`)
+	for _, from := range openCostLatestOrigins {
+		prepared, err := PrepareOpenCostCloudSource(raw, from, OpenCostLatestTo)
+		if err != nil || prepared.State != StatePrepared || !strings.Contains(string(prepared.CanonicalInputJSON), `"version":"`+from+`"`) || !strings.Contains(string(prepared.CanonicalInputJSON), `"version":"1.121.2"`) {
+			t.Fatalf("%s latest route = %+v, %v", from, prepared, err)
+		}
+	}
+}

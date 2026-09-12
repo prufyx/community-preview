@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"unicode/utf8"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -26,11 +28,14 @@ const (
 	GrafanaTo        = "11.0.0"
 	GrafanaFact      = "component.grafana.legacy_alerting_explicitly_enabled"
 
-	KibanaProject   = "kibana"
-	KibanaComponent = "pkg:github/elastic/kibana"
-	KibanaFrom      = "8.18.0"
-	KibanaTo        = "9.0.0"
-	KibanaFact      = "component.kibana.reporting_roles_allow_present"
+	KibanaProject              = "kibana"
+	KibanaComponent            = "pkg:github/elastic/kibana"
+	KibanaFrom                 = "8.18.0"
+	KibanaTo                   = "9.0.0"
+	KibanaFact                 = "component.kibana.reporting_roles_allow_present"
+	KibanaFullStatusIntentFact = "component.kibana.full_status_without_monitor_required"
+	KibanaStatusAuthFact       = "component.kibana.status_page_authentication_required"
+	KibanaStatusBypassFact     = "component.kibana.status_page_bypass_monitor_privilege"
 
 	LokiProject                  = "loki"
 	LokiComponent                = "pkg:github/grafana/loki"
@@ -106,9 +111,21 @@ func PrepareEffectiveConfig(project string, raw []byte, from, to string, complet
 	case GrafanaProject:
 		component, factID = GrafanaComponent, GrafanaFact
 		found, supported, err = grafanaLegacyAlerting(raw)
+		if to == "13.2.1" && !grafanaLatestOrigin(from) {
+			supported = false
+		}
 	case KibanaProject:
-		component, factID = KibanaComponent, KibanaFact
-		found, supported, err = kibanaReportingRolesAllow(raw)
+		component = KibanaComponent
+		if to == "9.5.3" && KibanaLatestOrigin(from) {
+			factID = KibanaStatusBypassFact
+			// The latest status route additionally requires an explicit intent
+			// declaration. Use PrepareKibanaStatusPage so a generic legacy
+			// preparation cannot accidentally turn target defaults into a PASS.
+			supported = false
+		} else {
+			factID = KibanaFact
+			found, supported, err = kibanaReportingRolesAllow(raw)
+		}
 	case LokiProject:
 		component, factID = LokiComponent, LokiFact
 		found, supported, err = lokiCompactorLegacySharedStore(raw)
@@ -145,6 +162,171 @@ func PrepareEffectiveConfig(project string, raw []byte, from, to string, complet
 		Reason:             reason,
 		Omissions:          omissions,
 	}, nil
+}
+
+// PrepareKibanaStatusPage derives the three facts for the reviewed Kibana 9.5.3
+// status-page scope. The intent is distinct from the setting: without an
+// explicit request for full status by callers lacking monitor privilege, the
+// source-derived default is not a compatibility decision. Authentication must
+// also be required: anonymous status access bypasses the monitor decision.
+func PrepareKibanaStatusPage(raw []byte, from, to string, complete, precedenceResolved, intentDeclared, requireFullStatusWithoutMonitor bool) (Prepared, error) {
+	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !versionRE.MatchString(from) || !versionRE.MatchString(to) || from == to {
+		return Prepared{}, ErrInvalid
+	}
+	intent := inputFact{ID: KibanaFullStatusIntentFact, State: "unsupported"}
+	authentication := inputFact{ID: KibanaStatusAuthFact, State: "unsupported"}
+	setting := inputFact{ID: KibanaStatusBypassFact, State: "unsupported"}
+	state, reason := "UNKNOWN", "KIBANA_STATUS_SCOPE_OR_EFFECTIVE_CONFIG_UNRESOLVED"
+	if to == "9.5.3" && KibanaLatestOrigin(from) {
+		if intentDeclared {
+			value := requireFullStatusWithoutMonitor
+			intent = inputFact{ID: KibanaFullStatusIntentFact, State: "declared", BoolValue: &value}
+		}
+		allowAnonymous, bypass, supported, err := kibanaStatusPageSettings(raw)
+		if err != nil {
+			return Prepared{}, ErrInvalid
+		}
+		if complete && precedenceResolved && supported {
+			requireAuthentication := !allowAnonymous
+			authentication = inputFact{ID: KibanaStatusAuthFact, State: "declared", BoolValue: &requireAuthentication}
+			setting = inputFact{ID: KibanaStatusBypassFact, State: "declared", BoolValue: &bypass}
+		}
+		if intentDeclared && complete && precedenceResolved && supported {
+			state, reason = "PREPARED", "KIBANA_STATUS_EFFECTIVE_CONFIG_AND_INTENT_DECLARED"
+		}
+	}
+	canonical, err := marshalInput(KibanaComponent, from, to, []inputFact{intent, authentication, setting})
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	return Prepared{
+		CanonicalInputJSON: canonical,
+		SourceDigest:       digest(raw),
+		InputDigest:        digest(canonical),
+		State:              state,
+		Reason:             reason,
+		Omissions: []string{
+			"CALLER_SUPPLIED_CONFIG_NOT_LIVE_OBSERVATION",
+			"ENVIRONMENT_AND_CLI_PRECEDENCE_DECLARED_NOT_OBSERVED",
+			"KIBANA_STATUS_CLIENT_MONITOR_PRIVILEGE_NOT_OBSERVED",
+			"KIBANA_STATUS_ROUTE_RUNTIME_NOT_EVALUATED",
+			"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
+		},
+	}, nil
+}
+
+func grafanaLatestOrigin(from string) bool {
+	switch from {
+	case "12.2.10", "12.3.11", "12.4.10", "13.0.8", "13.1.5":
+		return true
+	default:
+		return false
+	}
+}
+
+// KibanaLatestOrigin reports the only source endpoint releases reviewed for
+// the 9.5.3 status-page constraint.
+func KibanaLatestOrigin(from string) bool {
+	switch from {
+	case "9.0.8", "9.1.10", "9.2.8", "9.3.8", "9.4.6":
+		return true
+	default:
+		return false
+	}
+}
+
+// kibanaStatusPageSettings admits a single plain YAML mapping with only the
+// two reviewed dotted setting keys. It deliberately rejects YAML forms which
+// can change key identity or value precedence (documents, directives, quoted
+// selected keys, aliases, merges, tags, sequences, duplicates, and nesting).
+// Omitted settings are the reviewed 9.5.3 defaults only after the caller has
+// separately declared completeness and precedence resolution.
+func kibanaStatusPageSettings(raw []byte) (allowAnonymous, bypass, supported bool, err error) {
+	for _, line := range strings.Split(string(raw), "\n") {
+		clean := strings.TrimSuffix(line, "\r")
+		trimmed := strings.TrimSpace(clean)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "---" || trimmed == "..." || strings.HasPrefix(trimmed, "%") {
+			return false, false, false, nil
+		}
+		if strings.HasPrefix(trimmed, "#") {
+			if clean != trimmed {
+				return false, false, false, nil
+			}
+			continue
+		}
+		if clean != trimmed {
+			return false, false, false, nil
+		}
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(raw))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
+		return false, false, false, nil
+	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return false, false, false, nil
+	}
+	if len(document.Content) != 1 || !kibanaStatusSafeYAML(&document) {
+		return false, false, false, nil
+	}
+	root := document.Content[0]
+	if root.Kind != yaml.MappingNode || root.ShortTag() != "!!map" {
+		return false, false, false, nil
+	}
+	for index := 0; index < len(root.Content); index += 2 {
+		key, value := root.Content[index], root.Content[index+1]
+		if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" {
+			return false, false, false, nil
+		}
+		if key.Value == "status.statusPageBypassMonitorPrivilege" || key.Value == "status.allowAnonymous" {
+			if key.Style != 0 || value.Kind != yaml.ScalarNode || value.ShortTag() != "!!bool" || (value.Value != "true" && value.Value != "false") {
+				return false, false, false, nil
+			}
+			if key.Value == "status.statusPageBypassMonitorPrivilege" {
+				bypass = value.Value == "true"
+			} else {
+				allowAnonymous = value.Value == "true"
+			}
+			continue
+		}
+		if key.Value == "status" || strings.HasPrefix(strings.ToLower(key.Value), "status.") {
+			return false, false, false, nil
+		}
+	}
+	return allowAnonymous, bypass, true, nil
+}
+
+func kibanaStatusSafeYAML(node *yaml.Node) bool {
+	if node == nil || node.Kind == yaml.AliasNode || node.Alias != nil || node.Anchor != "" || node.Style&yaml.TaggedStyle != 0 {
+		return false
+	}
+	switch node.Kind {
+	case yaml.DocumentNode:
+		return len(node.Content) == 1 && kibanaStatusSafeYAML(node.Content[0])
+	case yaml.MappingNode:
+		if len(node.Content)%2 != 0 {
+			return false
+		}
+		seen := map[string]bool{}
+		for index := 0; index < len(node.Content); index += 2 {
+			key, value := node.Content[index], node.Content[index+1]
+			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" || key.Anchor != "" || key.Alias != nil || key.Style&yaml.TaggedStyle != 0 || key.Value == "<<" || seen[key.Value] || !kibanaStatusSafeYAML(value) {
+				return false
+			}
+			seen[key.Value] = true
+		}
+		return true
+	case yaml.SequenceNode:
+		return false
+	case yaml.ScalarNode:
+		return node.Anchor == "" && node.Alias == nil && node.Style&yaml.TaggedStyle == 0
+	default:
+		return false
+	}
 }
 
 func marshalInput(component, from, to string, facts []inputFact) ([]byte, error) {

@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 63 || len(vectors) != 63 {
+	if len(b.pack.Entries) != 156 || len(vectors) != 156 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 436 {
+	if caseCount != 832 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -72,8 +72,11 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				clock := reviewClock(t)
 				// This source review completed after the historical corpus clock;
 				// preserve its real reviewedAt timestamp in the rule data.
-				if vector.Project == "cloud-custodian" {
-					clock = time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+				if vector.Project == "cloud-custodian" || vector.Project == "opencost" {
+					clock = time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "argo-cd.plain-http-oci-repository-helm4.") {
+					clock = time.Date(2026, 9, 12, 11, 30, 0, 0, time.UTC)
 				}
 				if vector.Project == "opentelemetry" {
 					clock = time.Date(2026, 9, 12, 2, 35, 0, 0, time.UTC)
@@ -83,6 +86,40 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				}
 				if vector.RuleID == "argo-cd.resource-exclusions-v2-visibility-preservation.3-0" {
 					clock = time.Date(2026, 9, 12, 1, 23, 59, 0, time.UTC)
+				}
+				if (strings.HasPrefix(vector.RuleID, "cortex.querier-at-modifier-flag-target-argv.") && strings.HasSuffix(vector.RuleID, "-to-1-21-1")) ||
+					(strings.HasPrefix(vector.RuleID, "thanos.receive-store-flags-target-argv.") && strings.HasSuffix(vector.RuleID, "-to-0-42-4")) {
+					clock = time.Date(2026, 9, 12, 7, 38, 0, 0, time.UTC)
+				}
+				if strings.Contains(vector.RuleID, ".target-config.") || strings.HasPrefix(vector.RuleID, "fluentd.ruby-minimum-target.") {
+					clock = time.Date(2026, 9, 12, 8, 6, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "prometheus.alertmanager-api-v1.target-config.") {
+					clock = time.Date(2026, 9, 12, 9, 3, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "etcd.direct-minor-skip.") || strings.HasPrefix(vector.RuleID, "etcd.experimental-flags-unsupported.") || vector.RuleID == "rook.minimum-kubernetes.1-20-7" {
+					clock = time.Date(2026, 9, 12, 7, 38, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "rook.minimum-kubernetes.1-20-7-from-") {
+					clock = time.Date(2026, 9, 12, 8, 32, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "nats.names-with-ascii-spaces-rejected.") && strings.HasSuffix(vector.RuleID, "-to-2-14-6") {
+					clock = time.Date(2026, 9, 12, 8, 47, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "coredns.official-federation-absent-at-1-14-7-from-") || strings.HasPrefix(vector.RuleID, "envoy.xds-v2-unsupported-at-1-39-1-from-") {
+					clock = time.Date(2026, 9, 12, 9, 1, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "opa.v0-consumer-producer-option-at-1-20-2-") || strings.HasPrefix(vector.RuleID, "kyverno.reports-chunk-size-unsupported-at-1-19-1-") {
+					clock = time.Date(2026, 9, 12, 9, 34, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "flux.latest-beta-api-removal.") {
+					clock = time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "jaeger.explicit-config-required-for-non-memory.target.") {
+					clock = time.Date(2026, 9, 12, 8, 39, 0, 0, time.UTC)
+				}
+				if strings.HasPrefix(vector.RuleID, "harbor.installer-with-chartmuseum-flag-removed.2-") && strings.HasSuffix(vector.RuleID, "-to-2-15") {
+					clock = time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 				}
 				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {
@@ -165,6 +202,31 @@ func TestTektonCanonicalExamplePasses(t *testing.T) {
 	}
 	if len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "PASS" || ClaimExit(report) != 0 {
 		t.Fatalf("canonical Tekton example produced %+v", report.Check.Claims)
+	}
+}
+
+func TestFluentdLatestRubyExamplesStayScoped(t *testing.T) {
+	for name, want := range map[string]string{
+		"blocked.json":              "BLOCKED",
+		"fixed.json":                "PASS",
+		"unknown-missing-ruby.json": "UNKNOWN",
+		"unknown-wrong-pair.json":   "UNKNOWN",
+		"unknown-custom-build.json": "UNKNOWN",
+	} {
+		raw, err := os.ReadFile("../../examples/cncf/fluentd-ruby-v1.19.3/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := Check("fluentd", raw, time.Date(2026, 9, 12, 8, 6, 0, 0, time.UTC))
+		status := ""
+		for _, claim := range report.Check.Claims {
+			if strings.HasPrefix(claim.RuleID, "fluentd.ruby-minimum-target.1-18-0-") {
+				status = claim.Status
+			}
+		}
+		if err != nil || status != want || ClaimExit(report) != map[string]int{"BLOCKED": 10, "PASS": 0, "UNKNOWN": 11}[want] {
+			t.Fatalf("%s report=%+v err=%v", name, report, err)
+		}
 	}
 }
 
@@ -429,13 +491,13 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 		t.Fatal("Linkerd source preview coverage missing or overstated")
 	}
 	nats, err := Catalog(false, "nats")
-	if err != nil || len(nats.Projects) != 1 || nats.Projects[0].SourceRuleCount != 1 || nats.Projects[0].GenericCoverage != "source_rule_preview" || nats.Projects[0].RuntimeReproduced != 0 {
+	if err != nil || len(nats.Projects) != 1 || nats.Projects[0].SourceRuleCount != 6 || nats.Projects[0].GenericCoverage != "source_rule_preview" || nats.Projects[0].RuntimeReproduced != 0 {
 		t.Fatal("NATS source preview coverage missing or overstated")
 	}
 	for _, want := range []struct {
 		slug  string
 		rules int
-	}{{"cortex", 1}, {"falco", 2}, {"karmada", 1}, {"kubeedge", 1}, {"kuma", 1}, {"spire", 1}, {"strimzi", 1}} {
+	}{{"cortex", 5}, {"falco", 2}, {"karmada", 1}, {"kubeedge", 1}, {"kuma", 1}, {"spire", 1}, {"strimzi", 1}} {
 		preview, err := Catalog(false, want.slug)
 		if err != nil || len(preview.Projects) != 1 || preview.Projects[0].SourceRuleCount != want.rules || preview.Projects[0].GenericCoverage != "source_rule_preview" || preview.Projects[0].RuntimeReproduced != 0 {
 			t.Fatalf("%s source preview coverage missing or overstated", want.slug)
@@ -446,8 +508,12 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 		t.Fatal("cert-manager existing check lost or double counted")
 	}
 	prometheus, err := Catalog(false, "prometheus")
-	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 2 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
+	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 12 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
 		t.Fatal("Prometheus existing check or source rule lost or double counted")
+	}
+	fluentd, err := Catalog(false, "fluentd")
+	if err != nil || fluentd.Projects[0].SourceRuleCount != 7 || fluentd.Projects[0].GenericCoverage != "source_rule_preview" {
+		t.Fatal("Fluentd target package constraints not counted")
 	}
 	archived, err := Catalog(false, "curiefense")
 	if err != nil || archived.Projects[0].RepositoryURL != "" {
@@ -476,7 +542,16 @@ func TestTransitionDispatchDoesNotApplySiblingVersionRule(t *testing.T) {
 }
 
 func TestSourceFreshnessWithdrawalsAndReplayRemainBounded(t *testing.T) {
-	vector := reviewedVectors(t)[0]
+	var vector reviewedVector
+	for _, candidate := range reviewedVectors(t) {
+		if candidate.RuleID == "argo-cd.required-rbac-inheritance.3-0" {
+			vector = candidate
+			break
+		}
+	}
+	if vector.RuleID == "" {
+		t.Fatal("freshness fixture missing")
+	}
 	raw := vector.Cases[0].Input
 	report, err := Check(vector.Project, raw, reviewClock(t))
 	if err != nil {

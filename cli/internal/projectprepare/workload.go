@@ -13,8 +13,11 @@ const (
 	ArgoWorkflowsFrom      = "3.5.0"
 	ArgoWorkflowsTo        = "3.6.0"
 	ArgoWorkflowsFact      = "component.argo-workflows.server_legacy_basehref_flag_present"
+	ArgoWorkflowsLatestTo  = "4.1.3"
 	argoWorkflowsImage     = "quay.io/argoproj/argocli:v3.6.0"
 )
+
+var argoWorkflowsLatestOrigins = [...]string{"3.4.18", "3.5.15", "3.6.19", "3.7.18", "4.0.11"}
 
 // PrepareWorkload inspects one caller-supplied Kubernetes workload JSON file.
 // complete is an explicit declaration about the supplied selected-container
@@ -23,13 +26,14 @@ func PrepareWorkload(project string, raw []byte, from, to string, complete bool)
 	if project != ArgoWorkflowsProject || len(raw) == 0 || len(raw) > maxInputBytes || !versionRE.MatchString(from) || !versionRE.MatchString(to) || from == to {
 		return Prepared{}, ErrInvalid
 	}
-	found, supported, sourceDerivedCommand, err := argoWorkflowsServerBaseHref(raw)
+	targetImage, pairSupported := argoWorkflowsTargetImage(from, to)
+	found, supported, sourceDerivedCommand, err := argoWorkflowsServerBaseHref(raw, targetImage)
 	if err != nil {
 		return Prepared{}, ErrInvalid
 	}
 	fact := inputFact{ID: ArgoWorkflowsFact, State: "unsupported"}
 	state, reason := "UNKNOWN", "WORKLOAD_OR_SELECTED_ARGV_INCOMPLETE_OR_UNSUPPORTED"
-	if complete && supported {
+	if complete && pairSupported && supported {
 		value := found
 		fact = inputFact{ID: ArgoWorkflowsFact, State: "declared", BoolValue: &value}
 		state, reason = "PREPARED", "NATIVE_WORKLOAD_SELECTED_SERVER_ARGV_INSPECTED"
@@ -56,7 +60,21 @@ func PrepareWorkload(project string, raw []byte, from, to string, complete bool)
 	}, nil
 }
 
-func argoWorkflowsServerBaseHref(raw []byte) (bool, bool, bool, error) {
+func argoWorkflowsTargetImage(from, to string) (string, bool) {
+	if from == ArgoWorkflowsFrom && to == ArgoWorkflowsTo {
+		return argoWorkflowsImage, true
+	}
+	if to == ArgoWorkflowsLatestTo {
+		for _, origin := range argoWorkflowsLatestOrigins {
+			if from == origin {
+				return "quay.io/argoproj/argocli:v4.1.3", true
+			}
+		}
+	}
+	return "", false
+}
+
+func argoWorkflowsServerBaseHref(raw []byte, targetImage string) (bool, bool, bool, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	value, err := decodeJSONValue(decoder)
@@ -114,7 +132,7 @@ func argoWorkflowsServerBaseHref(raw []byte) (bool, bool, bool, error) {
 		return false, false, false, nil
 	}
 	image, ok := exactString(selected, "image")
-	if !ok || image != argoWorkflowsImage {
+	if !ok || targetImage == "" || image != targetImage {
 		return false, false, false, nil
 	}
 	commandSourceDerived, commandSupported := argoWorkflowsCommand(selected)

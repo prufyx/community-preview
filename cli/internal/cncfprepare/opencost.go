@@ -10,6 +10,7 @@ const (
 	OpenCostComponent         = "pkg:github/opencost/opencost"
 	OpenCostFrom              = "1.119.0"
 	OpenCostTo                = "1.120.0"
+	OpenCostLatestTo          = "1.121.2"
 
 	OpenCostCurrentEnabledFact          = "component.opencost.current_cloud_cost_enabled"
 	OpenCostCurrentCompleteFact         = "component.opencost.current_source_selection_complete"
@@ -18,6 +19,8 @@ const (
 	OpenCostProposedCompleteFact        = "component.opencost.proposed_source_selection_complete"
 	OpenCostTargetSourceReadyFact       = "component.opencost.target_cloud_integration_source_selected_and_declared_present"
 )
+
+var openCostLatestOrigins = [...]string{"1.120.4", "1.119.2", "1.118.0", "1.117.6", "1.116.0"}
 
 const (
 	ReasonOpenCostSelectionDeclared    Reason = "OPENCOST_CLOUD_COST_SOURCE_SELECTION_DECLARED"
@@ -37,6 +40,9 @@ type openCostSelection struct {
 // deployment mounts, provider values, cloud access, startup, or runtime.
 func PrepareOpenCostCloudSource(raw []byte, from, to string) (Prepared, error) {
 	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
+		return Prepared{}, ErrInvalid
+	}
+	if to == OpenCostLatestTo && sourceContractDigest(openCostLatestSourceContract) != OpenCostLatestSourceContractDigest {
 		return Prepared{}, ErrInvalid
 	}
 	value, err := decodeStrict(raw)

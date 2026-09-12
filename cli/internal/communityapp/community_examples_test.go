@@ -13,7 +13,7 @@ func TestCommunityExampleRunsNativeSyntheticCNCFJourneys(t *testing.T) {
 	if _, err := (runtime{}).runEtcdExample(); err != nil {
 		t.Fatalf("direct etcd example: %v", err)
 	}
-	for _, example := range []string{"cncf-etcd", "cncf-opentelemetry", "knowledge-cert-manager", "knowledge-cncf"} {
+	for _, example := range []string{"cncf-coredns-latest", "cncf-envoy-latest", "cncf-etcd", "cncf-kyverno-latest", "cncf-nats-latest", "cncf-opa-latest", "cncf-opentelemetry", "cncf-rook-latest", "knowledge-cert-manager", "knowledge-cncf", "project-ceph-latest"} {
 		t.Run(example, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			code := Run(context.Background(), []string{"community-preview", "example", example}, &stdout, &stderr, "test")
@@ -32,7 +32,8 @@ func TestCommunityExampleRunsNativeSyntheticCNCFJourneys(t *testing.T) {
 			if envelope.Data.Example != example || envelope.Data.Aggregate != "UNKNOWN" || envelope.Data.NetworkUsed || envelope.Data.ClusterUsed || envelope.Data.PrivateRetained || envelope.Data.RuntimeObserved || envelope.Data.ProcessExecuted || !envelope.Data.ScopedClaimOnly {
 				t.Fatalf("result=%#v", envelope.Data)
 			}
-			if envelope.Data.BlockedExit != ExitBlocked || envelope.Data.UnknownExit != ExitUnknown || (example == "cncf-opentelemetry" && envelope.Data.CleanExit != ExitOK) {
+			needsClean := example == "cncf-coredns-latest" || example == "cncf-envoy-latest" || example == "cncf-etcd" || example == "cncf-kyverno-latest" || example == "cncf-nats-latest" || example == "cncf-opa-latest" || example == "cncf-opentelemetry" || example == "cncf-rook-latest" || example == "project-ceph-latest"
+			if envelope.Data.BlockedExit != ExitBlocked || envelope.Data.UnknownExit != ExitUnknown || (needsClean && envelope.Data.CleanExit != ExitOK) {
 				t.Fatalf("exit result=%#v", envelope.Data)
 			}
 		})

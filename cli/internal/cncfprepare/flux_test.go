@@ -62,3 +62,96 @@ func TestPrepareFlux_RejectsMalformedOrDuplicateInput(t *testing.T) {
 		t.Fatal("accepted invalid UTF-8")
 	}
 }
+
+func TestPrepareFluxLatest_RemovesUnionFromV28AndV29(t *testing.T) {
+	for index, api := range fluxLatestRemovedAPIs {
+		kinds := []string{"GitRepository", "Kustomization", "HelmRelease", "ImagePolicy", "Alert"}
+		raw := `{"apiVersion":"` + api + `","kind":"` + kinds[index] + `","metadata":{"name":"app"}}`
+		prepared, err := PrepareFlux([]byte(raw), "2.4.0", FluxLatestTo, false)
+		if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluxRemovedAPIWitness || !strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue":true`) {
+			t.Fatalf("api=%s prepared=%#v err=%v", api, prepared, err)
+		}
+	}
+}
+
+func TestPrepareFluxLatestRetainsV27RemovedAPIsAsSeparateFact(t *testing.T) {
+	raw := []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1beta1","kind":"GitRepository","metadata":{"name":"app"}}`)
+	prepared, err := PrepareFlux(raw, "2.6.4", FluxLatestTo, false)
+	if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluxRemovedAPIWitness || !strings.Contains(string(prepared.CanonicalInputJSON), FluxLatestFact) || !strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue":true`) {
+		t.Fatalf("legacy latest witness=%#v err=%v", prepared, err)
+	}
+}
+
+func TestPrepareFluxLatestDoesNotInferGroupRemovalForUnknownKind(t *testing.T) {
+	raw := []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1beta2","kind":"Unlisted","metadata":{"name":"app"}}`)
+	prepared, err := PrepareFlux(raw, "2.8.8", FluxLatestTo, true)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonFluxResourceUnsupported || !strings.Contains(string(prepared.CanonicalInputJSON), `"component.flux.latest_removed_beta_api_present","state":"unsupported"`) {
+		t.Fatalf("unknown kind=%#v err=%v", prepared, err)
+	}
+}
+
+func TestPrepareFluxLatestDoesNotInferClearForUnknownAPIVersion(t *testing.T) {
+	for _, test := range []struct {
+		api, kind string
+	}{
+		{"source.toolkit.fluxcd.io/v99", "GitRepository"},
+		{"kustomize.toolkit.fluxcd.io/v99", "Kustomization"},
+		{"helm.toolkit.fluxcd.io/v99", "HelmRelease"},
+		{"image.toolkit.fluxcd.io/v99", "ImagePolicy"},
+		{"notification.toolkit.fluxcd.io/v99", "Alert"},
+	} {
+		raw := []byte(`{"apiVersion":"` + test.api + `","kind":"` + test.kind + `","metadata":{"name":"app"}}`)
+		prepared, err := PrepareFlux(raw, "2.8.8", FluxLatestTo, true)
+		if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonFluxResourceUnsupported || !strings.Contains(string(prepared.CanonicalInputJSON), `"state":"unsupported"`) {
+			t.Fatalf("api=%s kind=%s prepared=%#v err=%v", test.api, test.kind, prepared, err)
+		}
+	}
+}
+
+func TestPrepareFluxLatestTargetServedVersionsAreScopedClear(t *testing.T) {
+	for _, test := range []struct {
+		api, kind string
+	}{
+		{"source.toolkit.fluxcd.io/v1", "GitRepository"},
+		{"kustomize.toolkit.fluxcd.io/v1", "Kustomization"},
+		{"helm.toolkit.fluxcd.io/v2", "HelmRelease"},
+		{"image.toolkit.fluxcd.io/v1", "ImageRepository"},
+		{"notification.toolkit.fluxcd.io/v1beta3", "Alert"},
+		{"notification.toolkit.fluxcd.io/v1beta3", "Provider"},
+		{"notification.toolkit.fluxcd.io/v1", "Receiver"},
+	} {
+		raw := []byte(`{"apiVersion":"` + test.api + `","kind":"` + test.kind + `","metadata":{"name":"app"}}`)
+		prepared, err := PrepareFlux(raw, "2.8.8", FluxLatestTo, true)
+		if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluxSelectedSetClear || !strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue":false`) {
+			t.Fatalf("api=%s kind=%s prepared=%#v err=%v", test.api, test.kind, prepared, err)
+		}
+	}
+}
+
+func TestPrepareFluxLatestAllowsOrdinaryNonFluxResources(t *testing.T) {
+	raw := []byte(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"app"}}`)
+	prepared, err := PrepareFlux(raw, "2.8.8", FluxLatestTo, true)
+	if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluxSelectedSetClear || !strings.Contains(string(prepared.CanonicalInputJSON), `"component.flux.latest_removed_beta_api_present","state":"declared","boolValue":false`) {
+		t.Fatalf("ordinary resource=%#v err=%v", prepared, err)
+	}
+}
+
+func TestPrepareFluxLatestRejectsUnlistedOrigin(t *testing.T) {
+	raw := []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1beta2","kind":"GitRepository","metadata":{"name":"app"}}`)
+	prepared, err := PrepareFlux(raw, "2.3.0", FluxLatestTo, false)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonFluxLatestTransition || !strings.Contains(string(prepared.CanonicalInputJSON), FluxLatestFact) || strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue":true`) {
+		t.Fatalf("unlisted origin=%#v err=%v", prepared, err)
+	}
+}
+
+func TestPrepareFluxLatestClearRequiresCompleteSelectedSet(t *testing.T) {
+	raw := []byte(`{"apiVersion":"source.toolkit.fluxcd.io/v1","kind":"GitRepository","metadata":{"name":"app"}}`)
+	prepared, err := PrepareFlux(raw, "2.8.8", FluxLatestTo, false)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonFluxScopeIncomplete {
+		t.Fatalf("incomplete=%#v err=%v", prepared, err)
+	}
+	prepared, err = PrepareFlux(raw, "2.8.8", FluxLatestTo, true)
+	if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluxSelectedSetClear || !strings.Contains(string(prepared.CanonicalInputJSON), `"boolValue":false`) {
+		t.Fatalf("complete=%#v err=%v", prepared, err)
+	}
+}

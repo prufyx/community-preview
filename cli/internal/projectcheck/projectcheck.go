@@ -67,15 +67,17 @@ type ruleBinding struct {
 		From      string `json:"from"`
 		To        string `json:"to"`
 	} `json:"subject"`
-	Condition *struct {
-		Side      string `json:"side"`
-		Component string `json:"component"`
-		FactID    string `json:"factId"`
-	} `json:"condition"`
-	Evidence struct {
+	Condition   *factBinding  `json:"condition"`
+	AppliesWhen []factBinding `json:"appliesWhen"`
+	Evidence    struct {
 		ReviewedAt string `json:"reviewedAt"`
 		ValidUntil string `json:"validUntil"`
 	} `json:"evidence"`
+}
+type factBinding struct {
+	Side      string `json:"side"`
+	Component string `json:"component"`
+	FactID    string `json:"factId"`
 }
 type packDocument struct {
 	Schema       string  `json:"schema"`
@@ -119,7 +121,11 @@ func definitions() []constraintengine.FactDefinition {
 		{ID: "component.ceph.selected_current_osd_filestore", Component: "pkg:github/ceph/ceph", Type: constraintengine.FactBool},
 		{ID: "component.grafana.legacy_alerting_explicitly_enabled", Component: "pkg:github/grafana/grafana", Type: constraintengine.FactBool},
 		{ID: "component.fluent_bit.proposed_http2_enabled", Component: "pkg:github/fluent/fluent-bit", Type: constraintengine.FactBool},
+		{ID: "component.fluent_bit.target_required_http2_enabled", Component: "pkg:github/fluent/fluent-bit", Type: constraintengine.FactBool},
+		{ID: "component.kibana.full_status_without_monitor_required", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
 		{ID: "component.kibana.reporting_roles_allow_present", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
+		{ID: "component.kibana.status_page_authentication_required", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
+		{ID: "component.kibana.status_page_bypass_monitor_privilege", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
 		{ID: "component.loki.compactor_legacy_shared_store_present", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
 		{ID: "component.loki.structured_metadata_requires_tsdb_v13", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
 	}
@@ -167,18 +173,29 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 	previousProject, previousRuleID := "", ""
 	for i, e := range b.pack.Entries {
 		id, ok := b.identities[e.Project]
-		if !ok || e.Description == "" || len(e.RequiredFacts) != 1 {
+		if !ok || e.Description == "" || len(e.RequiredFacts) == 0 || len(e.RequiredFacts) > 8 {
 			return bundle{}, ErrIntegrity
 		}
+		required := map[string]struct{}{}
 		for _, f := range e.RequiredFacts {
 			d, ok := defs[f.ID]
+			key := f.Side + "\x00" + f.Component + "\x00" + f.ID
 			if !ok || (f.Side != "current" && f.Side != "proposed") || f.Component != id.Component || d.Component != f.Component || d.Type != f.Type || len(f.EnumTokens) != 0 || f.Description == "" {
 				return bundle{}, ErrIntegrity
 			}
+			if _, duplicate := required[key]; duplicate {
+				return bundle{}, ErrIntegrity
+			}
+			required[key] = struct{}{}
 		}
 		var binding ruleBinding
-		if json.Unmarshal(e.Rule, &binding) != nil || binding.ID == "" || binding.Operator != "forbid_predicate_value" || binding.Condition == nil || binding.Subject.Component != id.Component || binding.Condition.Side != e.RequiredFacts[0].Side || binding.Condition.Component != e.RequiredFacts[0].Component || binding.Condition.FactID != e.RequiredFacts[0].ID {
+		if json.Unmarshal(e.Rule, &binding) != nil || binding.ID == "" || binding.Operator != "forbid_predicate_value" || binding.Condition == nil || binding.Subject.Component != id.Component || !requiredFact(required, *binding.Condition) {
 			return bundle{}, ErrIntegrity
+		}
+		for _, guard := range binding.AppliesWhen {
+			if !requiredFact(required, guard) {
+				return bundle{}, ErrIntegrity
+			}
 		}
 		if _, duplicate := seenRuleIDs[binding.ID]; duplicate || i > 0 && (previousProject > e.Project || previousProject == e.Project && previousRuleID >= binding.ID) {
 			return bundle{}, ErrIntegrity
@@ -201,6 +218,11 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 		}
 	}
 	return b, nil
+}
+
+func requiredFact(required map[string]struct{}, binding factBinding) bool {
+	_, ok := required[binding.Side+"\x00"+binding.Component+"\x00"+binding.FactID]
+	return ok
 }
 
 func strict(raw []byte, out any) error {

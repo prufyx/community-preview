@@ -205,10 +205,20 @@ func constraintsBundle(revision string, now time.Time, active bool) ([]byte, err
 	entries := []cncfcheck.Entry{}
 	if active {
 		catalogue, err := cncfcheck.Catalog(false, "kyverno")
-		if err != nil || len(catalogue.Projects) != 1 || len(catalogue.Projects[0].Checks) != 1 {
+		if err != nil || len(catalogue.Projects) != 1 {
 			return nil, errors.New("synthetic Kyverno source is unavailable")
 		}
-		entries = catalogue.Projects[0].Checks
+		for _, entry := range catalogue.Projects[0].Checks {
+			var shape struct {
+				ID string `json:"id"`
+			}
+			if json.Unmarshal(entry.Rule, &shape) == nil && shape.ID == "kyverno.reports-chunk-size-removed.1-13" {
+				entries = append(entries, entry)
+			}
+		}
+		if len(entries) != 1 {
+			return nil, errors.New("synthetic Kyverno source is unavailable")
+		}
 		var rule map[string]json.RawMessage
 		if json.Unmarshal(entries[0].Rule, &rule) != nil {
 			return nil, errors.New("synthetic Kyverno rule is invalid")

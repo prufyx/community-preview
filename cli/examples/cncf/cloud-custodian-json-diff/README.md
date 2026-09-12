@@ -1,20 +1,35 @@
 # Cloud Custodian IAM access-key filter preflight
 
-For the reviewed Cloud Custodian 0.9.50 to 0.9.51 transition, the `json-diff`
-filter is removed from the `iam-access-key` resource. This local check reads one
-private JSON policy, projects only the selected filter fact, and never runs
-Cloud Custodian or contacts AWS.
+Cloud Custodian package 0.9.52 no longer registers `json-diff` for the
+`iam-access-key` resource. The latest route covers exact package versions
+0.9.47, 0.9.48, 0.9.49, 0.9.50, and 0.9.51 to 0.9.52. The retained source
+contract binds those package versions to the corresponding four-part upstream
+release tags. The existing 0.9.50 to 0.9.51 route remains available.
+The retained target evidence binds the complete `iam-access-key` resource
+definition to the inherited `TypeInfo.config_type = None` default used by the
+`json-diff` registration guard.
 
-From the `cli` directory, build or use the local `prufyx` binary and prepare the
-examples:
+This local check reads one private JSON policy, projects only the selected
+filter fact, and never runs Cloud Custodian or contacts AWS.
+
+From the `cli` directory with Go 1.26.8 available:
 
 ```sh
-prufyx prepare cncf --project cloud-custodian \
-  --input examples/cncf/cloud-custodian-json-diff/blocked-policy.json \
-  --from 0.9.50 --to 0.9.51 --format input > /tmp/cloud-custodian-prepared.json
-prufyx check cncf --project cloud-custodian \
-  --input /tmp/cloud-custodian-prepared.json \
-  --now 2026-09-11T22:38:05Z --format human
+umask 077
+custodian_tmp=$(mktemp -d "${TMPDIR:-/tmp}/prufyx-custodian.XXXXXX")
+trap 'rm -rf "$custodian_tmp"' EXIT HUP INT TERM
+go build -trimpath -buildvcs=false -mod=vendor -o "$custodian_tmp/prufyx" ./cmd/prufyx-community
+cp examples/cncf/cloud-custodian-json-diff/blocked-policy.json "$custodian_tmp/policy.json"
+chmod 600 "$custodian_tmp/policy.json"
+"$custodian_tmp/prufyx" prepare cncf --project cloud-custodian \
+  --input "$custodian_tmp/policy.json" \
+  --from 0.9.47 --to 0.9.52 --format input >"$custodian_tmp/prepared.json"
+chmod 600 "$custodian_tmp/prepared.json"
+"$custodian_tmp/prufyx" check cncf --project cloud-custodian \
+  --input "$custodian_tmp/prepared.json" \
+  --now 2026-09-12T10:00:00Z --format human
+custodian_exit=$?
+test "$custodian_exit" -eq 10
 ```
 
 The blocked example returns exit 10. The fixed example has an explicitly empty

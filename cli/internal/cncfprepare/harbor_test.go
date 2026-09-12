@@ -76,6 +76,36 @@ func TestPrepareHarborUnknownBoundaries(t *testing.T) {
 	}
 }
 
+func TestPrepareHarborLatestExactPairs(t *testing.T) {
+	for _, from := range []string{"2.10.3", "2.11.2", "2.12.4", "2.13.5", "2.14.4"} {
+		for _, tc := range []struct {
+			name string
+			argv []string
+			want bool
+		}{
+			{"removed option", []string{"--with-chartmuseum"}, true},
+			{"complete absence", []string{"--with-trivy"}, false},
+		} {
+			prepared, err := PrepareHarbor(harborArguments(true, tc.argv...), from, "2.15.2")
+			if err != nil || prepared.State != StatePrepared {
+				t.Fatalf("from=%s %s prepared=%#v err=%v", from, tc.name, prepared, err)
+			}
+			fact := preparedFacts(t, prepared)[HarborFact]
+			if fact["state"] != "declared" || fact["boolValue"] != tc.want {
+				t.Fatalf("from=%s %s fact=%v", from, tc.name, fact)
+			}
+		}
+		unsupported, err := PrepareHarbor(harborArguments(true, "--with-notary"), from, "2.15.2")
+		if err != nil || unsupported.State != StateUnknown || unsupported.Reason != ReasonHarborArgvUnsupported {
+			t.Fatalf("from=%s target-rejected option=%#v err=%v", from, unsupported, err)
+		}
+		prepared, err := PrepareHarbor(harborArguments(true, "--with-chartmuseum"), from, "2.15.1")
+		if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonHarborUnsupportedPair {
+			t.Fatalf("from=%s wrong target=%#v err=%v", from, prepared, err)
+		}
+	}
+}
+
 func TestPrepareHarborWrongPairStillExtractsNoFact(t *testing.T) {
 	prepared, err := PrepareHarbor(harborArguments(true, "--with-chartmuseum"), "2.7.1", HarborTo)
 	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonHarborUnsupportedPair {

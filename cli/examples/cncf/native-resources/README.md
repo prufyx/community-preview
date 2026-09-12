@@ -136,6 +136,29 @@ and unrelated settings are discarded. These results do not establish that an
 actual Alertmanager supports v2, is reachable, or can receive alerts; validate
 Alertmanager compatibility and the complete target configuration separately.
 
+### Prometheus 3.14 target-only selections
+
+The `latest-v3.14.0-*` fixtures exercise only the five reviewed origins
+`3.9.1`, `3.10.0`, `3.11.3`, `3.12.0`, and `3.13.3` to `3.14.0`. Run the
+local Go-built command against one private selected mapping:
+
+```sh
+cp examples/cncf/native-resources/prometheus/latest-v3.14.0-alertmanager-blocked.yml "$work/prometheus-alertmanager.yml"
+chmod 600 "$work/prometheus-alertmanager.yml"
+./prufyx-community check cncf --project prometheus \
+  --alertmanager-config "$work/prometheus-alertmanager.yml" \
+  --alertmanager-config-complete --alertmanager-config-precedence-resolved \
+  --from 3.13.3 --to 3.14.0 --now 2026-09-12T09:03:00Z --format human
+```
+
+The `api_version: v1` fixture is BLOCKED. `latest-v3.14.0-alertmanager-fixed.yml`
+is PASS and an omitted API key uses the target's source-derived v2 default.
+For the classic-histogram setting, `latest-v3.14.0-scrape-blocked.yml` is
+BLOCKED only because it explicitly selects the old key;
+`latest-v3.14.0-scrape-unknown.yml` remains UNKNOWN because no selected key is
+present. These target-only results do not imply an origin default, startup,
+scraping, Alertmanager reachability, or whole-upgrade safety.
+
 ## NATS selected literal names
 
 NATS `2.10.0` → `2.11.0` rejects ASCII spaces in explicitly supplied
@@ -143,12 +166,26 @@ NATS `2.10.0` → `2.11.0` rejects ASCII spaces in explicitly supplied
 small JSON-only configuration subset and does not resolve NATS includes,
 variables, defaults, or classic block syntax.
 
+The retained native input path also evaluates the exact target-only constraint
+for `2.12.15`, `2.11.17`, `2.10.29`, `2.9.25`, and `2.8.4` proposed to
+`2.14.6`. The target source applies the same literal ASCII-space predicate to
+the three selected names. These rules do not claim when that behavior began,
+that any direct route is supported, or that an intermediate version is
+required.
+
 ```sh
 cp examples/cncf/native-resources/nats/broken.json "$work/nats.json"
 chmod 600 "$work/nats.json"
 ./prufyx-community check cncf --project nats \
   --nats-config "$work/nats.json" \
   --from 2.10.0 --to 2.11.0 --now 2026-09-11T20:22:53Z --format human
+```
+
+Run the Go-owned latest-target walkthrough to exercise scoped `BLOCKED`,
+`PASS`, and `UNKNOWN` cases for all five exact origins:
+
+```sh
+./prufyx-community community-preview example cncf-nats-latest
 ```
 
 `broken.json` is BLOCKED because a supplied selected name contains an ASCII
@@ -166,6 +203,28 @@ Flux `2.6.4` → `2.7.0` removes five beta API versions. The direct route reads
 one caller-selected JSON Kubernetes object or `v1` `List`; it does not parse
 YAML, contact a cluster, or establish stored-version migration or reconciliation.
 
+The latest reviewed route is Flux `2.9.5`. It accepts the five exact origins
+`2.8.8`, `2.7.5`, `2.6.4`, `2.5.1`, and `2.4.0`. It retains the five earlier
+beta API removals and adds the target-confirmed beta2 set. Select the same
+private rendered-resource file with `--to 2.9.5` and one of those origins:
+
+```sh
+umask 077
+./prufyx-community check cncf --project flux \
+  --native-resource "$work/flux.json" \
+  --from 2.8.8 --to 2.9.5 --resource-scope-complete \
+  --now 2026-09-12T10:00:00Z --format human
+```
+
+The latest target's controller versions and per-kind served API versions are
+bound to the pinned Flux 2.9.5 CRD release files in the retained reviewed source
+contract. A selected Flux API group with an unknown kind or an unreviewed API version remains `UNKNOWN`;
+ordinary non-Flux resources remain admissible. These checks still do not prove
+stored CRD versions, migration execution, reconciliation, runtime, or whole
+upgrade safety. The latest predicate covers only the reviewed toolkit kinds
+listed in the retained contract; it does not classify source-watcher,
+extensions, or every Flux CRD and API version.
+
 ```sh
 cp examples/cncf/native-resources/flux/broken.json "$work/flux.json"
 chmod 600 "$work/flux.json"
@@ -181,3 +240,24 @@ non-paginated list is the selected rendered-resource set. `unknown.json` has a
 pagination token and remains UNKNOWN. These results never establish stored CRD
 versions, full cluster inventory, schema validation, reconciliation, runtime,
 or whole-upgrade safety.
+
+## Cortex latest target argv
+
+The latest-target expansion admits exactly `1.16.1`, `1.17.2`, `1.18.1`,
+`1.19.1`, or `1.20.1` to `1.21.1`. It applies a target-only argv constraint
+and does not assert when that option changed for every origin. The
+`cortex/latest-v1.21.1-*.json` examples use the exact target image and show a
+blocker, a scoped pass, and an unsupported custom image.
+
+## Thanos latest target argv
+
+The existing `0.41.0` to `0.42.0` command grammar remains unchanged. The
+latest-target expansion admits exactly `0.37.2`, `0.38.0`, `0.39.2`, `0.40.1`,
+or `0.41.0` to `0.42.4`. For those new pairs the target Dockerfile qualifies
+only explicit `command: ["/bin/thanos"]` or an omitted command on an admitted
+image. `command: ["thanos"]` remains unsupported for these new pairs.
+The admitted image spellings are `quay.io/thanos/thanos:v0.42.4` and
+`thanosio/thanos:v0.42.4`; canonical Docker Hub normalization is handled by
+the adapter. The `thanos/latest-v0.42.4-*.json` files show blocker, scoped
+pass, and unsupported inputs. These results do not prove image pulls, runtime,
+compaction, storage, Query compatibility, or whole-upgrade behavior.

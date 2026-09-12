@@ -146,6 +146,32 @@ func TestFluentBitDuplicateInputRemainsUnknown(t *testing.T) {
 	}
 }
 
+func TestFluentBitHTTP2TargetRequirementExactPairs(t *testing.T) {
+	now := time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		from, raw, want string
+	}{
+		{"3.2.10", "[OUTPUT]\n  Name opentelemetry\n  http2 on\n", "PASS"},
+		{"4.0.14", "[OUTPUT]\n  Name opentelemetry\n", "BLOCKED"},
+		{"4.1.2", "[OUTPUT]\n  Name opentelemetry\n  http2 off\n", "BLOCKED"},
+		{"4.2.8", "[OUTPUT]\n  Name opentelemetry\n  http2 force\n", "PASS"},
+		{"5.0.10", "[OUTPUT]\n  Name opentelemetry\n  http2 on\n", "PASS"},
+	} {
+		prepared, err := projectprepare.PrepareFluentBitHTTP2Target([]byte(tc.raw), tc.from, "5.1.2", true, true)
+		if err != nil || prepared.State != "PREPARED" {
+			t.Fatalf("from=%s prepared=%+v err=%v", tc.from, prepared, err)
+		}
+		report, err := Check(projectprepare.FluentBitProject, prepared.CanonicalInputJSON, now)
+		if err != nil || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != tc.want || ClaimExit(report) != map[string]int{"PASS": 0, "BLOCKED": 10}[tc.want] {
+			t.Fatalf("from=%s report=%+v err=%v", tc.from, report, err)
+		}
+	}
+	unknown, err := projectprepare.PrepareFluentBitHTTP2Target([]byte("[OUTPUT]\n  Name opentelemetry\n  http2 on\n"), "5.0.9", "5.1.2", true, true)
+	if err != nil || unknown.State != "UNKNOWN" || unknown.Reason != "UNSUPPORTED_VERSION_PAIR" {
+		t.Fatalf("wrong pair=%+v err=%v", unknown, err)
+	}
+}
+
 func TestArgoWorkflowsScopedResultAndWrongPair(t *testing.T) {
 	now := time.Date(2026, 9, 11, 21, 0, 0, 0, time.UTC)
 	workload := func(args string) []byte {
@@ -174,6 +200,31 @@ func TestArgoWorkflowsScopedResultAndWrongPair(t *testing.T) {
 	report, err := Check(projectprepare.ArgoWorkflowsProject, prepared.CanonicalInputJSON, now)
 	if err != nil || ClaimExit(report) != 11 || len(report.Check.Claims) != 0 {
 		t.Fatalf("wrong pair report=%+v err=%v", report, err)
+	}
+}
+
+func TestArgoWorkflowsLatestFiveOriginScopedResults(t *testing.T) {
+	now := time.Date(2026, 9, 12, 11, 30, 0, 0, time.UTC)
+	workload := func(args string) []byte {
+		return []byte(`{"apiVersion":"apps/v1","kind":"Deployment","spec":{"template":{"spec":{"containers":[{"name":"argo-server","image":"quay.io/argoproj/argocli:v4.1.3","command":["argo"],"args":[` + args + `],"env":[]}]}}}}`)
+	}
+	for _, from := range []string{"3.4.18", "3.5.15", "3.6.19", "3.7.18", "4.0.11"} {
+		for _, tc := range []struct {
+			args string
+			want int
+		}{
+			{`"server","--basehref=/private"`, 10},
+			{`"server","--base-href=/private"`, 0},
+		} {
+			prepared, err := projectprepare.PrepareWorkload(projectprepare.ArgoWorkflowsProject, workload(tc.args), from, projectprepare.ArgoWorkflowsLatestTo, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := Check(projectprepare.ArgoWorkflowsProject, prepared.CanonicalInputJSON, now)
+			if err != nil || ClaimExit(report) != tc.want || len(report.Check.Claims) != 1 {
+				t.Fatalf("from=%s args=%q report=%+v err=%v", from, tc.args, report, err)
+			}
+		}
 	}
 }
 
@@ -299,7 +350,13 @@ func syntheticMultiRuleBundle(t *testing.T) bundle {
 	other := make([]entry, 0, len(base.pack.Entries)-1)
 	for _, candidate := range base.pack.Entries {
 		if candidate.Project == "grafana" {
-			grafana = clone(candidate)
+			var binding ruleBinding
+			if err := json.Unmarshal(candidate.Rule, &binding); err != nil {
+				t.Fatal(err)
+			}
+			if binding.ID == "grafana.legacy-alerting-config.10-4-to-11-0" {
+				grafana = clone(candidate)
+			}
 		} else {
 			other = append(other, clone(candidate))
 		}
@@ -373,5 +430,74 @@ func TestEvidenceExpiryReturnsUnknown(t *testing.T) {
 	report, err := Check("grafana", prepared.CanonicalInputJSON, time.Date(2026, 12, 10, 19, 30, 0, 0, time.UTC))
 	if err != nil || ClaimExit(report) != 11 || len(report.Check.Claims) != 1 || report.Check.Claims[0].ReasonCode != "RULE_EVIDENCE_STALE" {
 		t.Fatalf("expired report=%+v err=%v", report, err)
+	}
+}
+
+func TestLatestGrafanaAndKibanaExactOrigins(t *testing.T) {
+	now := time.Date(2026, 9, 12, 9, 24, 22, 0, time.UTC)
+	for _, from := range []string{"12.2.10", "12.3.11", "12.4.10", "13.0.8", "13.1.5"} {
+		for _, tc := range []struct {
+			raw  string
+			want int
+		}{
+			{"[alerting]\nenabled = true\n", 10},
+			{"[unified_alerting]\nenabled = true\n", 0},
+			{"[alerting]\nEnabled = true\n", 11},
+		} {
+			prepared, err := projectprepare.PrepareEffectiveConfig(projectprepare.GrafanaProject, []byte(tc.raw), from, "13.2.1", true, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := Check(projectprepare.GrafanaProject, prepared.CanonicalInputJSON, now)
+			if err != nil || ClaimExit(report) != tc.want || len(report.Check.Claims) != 1 {
+				t.Fatalf("grafana from=%s report=%+v err=%v", from, report, err)
+			}
+		}
+	}
+	for _, from := range []string{"9.0.8", "9.1.10", "9.2.8", "9.3.8", "9.4.6"} {
+		for _, tc := range []struct {
+			raw              string
+			declared, intent bool
+			want             int
+		}{
+			{"server.host: localhost\n", true, true, 10},
+			{"status.statusPageBypassMonitorPrivilege: true\n", true, true, 0},
+			{"status.statusPageBypassMonitorPrivilege: true\n", false, false, 11},
+			{"status.allowAnonymous: true\n", true, true, 11},
+			{"status:\n  statusPageBypassMonitorPrivilege: true\n", true, true, 11},
+		} {
+			prepared, err := projectprepare.PrepareKibanaStatusPage([]byte(tc.raw), from, "9.5.3", true, true, tc.declared, tc.intent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			report, err := Check(projectprepare.KibanaProject, prepared.CanonicalInputJSON, now)
+			if err != nil || ClaimExit(report) != tc.want || len(report.Check.Claims) != 1 {
+				t.Fatalf("kibana from=%s report=%+v err=%v", from, report, err)
+			}
+		}
+	}
+	wrongGrafana, err := projectprepare.PrepareEffectiveConfig(projectprepare.GrafanaProject, []byte("[alerting]\nenabled=true\n"), "13.1.4", "13.2.1", true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongGrafanaReport, err := Check(projectprepare.GrafanaProject, wrongGrafana.CanonicalInputJSON, now)
+	if err != nil || ClaimExit(wrongGrafanaReport) != 11 || len(wrongGrafanaReport.Check.Claims) != 0 {
+		t.Fatalf("wrong grafana=%+v err=%v", wrongGrafanaReport, err)
+	}
+	wrongKibana, err := projectprepare.PrepareKibanaStatusPage([]byte("status.statusPageBypassMonitorPrivilege: true\n"), "9.4.5", "9.5.3", true, true, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongKibanaReport, err := Check(projectprepare.KibanaProject, wrongKibana.CanonicalInputJSON, now)
+	if err != nil || ClaimExit(wrongKibanaReport) != 11 || len(wrongKibanaReport.Check.Claims) != 0 {
+		t.Fatalf("wrong kibana=%+v err=%v", wrongKibanaReport, err)
+	}
+	legacy, err := projectprepare.PrepareEffectiveConfig(projectprepare.KibanaProject, []byte("xpack.reporting.roles.allow: [reporting_user]\n"), projectprepare.KibanaFrom, projectprepare.KibanaTo, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyReport, err := Check(projectprepare.KibanaProject, legacy.CanonicalInputJSON, now)
+	if err != nil || ClaimExit(legacyReport) != 10 || len(legacyReport.Check.Claims) != 1 {
+		t.Fatalf("legacy kibana=%+v err=%v", legacyReport, err)
 	}
 }

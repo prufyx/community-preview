@@ -112,3 +112,22 @@ func TestPrepareJaegerLeavesManualGuardsOperatorBound(t *testing.T) {
 		})
 	}
 }
+
+func TestPrepareJaegerLatestPairsRemainTargetScoped(t *testing.T) {
+	for _, from := range []string{"2.15.1", "2.16.0", "2.17.0", "2.18.0", "2.19.0"} {
+		t.Run(from, func(t *testing.T) {
+			prepared, err := PrepareJaeger(jaegerDeclaration(t, jaegerDirectInvocationAuthority, []any{"--config=/etc/jaeger/config.yaml"}), from, JaegerTo, jaegerBool(true), jaegerBool(true))
+			if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonJaegerConfigWitness {
+				t.Fatalf("prepared=%+v err=%v", prepared, err)
+			}
+			report, err := cncfcheck.Check("jaeger", prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 8, 39, 0, 0, time.UTC))
+			if err != nil || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "PASS" || report.Assessment != "UNKNOWN" {
+				t.Fatalf("report=%+v err=%v", report, err)
+			}
+		})
+	}
+	wrong, err := PrepareJaeger(jaegerDeclaration(t, jaegerDirectInvocationAuthority, []any{"--config=/etc/jaeger/config.yaml"}), "2.14.0", JaegerTo, jaegerBool(true), jaegerBool(true))
+	if err != nil || wrong.State != StateUnknown || wrong.Reason != ReasonJaegerUnsupportedPair {
+		t.Fatalf("wrong pair=%+v err=%v", wrong, err)
+	}
+}

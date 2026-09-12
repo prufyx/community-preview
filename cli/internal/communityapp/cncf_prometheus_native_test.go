@@ -122,3 +122,47 @@ func TestPrometheusSelectedScrapeConfigExternalStoreNoFallbackAndReplayPinsRaw(t
 		t.Fatalf("missing raw replay pin code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+func TestPrometheusLatestScrapeTargetPairsEndToEnd(t *testing.T) {
+	for _, from := range []string{"3.9.1", "3.10.0", "3.11.3", "3.12.0", "3.13.3"} {
+		t.Run(from, func(t *testing.T) {
+			for _, scenario := range []struct {
+				name, key string
+				want      int
+			}{
+				{"blocker", "scrape_classic_histograms", ExitBlocked},
+				{"scoped-pass", "always_scrape_classic_histograms", ExitOK},
+			} {
+				path := writeCNCFFile(t, scenario.name+".yml", []byte("job_name: private-job\n"+scenario.key+": true\n"), 0o600)
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--scrape-config", path, "--scrape-job", "private-job", "--scrape-config-complete", "--scrape-config-precedence-resolved", "--from", from, "--to", "3.14.0", "--now", "2026-09-12T09:03:00Z", "--format", "json")
+				if code != scenario.want || stderr != "" || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusNativeRuleID(from, "3.14.0", false)+`"`) || strings.Contains(stdout, "private-job") {
+					t.Fatalf("%s code=%d stdout=%q stderr=%q", scenario.name, code, stdout, stderr)
+				}
+			}
+		})
+	}
+	path := writeCNCFFile(t, "unlisted.yml", []byte("job_name: private-job\nscrape_classic_histograms: true\n"), 0o600)
+	code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--scrape-config", path, "--scrape-job", "private-job", "--scrape-config-complete", "--scrape-config-precedence-resolved", "--from", "3.8.0", "--to", "3.14.0", "--now", "2026-09-12T09:03:00Z", "--format", "json")
+	if code != ExitUnknown || stderr != "" || strings.Contains(stdout, `"selectedRuleId"`) || !strings.Contains(stdout, "RULE_TRANSITION_NOT_REVIEWED") {
+		t.Fatalf("unlisted code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+}
+
+func TestPrometheusLatestScrapeExamples(t *testing.T) {
+	root := filepath.Join("..", "..", "examples", "cncf", "native-resources", "prometheus")
+	for name, want := range map[string]int{
+		"latest-v3.14.0-scrape-blocked.yml": ExitBlocked,
+		"latest-v3.14.0-scrape-fixed.yml":   ExitOK,
+		"latest-v3.14.0-scrape-unknown.yml": ExitUnknown,
+	} {
+		raw, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := writeCNCFFile(t, name, raw, 0o600)
+		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--scrape-config", path, "--scrape-job", "selected-api", "--scrape-config-complete", "--scrape-config-precedence-resolved", "--from", "3.13.3", "--to", "3.14.0", "--now", "2026-09-12T09:03:00Z", "--format", "json")
+		if code != want || stderr != "" || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusNativeRuleID("3.13.3", "3.14.0", false)+`"`) {
+			t.Fatalf("%s code=%d stdout=%q stderr=%q", name, code, stdout, stderr)
+		}
+	}
+}

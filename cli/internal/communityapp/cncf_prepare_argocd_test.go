@@ -3,6 +3,8 @@ package communityapp
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -103,6 +105,60 @@ func TestArgoCDPreparationRejectsUnsafeFlagsAndBadPin(t *testing.T) {
 		code := Run(nil, append(append(argoCDPreparationArgs(path), "--requires-inherited-application-permissions", "true", "--format", format), []string{}...), failedPreparationWriter{}, &stderr, "test")
 		if code != ExitIntegrity || stderr.String() != "prufyx: CNCF_PREPARATION_INTEGRITY_FAILURE\n" {
 			t.Fatalf("format=%s output failure code=%d stderr=%q", format, code, stderr.String())
+		}
+	}
+}
+
+func TestArgoCDLatestPreparationFiveOriginsAndPrivacy(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "cncf", "argocd-35-plain-http-repository-secret.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := writeCNCFFile(t, "private-argocd-repository.json", raw, 0o600)
+	for _, from := range []string{"3.0.23", "3.1.16", "3.2.12", "3.3.14", "3.4.8"} {
+		args := []string{"prepare", "cncf", "--project", "argo-cd", "--input", path, "--from", from, "--to", "3.5.2", "--distribution", "official_upstream", "--repository-settings-resolved", "true", "--repository-uses-plain-http", "true", "--format", "input"}
+		code, input, stderr := runCNCFCLI(t, args...)
+		if code != ExitOK || stderr != "" || !json.Valid([]byte(input)) {
+			t.Fatalf("from=%s prepare code=%d stderr=%q input=%q", from, code, stderr, input)
+		}
+		for _, private := range []string{path, "synthetic-helm-repository", "charts.example.invalid"} {
+			if strings.Contains(input+stderr, private) {
+				t.Fatalf("private value leaked: %q", private)
+			}
+		}
+		inputPath := writeCNCFFile(t, "prepared-"+strings.ReplaceAll(from, ".", "-")+".json", []byte(input), 0o600)
+		code, report, stderr := runCNCFCLI(t, "check", "cncf", "--project", "argo-cd", "--input", inputPath, "--now", "2026-09-12T11:30:00Z", "--format", "json")
+		if code != ExitBlocked || stderr != "" || !strings.Contains(report, `"status":"BLOCKED"`) || strings.Contains(report, "private") {
+			t.Fatalf("from=%s check code=%d stderr=%q report=%s", from, code, stderr, report)
+		}
+	}
+}
+
+func TestArgoCDLatestPreparationGuardAndRoutingPreflight(t *testing.T) {
+	raw := []byte(`{"apiVersion":"v1","kind":"Secret","metadata":{"name":"private-repository","labels":{"argocd.argoproj.io/secret-type":"repository"}},"stringData":{"type":"helm","enableOCI":"true","url":"private.invalid/charts","insecureOCIForceHttp":"true"}}`)
+	path := writeCNCFFile(t, "private-argocd-repository.json", raw, 0o600)
+	base := []string{"prepare", "cncf", "--project", "argo-cd", "--input", path, "--from", "3.4.8", "--to", "3.5.2"}
+	for _, extra := range [][]string{
+		{"--distribution", "official_upstream"},
+		{"--repository-settings-resolved", "true"},
+		{"--distribution", "custom_build", "--repository-settings-resolved", "true"},
+		{"--distribution", "official_upstream", "--repository-settings-resolved", "false"},
+		{"--distribution", "official_upstream", "--repository-settings-resolved", "true", "--repository-uses-plain-http", "false"},
+	} {
+		code, stdout, stderr := runCNCFCLI(t, append(append([]string{}, base...), extra...)...)
+		if code != ExitUnknown || stderr != "" || strings.Contains(stdout, "private-repository") || strings.Contains(stdout, "private.invalid") {
+			t.Fatalf("extra=%v code=%d stdout=%q stderr=%q", extra, code, stdout, stderr)
+		}
+	}
+	for _, extra := range [][]string{
+		{"--requires-inherited-application-permissions", "true"},
+		{"--distribution", "official_upstream", "--repository-settings-resolved", "maybe"},
+		{"--distribution", "official_upstream", "--repository-settings-resolved", "true", "--repository-uses-plain-http", "maybe"},
+		{"--distribution", "official_upstream", "--repository-settings-resolved", "true", "--container", "private"},
+	} {
+		code, stdout, stderr := runCNCFCLI(t, append(append([]string{}, base...), extra...)...)
+		if code != ExitUsage || stdout != "" || strings.Contains(stderr, path) || strings.Contains(stderr, "private") {
+			t.Fatalf("extra=%v code=%d stdout=%q stderr=%q", extra, code, stdout, stderr)
 		}
 	}
 }

@@ -44,6 +44,88 @@ func TestCertManagerCleanRouteReturnsScopedPass(t *testing.T) {
 	}
 }
 
+func TestCertManagerLatestRouteCoversFiveChartOriginsAndPinsDigests(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "values.json")
+	if err := os.WriteFile(path, []byte(`{"prometheus":{"servicemonitor":{"enabled":true}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	origins := []struct{ version, digest string }{
+		{"1.20.3", "sha256:ef5cf71fc9494e8b06b2f7450e9e31fcb6b78bca1af415f6e2149e744e98faa2"},
+		{"1.19.6", "sha256:5d95e81072636335b7b43fc2517e5336b93b77d41a4c87cbaf291783f03b4a0f"},
+		{"1.18.6", "sha256:2c26b0824142c0aec34a78c13b8fbc9bd267c2093f123e4c73cbae2a2e4ab6d3"},
+		{"1.17.4", "sha256:d65154bfa18458102b92b412a128063f02324853c5ea202c02bd00239039c47d"},
+		{"1.16.5", "sha256:5d5a2739b30525d92c05d53b75744d43fd00f23e4c4b8e526a9126d2e949e02e"},
+	}
+	for _, origin := range origins {
+		var stdout, stderr bytes.Buffer
+		args := []string{"check", "cert-manager-values", "--from", origin.version, "--to", "1.21.2", "--values", path, "--current-chart-digest", origin.digest, "--target-chart-digest", "sha256:634dce9c13b56677a2c05e2ab76c312d0be2664022d5dd05815da67e1fd5f610", "--format", "json"}
+		if code := Run(context.Background(), args, &stdout, &stderr, "test"); code != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"status":"PASS"`) || !strings.Contains(stdout.String(), `"reviewedTo":"1.21.2"`) {
+			t.Fatalf("origin=%s code=%d stdout=%s stderr=%s", origin.version, code, stdout.String(), stderr.String())
+		}
+		stdout.Reset()
+		stderr.Reset()
+		for i := range args {
+			if args[i] == "--target-chart-digest" {
+				args[i+1] = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+				break
+			}
+		}
+		if code := Run(context.Background(), args, &stdout, &stderr, "test"); code != ExitIntegrity || stdout.Len() != 0 {
+			t.Fatalf("wrong target digest origin=%s code=%d stdout=%s stderr=%s", origin.version, code, stdout.String(), stderr.String())
+		}
+	}
+}
+
+func TestCertManagerLatestRouteFalsifiersAcrossFiveOrigins(t *testing.T) {
+	blockedPath := filepath.Join(t.TempDir(), "blocked.json")
+	unknownPath := filepath.Join(t.TempDir(), "unknown.json")
+	if err := os.WriteFile(blockedPath, []byte(`{"prometheus":{"servicemonitor":{"path":"/custom"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unknownPath, []byte(`{"prometheus":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	origins := []struct{ version, digest string }{
+		{"1.20.3", "sha256:ef5cf71fc9494e8b06b2f7450e9e31fcb6b78bca1af415f6e2149e744e98faa2"},
+		{"1.19.6", "sha256:5d95e81072636335b7b43fc2517e5336b93b77d41a4c87cbaf291783f03b4a0f"},
+		{"1.18.6", "sha256:2c26b0824142c0aec34a78c13b8fbc9bd267c2093f123e4c73cbae2a2e4ab6d3"},
+		{"1.17.4", "sha256:d65154bfa18458102b92b412a128063f02324853c5ea202c02bd00239039c47d"},
+		{"1.16.5", "sha256:5d5a2739b30525d92c05d53b75744d43fd00f23e4c4b8e526a9126d2e949e02e"},
+	}
+	for _, origin := range origins {
+		t.Run(origin.version, func(t *testing.T) {
+			base := []string{"check", "cert-manager-values", "--from", origin.version, "--to", "1.21.2", "--current-chart-digest", origin.digest, "--target-chart-digest", "sha256:634dce9c13b56677a2c05e2ab76c312d0be2664022d5dd05815da67e1fd5f610", "--format", "json"}
+			for _, test := range []struct {
+				name, path, status string
+				code               int
+			}{{"blocked", blockedPath, `"status":"BLOCKED"`, ExitBlocked}, {"unknown", unknownPath, `"status":"UNKNOWN"`, ExitUnknown}} {
+				var stdout, stderr bytes.Buffer
+				args := append(append([]string(nil), base...), "--values", test.path)
+				if code := Run(context.Background(), args, &stdout, &stderr, "test"); code != test.code || stderr.Len() != 0 || !strings.Contains(stdout.String(), test.status) {
+					t.Fatalf("%s code=%d stdout=%s stderr=%s", test.name, code, stdout.String(), stderr.String())
+				}
+			}
+			var stdout, stderr bytes.Buffer
+			wrongCurrent := append(append([]string(nil), base...), "--values", blockedPath)
+			for i := range wrongCurrent {
+				if wrongCurrent[i] == "--current-chart-digest" {
+					wrongCurrent[i+1] = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					break
+				}
+			}
+			if code := Run(context.Background(), wrongCurrent, &stdout, &stderr, "test"); code != ExitIntegrity || stdout.Len() != 0 {
+				t.Fatalf("wrong current digest code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+			stdout.Reset()
+			stderr.Reset()
+			wrongPair := []string{"check", "cert-manager-values", "--from", origin.version, "--to", "1.21.3", "--values", blockedPath, "--format", "json"}
+			if code := Run(context.Background(), wrongPair, &stdout, &stderr, "test"); code != ExitUnknown || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"status":"UNKNOWN"`) {
+				t.Fatalf("wrong pair code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
 func TestPrometheusDemoPreservesAggregateUnknownExit(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run(context.Background(), []string{"check", "prometheus-mode", "--demo", "--format", "json"}, &stdout, &stderr, "test")

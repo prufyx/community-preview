@@ -21,6 +21,7 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project linkerd --input FILE --from 2.13.7 --to 2.14.0 [--distribution official_upstream|custom_build] [--schema-validation required|disabled] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project karmada --input FILE --from 1.18.3 --to 1.19.0 [--distribution official_upstream|custom_build] [--target-policy-crd-admission required|disabled] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project argo-cd --input FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project argo-cd --input FILE --from 3.0.23|3.1.16|3.2.12|3.3.14|3.4.8 --to 3.5.2 --distribution official_upstream|custom_build --repository-settings-resolved true|false --repository-uses-plain-http true|false [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.6 --to 1.19.0 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.13 --to 1.19.7 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
@@ -29,10 +30,12 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project cloudnativepg --input FILE --from 1.29.0 --to 1.30.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project kubevirt --input FILE --from 1.8.4 --to 1.9.0 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project emissary-ingress --input FILE --from 3.10.0 --to 4.0.1 [--input-digest SHA256] [--format human|json|input]
-	   or: prufyx prepare cncf --project harbor --input FILE --from 2.7.0 --to 2.8.0 [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project harbor --input FILE --from 2.7.0 --to 2.8.0 or 2.10.3|2.11.2|2.12.4|2.13.5|2.14.4 --to 2.15.2 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project openfga --input FILE --from 1.17.1 --to 1.18.0 --effective-config-complete [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project opencost --input FILE --from 1.119.0 --to 1.120.0 [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project opencost --input FILE --from 1.116.0|1.117.6|1.118.0|1.119.2|1.120.4 --to 1.121.2 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project cloud-custodian --input FILE --from 0.9.50 --to 0.9.51 [--input-digest SHA256] [--format human|json|input]
+	   or: prufyx prepare cncf --project cloud-custodian --input FILE --from 0.9.47|0.9.48|0.9.49|0.9.50|0.9.51 --to 0.9.52 [--input-digest SHA256] [--format human|json|input]
 	   or: prufyx prepare cncf --project fluentd --input FILE --from 1.17.1 --to 1.18.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project distribution --input FILE --from 2.8.3 --to 3.0.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project container-network-interface-cni --input FILE --from 0.4.0 --to 1.0.0 --operation configuration-spec-migration [--input-digest SHA256] [--format human|json|input]
@@ -58,6 +61,13 @@ Argo CD accepts one private proposed v1 ConfigMap JSON named argocd-cm. It
 reads only the explicit true or false inheritance setting and requires an
 explicit access-intent declaration. Missing or malformed configuration stays
 UNKNOWN; it does not inspect RBAC, call a cluster, or infer an effective default.
+
+For the five reviewed transitions to Argo CD 3.5.2, the same project route
+instead accepts one pre-apply v1 repository Secret. It checks only type=helm
+with enableOCI=true and a protocol-free OCI registry/path. The caller must
+declare plain-HTTP use, official distribution, and complete, precedence-resolved
+repository settings; inherited credential templates, authentication and network
+use are otherwise UNKNOWN. Secret values, names, URLs and credentials are discarded.
 
 Cilium accepts one private CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy, or
 bounded policy List JSON. A nonempty requires field is a scoped blocker. A
@@ -88,14 +98,20 @@ Both retain only reviewed facts; wrappers, custom behavior, and runtime remain U
 
 Harbor accepts one caller-declared complete literal make/install.sh argv vector.
 It checks only the removed --with-chartmuseum option for the reviewed 2.7.0 to
-2.8.0 pair. Help, wrappers, values, unknown options, and unresolved inputs remain
+2.8.0 and 2.10.3, 2.11.2, 2.12.4, 2.13.5, or 2.14.4 to 2.15.2 pairs. Help, wrappers, values, unknown options, and unresolved inputs remain
 UNKNOWN; it does not execute the installer or assess chart, database, or runtime state.
 
 OpenCost accepts one Prufyx operator declaration of enabled cloud-cost source
 selection. It is not an OpenCost native config parser. The caller declares
 selection completeness and whether a target cloud-integration file is selected
 and present; file contents, credentials, mounts, startup, and cloud access are
-not inspected.
+not inspected. The reviewed latest route is each exact 1.116.0, 1.117.6,
+1.118.0, 1.119.2, or 1.120.4 origin to 1.121.2.
+
+Cloud Custodian's latest route is each exact package version 0.9.47, 0.9.48,
+0.9.49, 0.9.50, or 0.9.51 to package version 0.9.52. The retained source
+contract separately binds those package versions to four-part upstream release
+tags. The historical 0.9.50 to 0.9.51 route remains available.
 
 etcd accepts one private EtcdEffectiveArguments JSON object containing a complete
 direct arguments-only vector. The first slice accepts only self-contained
@@ -136,6 +152,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	schemaValidation := fs.String("schema-validation", "", "Linkerd schema intent: required or disabled")
 	targetPolicyCRDAdmission := fs.String("target-policy-crd-admission", "", "Karmada target policy CRD intent: required or disabled")
 	requiresInheritedPermissions := fs.String("requires-inherited-application-permissions", "", "explicit Argo CD v2 inheritance access intent: true or false")
+	repositorySettingsResolved := fs.String("repository-settings-resolved", "", "explicit Argo CD repository setting completeness and precedence: true or false")
+	repositoryUsesPlainHTTP := fs.String("repository-uses-plain-http", "", "explicit selected Argo CD repository transport intent: true or false")
 	completeCNPCCNPSet := fs.String("complete-cnp-ccnp-set", "", "explicit Cilium CNP and CCNP policy-set completeness: true or false")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
 	jaegerOfficialDistribution := fs.String("official-jaeger-distribution", "", "explicit Jaeger official distribution declaration: true or false")
@@ -173,6 +191,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	if *project != "openfga" && flagProvided(args, "effective-config-complete") {
 		return r.usage("--effective-config-complete is only valid for OpenFGA preparation")
 	}
+	if *project != "argo-cd" && flagProvided(args, "repository-settings-resolved") {
+		return r.usage("--repository-settings-resolved is only valid for Argo CD preparation")
+	}
+	if *project != "argo-cd" && flagProvided(args, "repository-uses-plain-http") {
+		return r.usage("--repository-uses-plain-http is only valid for Argo CD preparation")
+	}
 	// Validate project-specific flags before opening the private input. This keeps
 	// malformed cross-project invocations from admitting any local file.
 	switch *project {
@@ -202,9 +226,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			return r.fail("KARMADA_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "argo-cd":
-		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") ||
-			flagProvided(args, "operation") ||
-			(flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false") {
+		latest := *to == cncfprepare.ArgoCDLatestTo
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") ||
+			(latest && (flagProvided(args, "requires-inherited-application-permissions") || (flagProvided(args, "distribution") && *distribution == "") || (*distribution != "" && *distribution != cncfprepare.ArgoCDLatestDistributionOfficial && *distribution != cncfprepare.ArgoCDLatestDistributionCustom) || (flagProvided(args, "repository-settings-resolved") && *repositorySettingsResolved != "true" && *repositorySettingsResolved != "false") || (flagProvided(args, "repository-uses-plain-http") && *repositoryUsesPlainHTTP != "true" && *repositoryUsesPlainHTTP != "false"))) ||
+			(!latest && (flagProvided(args, "distribution") || flagProvided(args, "repository-settings-resolved") || flagProvided(args, "repository-uses-plain-http") || (flagProvided(args, "requires-inherited-application-permissions") && *requiresInheritedPermissions != "true" && *requiresInheritedPermissions != "false"))) {
 			return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "cilium":
@@ -286,12 +311,25 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "karmada":
 		prepared, err = cncfprepare.PrepareKarmada(raw, *from, *to, *distribution, *targetPolicyCRDAdmission)
 	case "argo-cd":
-		var required *bool
-		if *requiresInheritedPermissions != "" {
-			value := *requiresInheritedPermissions == "true"
-			required = &value
+		if *to == cncfprepare.ArgoCDLatestTo {
+			var resolved, plainHTTP *bool
+			if *repositorySettingsResolved != "" {
+				value := *repositorySettingsResolved == "true"
+				resolved = &value
+			}
+			if *repositoryUsesPlainHTTP != "" {
+				value := *repositoryUsesPlainHTTP == "true"
+				plainHTTP = &value
+			}
+			prepared, err = cncfprepare.PrepareArgoCDLatestRepository(raw, *from, *to, *distribution, resolved, plainHTTP)
+		} else {
+			var required *bool
+			if *requiresInheritedPermissions != "" {
+				value := *requiresInheritedPermissions == "true"
+				required = &value
+			}
+			prepared, err = cncfprepare.PrepareArgoCD(raw, *from, *to, required)
 		}
-		prepared, err = cncfprepare.PrepareArgoCD(raw, *from, *to, required)
 	case "cilium":
 		var complete *bool
 		if *completeCNPCCNPSet != "" {

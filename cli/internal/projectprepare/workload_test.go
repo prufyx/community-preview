@@ -52,6 +52,36 @@ func TestPrepareArgoWorkflowsReviewedImageEntrypointDefault(t *testing.T) {
 	}
 }
 
+func TestPrepareArgoWorkflowsLatestFiveOrigins(t *testing.T) {
+	for _, from := range argoWorkflowsLatestOrigins {
+		for _, tc := range []struct {
+			name, args string
+			want       bool
+		}{
+			{"legacy", `"server","--basehref=/private"`, true},
+			{"target", `"server","--base-href=/private"`, false},
+			{"absent", `"server"`, false},
+		} {
+			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				raw := []byte(fmt.Sprintf(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"workflows-private"},"spec":{"template":{"spec":{"containers":[{"name":"argo-server","image":"quay.io/argoproj/argocli:v4.1.3","command":["argo"],"args":[%s],"env":[]}]}}}}`, tc.args))
+				prepared, err := PrepareWorkload(ArgoWorkflowsProject, raw, from, ArgoWorkflowsLatestTo, true)
+				if err != nil || prepared.State != "PREPARED" {
+					t.Fatalf("state=%q err=%v", prepared.State, err)
+				}
+				assertCanonicalFact(t, prepared.CanonicalInputJSON, ArgoWorkflowsFact, boolPointer(tc.want))
+				if bytes.Contains(prepared.CanonicalInputJSON, []byte("private")) {
+					t.Fatal("private argv leaked")
+				}
+			})
+		}
+	}
+	wrongImage := []byte(`{"apiVersion":"apps/v1","kind":"Deployment","spec":{"template":{"spec":{"containers":[{"name":"argo-server","image":"quay.io/argoproj/argocli:v4.1.2","command":["argo"],"args":["server"]}]}}}}`)
+	prepared, err := PrepareWorkload(ArgoWorkflowsProject, wrongImage, "4.0.11", ArgoWorkflowsLatestTo, true)
+	if err != nil || prepared.State != "UNKNOWN" {
+		t.Fatalf("wrong target image state=%q err=%v", prepared.State, err)
+	}
+}
+
 func TestPrepareArgoWorkflowsUnsupportedContextStaysUnknown(t *testing.T) {
 	for _, tc := range []struct {
 		name, args, command, image, environment string

@@ -19,16 +19,19 @@ import (
 )
 
 const (
-	CurrentVersion       = "1.20.3"
-	TargetVersion        = "1.21.1"
-	CurrentChartDigest   = "sha256:ef5cf71fc9494e8b06b2f7450e9e31fcb6b78bca1af415f6e2149e744e98faa2"
-	TargetChartDigest    = "sha256:15c0b46d9006ce8eb9ff14d1bf54d1bbfcc587bb9e24cd9fe186fb8fec56af1f"
-	SourceContractDigest = "sha256:6e40f1fdca0ba2587ca64447624557b271aa86b4cd4582a2e12c9acb6b843739"
-	maxValuesBytes       = 1 << 20
-	maxDepth             = 32
-	maxMembers           = 4096
-	maxArrayItems        = 2048
-	maxStringBytes       = 64 << 10
+	CurrentVersion             = "1.20.3"
+	TargetVersion              = "1.21.1"
+	CurrentChartDigest         = "sha256:ef5cf71fc9494e8b06b2f7450e9e31fcb6b78bca1af415f6e2149e744e98faa2"
+	TargetChartDigest          = "sha256:15c0b46d9006ce8eb9ff14d1bf54d1bbfcc587bb9e24cd9fe186fb8fec56af1f"
+	SourceContractDigest       = "sha256:6e40f1fdca0ba2587ca64447624557b271aa86b4cd4582a2e12c9acb6b843739"
+	LatestTargetVersion        = "1.21.2"
+	LatestTargetChartDigest    = "sha256:634dce9c13b56677a2c05e2ab76c312d0be2664022d5dd05815da67e1fd5f610"
+	LatestSourceContractDigest = "sha256:c45dfe0ea426db2b7f2d938f19bd80ae08f0e97817d780554b9614c5401835a6"
+	maxValuesBytes             = 1 << 20
+	maxDepth                   = 32
+	maxMembers                 = 4096
+	maxArrayItems              = 2048
+	maxStringBytes             = 64 << 10
 )
 
 var (
@@ -40,6 +43,9 @@ var (
 
 //go:embed source-contract-v1.json
 var contractFS embed.FS
+
+//go:embed source-contract-v1-latest.json
+var latestContractFS embed.FS
 
 var removedPaths = []string{
 	"prometheus.servicemonitor.path",
@@ -131,6 +137,36 @@ type contractDocument struct {
 		Version             string `json:"version"`
 		ChartManifestDigest string `json:"chartManifestDigest"`
 	} `json:"target"`
+	RemovedPaths []string `json:"removedPaths"`
+	Sources      []Source `json:"sources"`
+}
+
+type latestContractDocument struct {
+	Schema    string `json:"schema"`
+	Component string `json:"component"`
+	Target    struct {
+		Version             string `json:"version"`
+		ChartManifestDigest string `json:"chartManifestDigest"`
+		TagCommit           string `json:"tagCommit"`
+	} `json:"target"`
+	Transitions []struct {
+		Current struct {
+			Version             string `json:"version"`
+			ChartManifestDigest string `json:"chartManifestDigest"`
+			TagCommit           string `json:"tagCommit"`
+		} `json:"current"`
+		Target struct {
+			Version             string `json:"version"`
+			ChartManifestDigest string `json:"chartManifestDigest"`
+			TagCommit           string `json:"tagCommit"`
+		} `json:"target"`
+	} `json:"transitions"`
+	OriginChartManifests []struct {
+		Version       string `json:"version"`
+		URL           string `json:"url"`
+		Revision      string `json:"revision"`
+		ContentDigest string `json:"contentDigest"`
+	} `json:"originChartManifests"`
 	RemovedPaths []string `json:"removedPaths"`
 	Sources      []Source `json:"sources"`
 }
@@ -244,7 +280,7 @@ func inspectPaths(root map[string]json.RawMessage, paths []string) ([]string, bo
 }
 
 func Evaluate(req Request) (Report, error) {
-	contract, err := verifiedContract()
+	contract, err := verifiedContractFor(req.From, req.To)
 	if err != nil {
 		return Report{}, err
 	}
@@ -260,11 +296,15 @@ func Evaluate(req Request) (Report, error) {
 	if req.SchemaValidation != "required" && req.SchemaValidation != "disabled" {
 		return Report{}, fmt.Errorf("schema validation policy: %w", ErrInvalid)
 	}
-	reviewed := req.From == CurrentVersion && req.To == TargetVersion
-	if req.CurrentChartDigest != "" && req.CurrentChartDigest != CurrentChartDigest {
+	reviewed := req.From == contract.Current.Version && req.To == contract.Target.Version
+	knowledgeDigest := SourceContractDigest
+	if contract.Target.Version == LatestTargetVersion {
+		knowledgeDigest = LatestSourceContractDigest
+	}
+	if req.CurrentChartDigest != "" && req.CurrentChartDigest != contract.Current.ChartManifestDigest {
 		return Report{}, fmt.Errorf("current chart digest assertion: %w", ErrIntegrity)
 	}
-	if req.TargetChartDigest != "" && req.TargetChartDigest != TargetChartDigest {
+	if req.TargetChartDigest != "" && req.TargetChartDigest != contract.Target.ChartManifestDigest {
 		return Report{}, fmt.Errorf("target chart digest assertion: %w", ErrIntegrity)
 	}
 	claim := removedMonitorClaim(req.Values.shapeResolved, req.Values.matches, req.SchemaValidation, len(removedPaths), "/metrics", "http-metrics")
@@ -273,9 +313,13 @@ func Evaluate(req Request) (Report, error) {
 	if !reviewed {
 		transitionState = "unsupported"
 		identityAssumption = "the declared transition is outside this reviewed knowledge revision"
-		claim = Claim{Status: "UNKNOWN", ReasonCode: "CERT_MANAGER_TRANSITION_NOT_REVIEWED", Reason: "the declared semantic-version transition is not covered by this knowledge revision", Remediation: "use the reviewed 1.20.3 to 1.21.1 transition or obtain a reviewed source contract for the intended versions"}
+		claim = Claim{Status: "UNKNOWN", ReasonCode: "CERT_MANAGER_TRANSITION_NOT_REVIEWED", Reason: "the declared semantic-version transition is not covered by this knowledge revision", Remediation: "use one exact catalog transition (1.20.3 to 1.21.1, or 1.20.3/1.19.6/1.18.6/1.17.4/1.16.5 to 1.21.2) or obtain a reviewed source contract for the intended versions"}
 	}
-	report := Report{APIVersion: "prufyx.io/cert-manager-removed-monitor-values-assessment/v1alpha1", Kind: "CertManagerRemovedMonitorValuesAssessment", Status: "CANDIDATE_ONLY", Assessment: "UNKNOWN", Question: "Does the exact proposed merged values object contain any of the three curated monitoring keys removed by cert-manager 1.21.1?", Scope: "presence of three curated removed values only; not full Helm schema validation, runtime behavior, or whole-upgrade compatibility", Transition: Transition{Component: contract.Component, DeclaredTransitionState: transitionState, ReviewedFrom: CurrentVersion, ReviewedTo: TargetVersion, CurrentChartManifestDigest: CurrentChartDigest, TargetChartManifestDigest: TargetChartDigest, IdentityAssumption: identityAssumption}, Inputs: Inputs{ValuesDigest: req.Values.digest, KnowledgeRevisionDigest: SourceContractDigest}, Policy: Policy{SchemaValidation: req.SchemaValidation, Meaning: "required means Helm target schema rejection is enforced; disabled means removed overrides may render but are ignored by target templates"}, Claim: claim, MatchedPaths: append([]string(nil), req.Values.matches...), Sources: append([]Source(nil), contract.Sources...), Omissions: []string{"FULL_TARGET_HELM_SCHEMA_NOT_EVALUATED", "RUNTIME_BEHAVIOR_NOT_EVALUATED", "WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED"}, Truth: Truth{Offline: true}}
+	question := "Does the exact proposed merged values object contain any of the three curated monitoring keys removed by cert-manager 1.21.1?"
+	if contract.Target.Version == LatestTargetVersion {
+		question = fmt.Sprintf("Does the exact proposed merged values object contain any of the three curated monitoring keys rejected by the target cert-manager %s chart?", contract.Target.Version)
+	}
+	report := Report{APIVersion: "prufyx.io/cert-manager-removed-monitor-values-assessment/v1alpha1", Kind: "CertManagerRemovedMonitorValuesAssessment", Status: "CANDIDATE_ONLY", Assessment: "UNKNOWN", Question: question, Scope: "presence of three curated removed values only; not full Helm schema validation, runtime behavior, or whole-upgrade compatibility", Transition: Transition{Component: contract.Component, DeclaredTransitionState: transitionState, ReviewedFrom: contract.Current.Version, ReviewedTo: contract.Target.Version, CurrentChartManifestDigest: contract.Current.ChartManifestDigest, TargetChartManifestDigest: contract.Target.ChartManifestDigest, IdentityAssumption: identityAssumption}, Inputs: Inputs{ValuesDigest: req.Values.digest, KnowledgeRevisionDigest: knowledgeDigest}, Policy: Policy{SchemaValidation: req.SchemaValidation, Meaning: "required means Helm target schema rejection is enforced; disabled means removed overrides may render but are ignored by target templates"}, Claim: claim, MatchedPaths: append([]string(nil), req.Values.matches...), Sources: append([]Source(nil), contract.Sources...), Omissions: []string{"FULL_TARGET_HELM_SCHEMA_NOT_EVALUATED", "RUNTIME_BEHAVIOR_NOT_EVALUATED", "WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED"}, Truth: Truth{Offline: true}}
 	return issue(report), nil
 }
 
@@ -345,12 +389,103 @@ func digestBytes(raw []byte) string {
 }
 
 func verifiedContract() (contractDocument, error) {
-	raw, err := contractFS.ReadFile("source-contract-v1.json")
-	if err != nil || digestBytes(raw) != SourceContractDigest {
+	return verifiedContractFile(contractFS, "source-contract-v1.json", SourceContractDigest, CurrentVersion, TargetVersion, CurrentChartDigest, TargetChartDigest)
+}
+
+func verifiedContractFor(from, to string) (contractDocument, error) {
+	if to == LatestTargetVersion && latestSourceVersion(from) {
+		return verifiedLatestContract(from, to)
+	}
+	return verifiedContract()
+}
+
+func latestSourceVersion(version string) bool {
+	switch version {
+	case "1.20.3", "1.19.6", "1.18.6", "1.17.4", "1.16.5":
+		return true
+	default:
+		return false
+	}
+}
+
+func verifiedLatestContract(from, to string) (contractDocument, error) {
+	raw, err := latestContractFS.ReadFile("source-contract-v1-latest.json")
+	if err != nil || digestBytes(raw) != LatestSourceContractDigest {
+		return contractDocument{}, fmt.Errorf("latest source contract bytes: %w", ErrIntegrity)
+	}
+	var latest latestContractDocument
+	if json.Unmarshal(raw, &latest) != nil || latest.Schema != "prufyx.io/cert-manager-removed-monitor-values-source-contract/v1" || latest.Component == "" || latest.Target.Version != LatestTargetVersion || latest.Target.ChartManifestDigest != LatestTargetChartDigest || !validGitRevision(latest.Target.TagCommit) || len(latest.Transitions) != 5 || len(latest.OriginChartManifests) != 5 || len(latest.RemovedPaths) != len(removedPaths) || len(latest.Sources) != 4 {
+		return contractDocument{}, fmt.Errorf("latest source contract fields: %w", ErrIntegrity)
+	}
+	for i := range removedPaths {
+		if latest.RemovedPaths[i] != removedPaths[i] {
+			return contractDocument{}, fmt.Errorf("latest source contract paths: %w", ErrIntegrity)
+		}
+	}
+	for _, source := range latest.Sources {
+		if source.ID == "" || source.URL == "" || !digestRE.MatchString(source.ContentDigest) {
+			return contractDocument{}, fmt.Errorf("latest source contract evidence: %w", ErrIntegrity)
+		}
+	}
+	originByVersion := make(map[string]struct {
+		digest, revision string
+	}, len(latest.OriginChartManifests))
+	for _, origin := range latest.OriginChartManifests {
+		if !versionRE.MatchString(origin.Version) || origin.URL == "" || !validGitRevision(origin.Revision) || !digestRE.MatchString(origin.ContentDigest) {
+			return contractDocument{}, fmt.Errorf("latest origin chart evidence: %w", ErrIntegrity)
+		}
+		if _, exists := originByVersion[origin.Version]; exists {
+			return contractDocument{}, fmt.Errorf("duplicate latest origin chart evidence: %w", ErrIntegrity)
+		}
+		originByVersion[origin.Version] = struct {
+			digest, revision string
+		}{origin.ContentDigest, origin.Revision}
+	}
+	var selected contractDocument
+	found := false
+	seenTransitions := make(map[string]bool, len(latest.Transitions))
+	for _, transition := range latest.Transitions {
+		origin, originExists := originByVersion[transition.Current.Version]
+		if seenTransitions[transition.Current.Version] || !originExists || !validGitRevision(transition.Current.TagCommit) || transition.Current.TagCommit != origin.revision || transition.Current.ChartManifestDigest != origin.digest || !validGitRevision(transition.Target.TagCommit) || transition.Target.TagCommit != latest.Target.TagCommit || transition.Target.Version != LatestTargetVersion || transition.Target.ChartManifestDigest != LatestTargetChartDigest {
+			return contractDocument{}, fmt.Errorf("latest transition identity: %w", ErrIntegrity)
+		}
+		seenTransitions[transition.Current.Version] = true
+		if transition.Current.Version == from && transition.Target.Version == to {
+			selected = contractDocument{Schema: latest.Schema, Component: latest.Component, Current: struct {
+				Version             string `json:"version"`
+				ChartManifestDigest string `json:"chartManifestDigest"`
+			}{Version: transition.Current.Version, ChartManifestDigest: transition.Current.ChartManifestDigest}, Target: struct {
+				Version             string `json:"version"`
+				ChartManifestDigest string `json:"chartManifestDigest"`
+			}{Version: transition.Target.Version, ChartManifestDigest: transition.Target.ChartManifestDigest}, RemovedPaths: latest.RemovedPaths, Sources: latest.Sources}
+			found = true
+		}
+	}
+	if found && len(seenTransitions) == len(originByVersion) {
+		return selected, nil
+	}
+	return contractDocument{}, fmt.Errorf("latest transition not found: %w", ErrIntegrity)
+}
+
+func validGitRevision(value string) bool {
+	if len(value) != 40 {
+		return false
+	}
+	for _, char := range value {
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+func verifiedContractFile(files embed.FS, name, expectedDigest, currentVersion, targetVersion, currentChartDigest, targetChartDigest string) (contractDocument, error) {
+	raw, err := files.ReadFile(name)
+	if err != nil || digestBytes(raw) != expectedDigest {
 		return contractDocument{}, fmt.Errorf("source contract bytes: %w", ErrIntegrity)
 	}
 	var c contractDocument
-	if json.Unmarshal(raw, &c) != nil || c.Schema != "prufyx.io/cert-manager-removed-monitor-values-source-contract/v1" || c.Current.Version != CurrentVersion || c.Target.Version != TargetVersion || c.Current.ChartManifestDigest != CurrentChartDigest || c.Target.ChartManifestDigest != TargetChartDigest || len(c.RemovedPaths) != len(removedPaths) || len(c.Sources) != 4 {
+	if json.Unmarshal(raw, &c) != nil || c.Schema != "prufyx.io/cert-manager-removed-monitor-values-source-contract/v1" || c.Current.Version != currentVersion || c.Target.Version != targetVersion || c.Current.ChartManifestDigest != currentChartDigest || c.Target.ChartManifestDigest != targetChartDigest || len(c.RemovedPaths) != len(removedPaths) || len(c.Sources) != 4 {
 		return contractDocument{}, fmt.Errorf("source contract fields: %w", ErrIntegrity)
 	}
 	for i := range removedPaths {

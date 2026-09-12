@@ -270,3 +270,58 @@ func writePrivateProjectFixture(t *testing.T, body string) string {
 	}
 	return path
 }
+
+func TestProjectCLILatestGrafanaAndKibanaScopes(t *testing.T) {
+	grafanaBlocked := writePrivateProjectFixture(t, "[alerting]\nenabled = true\n")
+	grafanaFixed := writePrivateProjectFixture(t, "[unified_alerting]\nenabled = true\n")
+	for _, from := range []string{"12.2.10", "12.3.11", "12.4.10", "13.0.8", "13.1.5"} {
+		for _, tc := range []struct {
+			path string
+			want int
+		}{{grafanaBlocked, ExitBlocked}, {grafanaFixed, ExitOK}} {
+			var stdout, stderr bytes.Buffer
+			exit := Run(t.Context(), []string{"check", "project", "--project", "grafana", "--effective-config", tc.path, "--from", from, "--to", "13.2.1", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T09:24:22Z", "--format", "json"}, &stdout, &stderr, "test")
+			if exit != tc.want || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"assessment":"UNKNOWN"`) || strings.Contains(stdout.String(), tc.path) {
+				t.Fatalf("grafana from=%s exit=%d stdout=%q stderr=%q", from, exit, stdout.String(), stderr.String())
+			}
+		}
+	}
+	kibanaBlocked := writePrivateProjectFixture(t, "server.host: localhost\n")
+	kibanaPass := writePrivateProjectFixture(t, "status.statusPageBypassMonitorPrivilege: true\n")
+	kibanaAnonymous := writePrivateProjectFixture(t, "status.allowAnonymous: true\n")
+	kibanaAmbiguous := writePrivateProjectFixture(t, "status:\n  statusPageBypassMonitorPrivilege: true\n")
+	for _, from := range []string{"9.0.8", "9.1.10", "9.2.8", "9.3.8", "9.4.6"} {
+		for _, tc := range []struct {
+			path   string
+			intent bool
+			want   int
+		}{{kibanaBlocked, true, ExitBlocked}, {kibanaPass, true, ExitOK}, {kibanaAnonymous, true, ExitUnknown}, {kibanaAmbiguous, true, ExitUnknown}, {kibanaPass, false, ExitUnknown}} {
+			args := []string{"check", "project", "--project", "kibana", "--effective-config", tc.path, "--from", from, "--to", "9.5.3", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T09:24:22Z", "--format", "json"}
+			if tc.intent {
+				args = append(args, "--full-status-without-monitor-required")
+			}
+			var stdout, stderr bytes.Buffer
+			exit := Run(t.Context(), args, &stdout, &stderr, "test")
+			if exit != tc.want || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"assessment":"UNKNOWN"`) || strings.Contains(stdout.String(), tc.path) || strings.Contains(stdout.String(), "localhost") {
+				t.Fatalf("kibana from=%s exit=%d stdout=%q stderr=%q", from, exit, stdout.String(), stderr.String())
+			}
+		}
+	}
+	for _, from := range []string{"9.0.8", "9.1.10", "9.2.8", "9.3.8", "9.4.6"} {
+		var stdout, stderr bytes.Buffer
+		exit := Run(t.Context(), []string{"check", "project", "--project", "kibana", "--effective-config", kibanaPass, "--from", from, "--to", "9.5.3", "--effective-config-complete", "--precedence-resolved", "--full-status-without-monitor-required=false", "--now", "2026-09-12T09:24:22Z", "--format", "json"}, &stdout, &stderr, "test")
+		if exit != ExitUnknown || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"assessment":"UNKNOWN"`) {
+			t.Fatalf("kibana from=%s false intent exit=%d stdout=%q stderr=%q", from, exit, stdout.String(), stderr.String())
+		}
+	}
+	wrong := writePrivateProjectFixture(t, "status.statusPageBypassMonitorPrivilege: true\n")
+	var stdout, stderr bytes.Buffer
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "kibana", "--effective-config", wrong, "--from", "9.4.5", "--to", "9.5.3", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T09:24:22Z", "--format", "json"}, &stdout, &stderr, "test"); exit != ExitUnknown || stderr.Len() != 0 {
+		t.Fatalf("wrong pair exit=%d stdout=%q stderr=%q", exit, stdout.String(), stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "kibana", "--effective-config", kibanaPass, "--from", "8.18.0", "--to", "9.0.0", "--effective-config-complete", "--precedence-resolved", "--full-status-without-monitor-required", "--now", "2026-09-12T09:24:22Z"}, &stdout, &stderr, "test"); exit != ExitUsage || stdout.Len() != 0 {
+		t.Fatalf("legacy intent flag exit=%d stdout=%q stderr=%q", exit, stdout.String(), stderr.String())
+	}
+}

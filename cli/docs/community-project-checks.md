@@ -34,6 +34,12 @@ Five checks inspect native effective-configuration files locally:
   TLS, connectivity, collector behavior, and whole-upgrade compatibility
   remain UNKNOWN. Fluent Bit is a neutral community-project identity; CNCF
   membership is not asserted.
+- Fluent Bit `3.2.10`, `4.0.14`, `4.1.2`, `4.2.8`, or `5.0.10` → `5.1.2`:
+  whether a complete selected OpenTelemetry output has `http2 on|force` when
+  the caller explicitly requires HTTP/2 for that target output. Fluent Bit
+  5.1.2 also allows HTTP/1.1, so `off` is blocked only under that declared
+  target requirement. This does not infer an origin default or preservation
+  intent.
 - Grafana Loki `2.9.8` → `3.0.0`: whether the selected top-level `compactor`
   mapping in a proposed native Loki YAML document retains `shared_store` or
   `shared_store_key_prefix`, which the reviewed 3.0 compactor configuration
@@ -62,6 +68,13 @@ tabs, Unicode whitespace, continuations, other sections, and unresolved
 `grpc on|auto` forms remain UNKNOWN. Values for unrelated rows are discarded.
 Use `fixed.conf` for a scoped PASS and `unknown.conf` for an unsupported
 configuration shape; `broken.conf` is BLOCKED under the preservation intent.
+
+For the separate v5.1.2 target-only route, use `latest-fixed.conf`,
+`latest-blocked.conf`, or `latest-unknown.conf` with one exact listed origin,
+`--to 5.1.2`, `--effective-config-complete`, and `--require-http2`. The target
+source accepts `on`, `off`, and `force` and defaults to `off`; the route checks
+only a caller-required HTTP/2 selection, never protocol negotiation or a
+default carried from the origin.
 
 The Loki check uses the same private-file and declaration boundary. From the
 repository root, copy the fixed public example into the private directory and
@@ -121,14 +134,17 @@ Use `schema-structured-broken.yml` for a scoped BLOCKED result and
 period shape. The selected schema/store values are reduced to one Boolean
 fact and do not enter the canonical input or report.
 
-The Argo Workflows `3.5.0` → `3.6.0` check inspects one caller-supplied native
-Kubernetes Deployment. It selects the unique `argo-server` container bound to
-the reviewed `quay.io/argoproj/argocli:v3.6.0` image and either explicit
+The Argo Workflows `3.5.0` → `3.6.0` check and five target-revalidation checks
+from `3.4.18`, `3.5.15`, `3.6.19`, `3.7.18`, or `4.0.11` to `4.1.3` inspect
+one caller-supplied native Kubernetes Deployment. Each selects the unique
+`argo-server` container bound to the exact reviewed target image
+(`quay.io/argoproj/argocli:v3.6.0` or `:v4.1.3`) and either explicit
 `command: ["argo"]` or that exact image's reviewed `ENTRYPOINT ["argo"]`
-default. A literal `server --basehref` option is BLOCKED because
-3.6 renamed it to `--base-href`; absence is a scoped argv PASS only when the
-caller declares the selected argv complete. This does not verify the image,
-deployment, cluster, or server runtime.
+default. A literal `server --basehref` option is BLOCKED because the reviewed
+targets register `--base-href`; absence is a scoped argv PASS only when the
+caller declares the selected argv complete. The later-origin checks revalidate
+the target spelling and do not assert that every origin still accepts the old
+spelling. They do not verify image bytes, deployment, cluster, or server runtime.
 
 The Ceph Quincy `17.2.7` → Reef `18.2.0` preflight inspects one private,
 caller-selected **current** native per-OSD `ceph osd metadata ID` JSON output
@@ -159,8 +175,8 @@ precedence flags are explicit caller declarations: use them only after the
 file represents all effective settings, including environment and CLI
 overrides. Without either declaration the relevant fact remains UNKNOWN.
 
-For the workload check, copy a public example to a private file from the `cli`
-directory, then evaluate the same file locally:
+For the workload check, copy a public example to a private file from the
+repository root, then evaluate the same file locally:
 
 ```sh
 umask 077
@@ -182,6 +198,19 @@ positional or dynamic values, duplicate selected names or inspected options,
 argument-file markers, shell expansion, and `--` remain UNKNOWN. Raw workload
 fields and argument values are discarded. An omitted `command` is labeled as
 source-derived from the reviewed exact-image entrypoint, not an observed value.
+
+For the `4.1.3` target, use `latest-broken.json` or `latest-fixed.json` and one
+of the five exact origins, for example:
+
+```sh
+umask 077
+cp cli/examples/projects/argo-workflows/latest-broken.json "$PREVIEW_DIR/argo-server-4.1.3.json"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project argo-workflows \
+  --workload "$PREVIEW_DIR/argo-server-4.1.3.json" \
+  --from 4.0.11 --to 4.1.3 --workload-complete \
+  --now 2026-09-12T11:30:00Z
+```
 
 For the Ceph preflight, copy one selected metadata object to a private file and
 bind its decimal OSD id explicitly:
@@ -205,6 +234,20 @@ JSON integer within the reviewed command's signed 64-bit range and match
 `bluestore` are admitted. Missing, mismatched, ambiguous, or unsupported forms
 remain UNKNOWN. Unrelated fields are discarded, and the id, backend value,
 path, and other raw fields never enter the canonical input or report.
+
+The same selected-OSD input path has exact target-only rules for Ceph `15.2.17`,
+`16.2.15`, `17.2.9`, `18.2.8`, and `19.2.6` proposed to `20.2.4`.
+Each rule binds the metadata shape at its exact origin and the target source
+that rejects FileStore. Run every synthetic `BLOCKED`, `PASS`, and
+`UNKNOWN` case with:
+
+```sh
+./prufyx-community community-preview example project-ceph-latest
+```
+
+The target-only result covers one explicitly selected current OSD. It does not
+claim a supported direct route, migration, cluster-wide OSD inventory, health,
+data safety, sequencing, startup, runtime behavior, or whole-upgrade safety.
 
 Grafana input is native INI. The parser reads only the exact `alerting.enabled`
 key and rejects duplicate relevant sections or keys. Kibana input is native
@@ -235,3 +278,50 @@ for this neutral registry are not implemented.
 Exit status is `0` for a scoped PASS, `10` for a scoped BLOCKED result, `11`
 for UNKNOWN, `2` for invalid input, and `3` for integrity failure. The report's
 aggregate remains UNKNOWN for every result.
+
+## Latest Grafana and Kibana target routes
+
+The embedded preview also has five exact Grafana origins (`12.2.10`, `12.3.11`,
+`12.4.10`, `13.0.8`, and `13.1.5`) to `13.2.1`. It checks the same narrow
+`[alerting] enabled=true` setting because the pinned target settings loader
+still rejects it. This is target-only evidence: it does not claim that the
+behavior was introduced in 13.2.1, validate plugin or alert migration, or
+prove a direct multi-major upgrade safe.
+
+```sh
+cp cli/examples/projects/grafana/latest-broken.ini "$PREVIEW_DIR/grafana-13-proposed.ini"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project grafana --effective-config "$PREVIEW_DIR/grafana-13-proposed.ini" \
+  --from 13.1.5 --to 13.2.1 \
+  --effective-config-complete --precedence-resolved \
+  --now 2026-09-12T09:24:22Z
+```
+
+Kibana has five exact origins (`9.0.8`, `9.1.10`, `9.2.8`, `9.3.8`, and
+`9.4.6`) to `9.5.3`. Its status configuration defaults both
+`status.allowAnonymous` and `status.statusPageBypassMonitorPrivilege` to
+`false`; the reviewed route returns a redacted response to an authenticated
+caller without the Elasticsearch `monitor` privilege. This check is active only
+with the explicit `--full-status-without-monitor-required` intent and an
+unambiguous complete, precedence-resolved configuration that establishes
+`status.allowAnonymous: false` or its reviewed target default. Under that
+intent, an omitted bypass setting is a scoped BLOCKED result and `true` is a
+scoped PASS for this one setting. `status.allowAnonymous: true` is outside this
+authenticated-caller predicate. Without that intent, with an incomplete,
+ambiguous, nested, quoted, aliased, merged, sequence, or document-marked
+configuration, a custom client/auth model, or another endpoint pair, the result
+is UNKNOWN.
+
+```sh
+cp cli/examples/projects/kibana/latest-fixed.yml "$PREVIEW_DIR/kibana-9-proposed.yml"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project kibana --effective-config "$PREVIEW_DIR/kibana-9-proposed.yml" \
+  --from 9.4.6 --to 9.5.3 \
+  --effective-config-complete --precedence-resolved \
+  --full-status-without-monitor-required --now 2026-09-12T09:24:22Z
+```
+
+The bypass is not a universal remediation. An operator can instead grant the
+monitor privilege or adjust the calling client. Prufyx does not contact Kibana,
+validate authentication or privilege assignments, invoke the status route, or
+assert its runtime response.

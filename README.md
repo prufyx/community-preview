@@ -58,13 +58,25 @@ this example as proof that a cluster was converted or that traffic is safe.
 The current generated inventory reports **64 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
-contains the exact capabilities and source bindings. The twenty-four newly reviewed
-scenarios are:
+contains the exact capabilities and source bindings.
+
+The 2026-09-12 development-preview expansion currently admits **115 selected
+exact project/version pairs across 23 projects**. Each row uses five selected
+earlier stable releases and one exact reviewed target; it does not claim five
+universal minor lines. The [latest-target coverage matrix](cli/docs/latest-upgrade-coverage-2026-09-12.md)
+distinguishes native input from operator declarations and states the predicate
+and `UNKNOWN` boundary for every project. Notation remains an explicit
+qualification gap. Jaeger's retained `1.76.0` to `2.20.0` route is additional
+to the selected-pair count, and one selected Cortex pair was already present.
+This is current source-preview development scope, not an official release or a
+whole-upgrade compatibility claim.
+
+The original twenty-four documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
-| Argo Workflows | 3.5.0 → 3.6.0 renames server `--basehref` to `--base-href` | native Kubernetes Deployment JSON |
-| Argo CD | 2.14.0 → 3.0.0 preserves declared v2 visibility when the exact resource-exclusions default would exclude it | complete, precedence-resolved `argocd-cm` YAML with explicit preservation intent |
+| Argo Workflows | 3.5.0 → 3.6.0 and five exact origins → 4.1.3 check the server `--basehref` to `--base-href` rename | native exact-image Kubernetes Deployment JSON with complete selected argv |
+| Argo CD | 2.14.0 → 3.0.0 preserves declared v2 visibility; five exact origins → 3.5.2 check one selected Helm OCI repository | complete, precedence-resolved private ConfigMap or pre-apply repository Secret with explicit plain-HTTP intent and route guards |
 | Ceph | Quincy 17.2.7 → Reef 18.2.0 rejects a selected current FileStore OSD | private native per-OSD metadata JSON output |
 | Cloud Custodian | 0.9.50 → 0.9.51 removes the selected IAM access-key `json-diff` policy filter | private policy JSON |
 | CloudNativePG | 1.29.0 → 1.30.0 cluster reference must remain immutable | paired Kubernetes JSON objects |
