@@ -13,6 +13,8 @@ func TestPrepareCortexLiteralAtModifierFlag(t *testing.T) {
 		{"removed flag", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-querier.at-modifier-enabled"]}`), string(ReasonCortexRemovedFlagPresent), true},
 		{"false spelling remains present", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["--querier.at-modifier-enabled=false"]}`), string(ReasonCortexRemovedFlagPresent), true},
 		{"empty spelling remains present", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-querier.at-modifier-enabled="]}`), string(ReasonCortexRemovedFlagPresent), true},
+		{"source-derived omitted command retains removed flag", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["--querier.at-modifier-enabled=true"]}`), string(ReasonCortexRemovedFlagPresent), true},
+		{"source-derived omitted command retains scoped absence", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["-target=all"]}`), string(ReasonCortexRemovedFlagAbsent), false},
 		{"literal absence with sidecar", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-target=all"]},{"name":"config-reloader","image":"example.invalid/reloader:v1"}`), string(ReasonCortexRemovedFlagAbsent), false},
 	}
 	for _, tc := range tests {
@@ -28,11 +30,35 @@ func TestPrepareCortexLiteralAtModifierFlag(t *testing.T) {
 	}
 }
 
+func TestPrepareCortexOmissionsDescribeSourceDerivedEntrypoint(t *testing.T) {
+	tests := []struct {
+		name, container string
+		want            string
+	}{
+		{"source-derived", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["-target=all"]}`, "DEFAULT_ENTRYPOINT_SOURCE_DERIVED_FOR_EXACT_ADMITTED_IMAGE_NOT_RUNTIME_OBSERVATION"},
+		{"explicit", `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-target=all"]}`, "DEFAULT_ENTRYPOINT_NOT_INFERRED"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareCortex([]byte(cortexWorkload(tc.container)), CortexFrom, CortexTo)
+			if err != nil || prepared.State != StatePrepared {
+				t.Fatalf("PrepareCortex() = %#v, %v", prepared, err)
+			}
+			for _, omission := range prepared.Omissions {
+				if omission == tc.want {
+					return
+				}
+			}
+			t.Fatalf("omissions = %#v, want %q", prepared.Omissions, tc.want)
+		})
+	}
+}
+
 func TestPrepareCortexUnknownForUnresolvedWorkload(t *testing.T) {
 	valid := `{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-target=all"]}`
 	tests := []struct{ name, raw string }{
-		{"missing explicit command", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["-target=all"]}`)},
-		{"default entrypoint is not inferred", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","args":["-target=all"]}`)},
+		{"null command", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":null,"args":["-target=all"]}`)},
+		{"empty command", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":[],"args":["-target=all"]}`)},
 		{"shell wrapper", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["sh","-c"],"args":["-target=all"]}`)},
 		{"wrong explicit binary", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["cortex"],"args":["-target=all"]}`)},
 		{"wrong target image", cortexWorkload(`{"name":"cortex","image":"quay.io/cortexproject/cortex:v1.17.2","command":["/bin/cortex"],"args":["-target=all"]}`)},

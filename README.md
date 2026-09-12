@@ -55,16 +55,17 @@ this example as proof that a cluster was converted or that traffic is safe.
 
 ## What is covered
 
-The current generated inventory reports **62 executable projects**, **110
+The current generated inventory reports **63 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
-contains the exact capabilities and source bindings. The fifteen newly reviewed
+contains the exact capabilities and source bindings. The seventeen newly reviewed
 scenarios are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
 | Argo Workflows | 3.5.0 → 3.6.0 renames server `--basehref` to `--base-href` | native Kubernetes Deployment JSON |
 | Ceph | Quincy 17.2.7 → Reef 18.2.0 rejects a selected current FileStore OSD | private native per-OSD metadata JSON output |
+| Cloud Custodian | 0.9.50 → 0.9.51 removes the selected IAM access-key `json-diff` policy filter | private policy JSON |
 | CloudNativePG | 1.29.0 → 1.30.0 cluster reference must remain immutable | paired Kubernetes JSON objects |
 | MetalLB | 0.12.1 → 0.13.2 legacy ConfigMap configuration is removed | ConfigMap or reviewed CR JSON |
 | NATS | 2.10.0 → 2.11.0 rejects ASCII spaces in supplied selected names | native JSON configuration subset |
@@ -78,8 +79,10 @@ scenarios are:
 | KubeVirt | 1.8.4 → 1.9.0 rejects interfaces with no or multiple bindings | VM/VMI JSON |
 | OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
+| Prometheus | 2.55.1 → 3.1.0 renames selected `scrape_classic_histograms` | complete, precedence-resolved scrape-config YAML |
 
-Use `prufyx check cncf --project PROJECT` for CNCF scenarios and `prufyx check
+Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
+Custodian and Prometheus, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, and Kibana), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select

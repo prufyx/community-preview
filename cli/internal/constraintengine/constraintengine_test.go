@@ -147,6 +147,17 @@ func TestEvidenceExpiryWithdrawalAndStrictInputs(t *testing.T) {
 	}
 }
 
+func TestImmutableGitURLAllowsOnlyPublicDotGitHubSegment(t *testing.T) {
+	workflow := "https://github.com/example/controller/blob/" + testRevision + "/.github/workflows/review.yml"
+	if !immutableGitURL(workflow, testRevision) {
+		t.Fatal("immutable public workflow URL rejected")
+	}
+	private := "https://github.com/example/controller/blob/" + testRevision + "/.private/workflows/review.yml"
+	if immutableGitURL(private, testRevision) {
+		t.Fatal("non-public dot-prefixed path accepted")
+	}
+}
+
 func TestFactAndConditionValuePresenceIsExact(t *testing.T) {
 	registry := testRegistry(t)
 	for _, state := range []string{"missing", "unsupported", "conflict"} {

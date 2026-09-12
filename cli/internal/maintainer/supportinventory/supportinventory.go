@@ -577,7 +577,7 @@ var nativeCNCFInputMetadata = map[string]map[string]any{
 	"cortex": {
 		"command":       []any{"check", "cncf", "--project", "cortex", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_kubernetes_workload_minimizer",
-		"limit":         "Checks one selected Cortex container in a caller-supplied Kubernetes workload with the exact reviewed image, explicit command, and literal argv; unresolved entrypoints or arguments, custom builds, query semantics, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		"limit":         "Checks one selected Cortex container in a caller-supplied Kubernetes workload with the exact reviewed image and literal argv. Explicit /bin/cortex is admitted; an omitted command is source-derived only for the exact admitted target image, never runtime observation. Null, empty, wrapper, custom-image, or unresolved entrypoints and arguments remain UNKNOWN; query semantics, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
 	},
 	"nats": {
 		"command":       []any{"check", "cncf", "--project", "nats", "--nats-config", "FILE"},
@@ -588,6 +588,11 @@ var nativeCNCFInputMetadata = map[string]map[string]any{
 		"command":       []any{"check", "cncf", "--project", "flux", "--native-resource", "FILE"},
 		"metadataState": "implemented_native_rendered_resource_minimizer",
 		"limit":         "Checks one caller-selected JSON Kubernetes resource or v1 List for five removed beta API versions; absence requires an explicit complete non-paginated selected set, and stored versions, cluster inventory, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+	},
+	"prometheus": {
+		"command":       []any{"check", "cncf", "--project", "prometheus", "--scrape-config", "FILE", "--scrape-job", "NAME", "--scrape-config-complete", "--scrape-config-precedence-resolved"},
+		"metadataState": "implemented_native_selected_scrape_config_minimizer",
+		"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
 	},
 }
 
@@ -986,8 +991,17 @@ func Generate(cfg Config) ([]byte, string, error) {
 	}
 	for _, item := range []map[string]any{cert, prom, spiffe, cloud, tikv} {
 		id := item["projectID"].(string)
-		if projects[id] != nil {
-			return nil, "", invalid("named capability overlaps rule project")
+		if existing := projects[id]; existing != nil {
+			if existing["displayName"] != item["displayName"] || existing["repositoryURL"] != item["repositoryURL"] {
+				return nil, "", invalid("named capability identity conflicts with rule project")
+			}
+			existingCaps, existingOK := array(existing["capabilities"])
+			namedCaps, namedOK := array(item["capabilities"])
+			if !existingOK || !namedOK || len(namedCaps) != 1 {
+				return nil, "", invalid("invalid named capability union")
+			}
+			existing["capabilities"] = append(existingCaps, namedCaps...)
+			continue
 		}
 		projects[id] = item
 	}

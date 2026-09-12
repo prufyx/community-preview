@@ -79,6 +79,7 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project metallb|contour|kubevirt|thanos|cortex --native-resource FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project flux --native-resource FILE --from 2.6.4 --to 2.7.0 [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project nats --nats-config FILE --from 2.10.0 --to 2.11.0 (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--scrape-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
 
 Optional, local source-constraint preview using minimized operator declarations.
@@ -114,6 +115,11 @@ in-toto-run prefix before the first valid -- delimiter. Everything after it is
 opaque. Embedded knowledge covers Python CLI 2.2.0 -> 3.0.0. A PASS clears
 only removal of -k/--key; it does not load or convert keys or run the command.
 Historical replay requires the raw argv digest and all three knowledge pins.
+The Prometheus mode reads one caller-selected native scrape_config YAML mapping.
+It retains only whether the reviewed old or new key is present; job names,
+targets and unrelated settings are discarded. Completeness and precedence are
+caller declarations. PASS covers only the selected key rename, not parsing the
+whole prometheus.yml, startup, scraping, or native-histogram behavior.
 The TUF mode uses a Go lexical parser that admits one unaliased direct import
 and one top-level direct Updater call. It reads private Python source as data
 and never imports or executes it. Source outside that narrow grammar remains
@@ -202,6 +208,11 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that the selected Flux rendered-resource JSON set is complete")
 	natsConfig := fs.String("nats-config", "", "private standalone NATS JSON-like configuration")
 	natsConfigPin := fs.String("nats-config-digest", "", "optional exact NATS configuration SHA-256")
+	scrapeConfig := fs.String("scrape-config", "", "private selected native Prometheus scrape_config YAML")
+	scrapeConfigPin := fs.String("scrape-config-digest", "", "optional exact selected scrape_config SHA-256")
+	scrapeJob := fs.String("scrape-job", "", "exact job_name selecting the supplied scrape_config")
+	scrapeConfigComplete := fs.Bool("scrape-config-complete", false, "caller declaration that the selected scrape_config is complete")
+	scrapeConfigPrecedenceResolved := fs.Bool("scrape-config-precedence-resolved", false, "caller declaration that configuration precedence is resolved")
 	currentResource := fs.String("current-resource", "", "private current native Kubernetes JSON resource")
 	currentResourcePin := fs.String("current-resource-digest", "", "optional exact current resource SHA-256")
 	resource := fs.String("resource", "", "private proposed native Kubernetes JSON resource")
@@ -217,7 +228,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -228,18 +239,25 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	nativeFlags := anyFlagProvided(args, "native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest")
 	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
+	prometheusScrapeFlags := anyFlagProvided(args, "scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved")
 	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux"
 	if (nativeFlags || flagProvided(args, "resource-scope-complete")) && !nativeProject {
 		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, or flux; use --help")
 	}
 	if nativeProject && (nativeFlags || fluxNativeRequested) {
-		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, args)
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, args)
 	}
 	if natsFlags && *project != "nats" {
 		return r.usage("NATS configuration flags require project nats; use --help")
 	}
 	if *project == "nats" && natsFlags {
-		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+	}
+	if prometheusScrapeFlags && *project != "prometheus" {
+		return r.usage("Prometheus scrape configuration flags require project prometheus; use --help")
+	}
+	if *project == "prometheus" && prometheusScrapeFlags {
+		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
 	}
 	rawArgoRequested := *project == "argo-cd" && anyFlagProvided(args, "config-map", "config-map-digest", "from", "to", "requires-inherited-application-permissions")
 	rawKnativeRequested := *project == "knative" && anyFlagProvided(args, "service", "service-digest", "from", "to")
@@ -495,6 +513,7 @@ var cncfModeInputFlags = []string{
 	"native-resource", "native-resource-digest",
 	"resource-scope-complete",
 	"nats-config", "nats-config-digest",
+	"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved",
 	"current-resource", "current-resource-digest", "resource", "resource-digest",
 	"image-manifest", "image-manifest-digest",
 	"cni-configuration", "cni-configuration-digest", "operation",

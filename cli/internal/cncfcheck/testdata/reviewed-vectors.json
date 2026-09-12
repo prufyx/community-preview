@@ -781,6 +781,107 @@
     ]
   },
 {
+    "project": "cloud-custodian",
+    "ruleId": "cloud-custodian.iam-access-key-json-diff-removed.0-9-50-to-0-9-51",
+    "cases": [
+      {
+        "name": "direct-json-diff-blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.50",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.51",
+                "facts": [
+                  {
+                    "id": "component.cloud_custodian.iam_access_key_json_diff_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "explicit-empty-filter-list-pass",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.50",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.51",
+                "facts": [
+                  {
+                    "id": "component.cloud_custodian.iam_access_key_json_diff_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "unsupported-policy-shape-unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.50",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cloud-custodian/cloud-custodian",
+                "version": "0.9.51",
+                "facts": [
+                  {
+                    "id": "component.cloud_custodian.iam_access_key_json_diff_present",
+                    "state": "unsupported"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+{
     "project": "cloudnativepg",
     "ruleId": "cloudnativepg.cluster-reference-immutable.1-29-to-1-30",
     "cases": [
@@ -12940,7 +13041,53 @@
       }
     ]
   },
-{
+  {
+    "project": "prometheus",
+    "ruleId": "prometheus.scrape-classic-histograms-key-renamed.3-1",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "2.55.1", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "3.1.0", "facts": [{"id": "component.prometheus.scrape_classic_histograms_key", "state": "declared", "enumValue": "always_scrape_classic_histograms"}]}]}
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "2.55.1", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "3.1.0", "facts": [{"id": "component.prometheus.scrape_classic_histograms_key", "state": "declared", "enumValue": "scrape_classic_histograms"}]}]}
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "unknown",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "2.55.1", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "3.1.0", "facts": [{"id": "component.prometheus.scrape_classic_histograms_key", "state": "unsupported"}]}]}
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "3.1.0", "facts": []}]},
+          "proposed": {"components": [{"component": "pkg:github/prometheus/prometheus", "version": "3.2.0", "facts": [{"id": "component.prometheus.scrape_classic_histograms_key", "state": "declared", "enumValue": "scrape_classic_histograms"}]}]}
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
     "project": "rook",
     "ruleId": "rook.helm-intermediate-1-19-5.1-20",
     "cases": [
