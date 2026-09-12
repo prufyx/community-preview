@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:56a42bb7bd48f6fb8a3a892b29ed7a1979a9f03da204c926ef37bab168d8ffcf",
+    "inventorySha256": "sha256:d38035bf9e80ff8dc10f0be09b877254544ac23af8d622e72b9a72ae6c09a319",
     "counts": {
       "executableProjects": 64,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 23
+      "newExecutableScenarios": 24
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
@@ -198,6 +198,14 @@
       "to": "3.0.0",
       "rule": "exact resource.exclusions source default is blocked when v2 visibility preservation is declared",
       "input": "caller-selected complete, precedence-resolved native argocd-cm YAML with explicit v2-visibility-preservation intent"
+    },
+    {
+      "project": "opentelemetry",
+      "repository": "https://github.com/open-telemetry/opentelemetry-collector",
+      "from": "0.110.0",
+      "to": "0.111.0",
+      "rule": "existing logging-exporter removal constraint through a new native input route",
+      "input": "caller-selected complete, precedence-resolved native Collector YAML with declared official distribution"
     }
   ],
   "resultScope": [

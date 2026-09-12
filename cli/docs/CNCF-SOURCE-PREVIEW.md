@@ -159,8 +159,8 @@ prufyx catalog cncf --project helm --format json
 
 The generic check accepts one local JSON file containing minimized, operator-declared current and proposed component identities and facts. The file must be a regular private file with mode `0600`; symlinks, permissive files, oversized files, malformed JSON, and untyped values are rejected. The CLI reads bytes locally and does not collect a cluster, inspect live state, invoke a model, download a database, or upload data.
 
-The current embedded preview has 62 exact rules across 54 rule projects, 114
-registered boolean or finite-enum facts, and 435 rule-scoped cases. The
+The current embedded preview has 63 exact rules across 54 rule projects, 116
+registered boolean or finite-enum facts, and 436 rule-scoped cases. The
 separate SPIFFE X.509-SVID and CloudEvents structured JSON
 standards-conformance profiles have no from/to pairs and do not alter these
 transition-rule totals. SPIFFE does not duplicate the SPIRE project's
@@ -177,6 +177,14 @@ target source-derived v2 default; complete-entry and resolved-precedence flags
 remain caller declarations. It does not parse a full `prometheus.yml`, prove
 Alertmanager compatibility or reachability, or establish alert delivery. See
 the [native resource examples](../examples/cncf/native-resources/README.md).
+
+OpenTelemetry Collector has one independently selected `0.110.0` → `0.111.0`
+native route for the existing logging-exporter removal constraint. It reads one
+caller-selected complete, precedence-resolved Collector YAML and requires a
+caller declaration of the official distribution. Unsupported YAML or values,
+defaults, custom distributions, resource presence, pipeline behavior, exporter
+execution, runtime behavior, and whole-upgrade safety remain `UNKNOWN`. See the
+[OpenTelemetry Collector native example](../examples/cncf/opentelemetry-collector/README.md).
 
 Cilium project-level `prepare cncf --project cilium` adapter accepts raw policy input only for the exact `1.18.6` → `1.19.0` and `1.18.13` → `1.19.7` pairs. It derives only the existing nonempty-requires fact; a scoped false result still requires an explicit complete CNP and CCNP set declaration. A project-level prepare command never implies preparation of every exact rule pair listed for that project. The
 catalogue's 255 identities and 30 maintainer-selected priority projects are

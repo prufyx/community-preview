@@ -80,6 +80,7 @@ func (r runtime) cncf(args []string) int {
    or: prufyx check cncf --project metallb|contour|kubevirt|thanos|cortex --native-resource FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project flux --native-resource FILE --from 2.6.4 --to 2.7.0 [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project nats --nats-config FILE --from 2.10.0 --to 2.11.0 (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project opentelemetry --otel-collector-config FILE --otel-distribution official|custom --otel-config-complete --otel-config-precedence-resolved --from 0.110.0 --to 0.111.0 (--now RFC3339 | --knowledge-db DIR) [--otel-collector-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--scrape-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --alertmanager-config FILE --from 2.55.1 --to 3.1.0 --alertmanager-config-complete --alertmanager-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--alertmanager-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
@@ -223,6 +224,11 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that the selected Flux rendered-resource JSON set is complete")
 	natsConfig := fs.String("nats-config", "", "private standalone NATS JSON-like configuration")
 	natsConfigPin := fs.String("nats-config-digest", "", "optional exact NATS configuration SHA-256")
+	otelCollectorConfig := fs.String("otel-collector-config", "", "private selected OpenTelemetry Collector YAML configuration")
+	otelCollectorConfigPin := fs.String("otel-collector-config-digest", "", "optional exact Collector configuration SHA-256")
+	otelDistribution := fs.String("otel-distribution", "", "declared Collector distribution: official or custom")
+	otelConfigComplete := fs.Bool("otel-config-complete", false, "caller declaration that the selected Collector configuration is complete")
+	otelConfigPrecedenceResolved := fs.Bool("otel-config-precedence-resolved", false, "caller declaration that Collector provider and CLI precedence is resolved")
 	scrapeConfig := fs.String("scrape-config", "", "private selected native Prometheus scrape_config YAML")
 	scrapeConfigPin := fs.String("scrape-config-digest", "", "optional exact selected scrape_config SHA-256")
 	scrapeJob := fs.String("scrape-job", "", "exact job_name selecting the supplied scrape_config")
@@ -247,7 +253,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -258,6 +264,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	nativeFlags := anyFlagProvided(args, "native-resource", "native-resource-digest", "current-resource", "current-resource-digest", "resource", "resource-digest")
 	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
+	otelFlags := anyFlagProvided(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved")
 	prometheusScrapeFlags := anyFlagProvided(args, "scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved")
 	prometheusAlertmanagerFlags := anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
 	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux"
@@ -272,6 +279,15 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	}
 	if *project == "nats" && natsFlags {
 		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
+	}
+	if otelFlags && *project != "opentelemetry" {
+		return r.usage("OpenTelemetry Collector configuration flags require project opentelemetry; use --help")
+	}
+	if *project == "opentelemetry" && otelFlags {
+		if *otelCollectorConfig == "" || *otelDistribution == "" || cncfUnexpectedModeFlag(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved") {
+			return r.usage("invalid OpenTelemetry Collector configuration arguments; use --help")
+		}
+		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, args)
 	}
 	if prometheusScrapeFlags && *project != "prometheus" {
 		return r.usage("Prometheus scrape configuration flags require project prometheus; use --help")
@@ -548,6 +564,7 @@ var cncfModeInputFlags = []string{
 	"native-resource", "native-resource-digest",
 	"resource-scope-complete",
 	"nats-config", "nats-config-digest",
+	"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved",
 	"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved",
 	"alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved",
 	"current-resource", "current-resource-digest", "resource", "resource-digest",

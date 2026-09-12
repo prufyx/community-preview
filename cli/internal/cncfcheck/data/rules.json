@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-12.4",
+  "revision": "cncf-2026-09-12.5",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
@@ -4562,8 +4562,8 @@
         ],
         "evidence": {
           "state": "active",
-          "reviewedAt": "2026-09-08T12:07:56Z",
-          "validUntil": "2026-12-07T12:07:56Z",
+          "reviewedAt": "2026-09-12T02:34:43Z",
+          "validUntil": "2026-12-11T02:34:43Z",
           "sources": [
             {
               "id": "source-080b76506c5b-10",
@@ -4572,6 +4572,62 @@
               "contentDigest": "sha256:8b2b559dd21ff7facbacf97af92c9f92e3b55f64b5232f6e406d6fd87c295429",
               "startLine": 10,
               "endLine": 17
+            },
+            {
+              "id": "source-otel-old-collector-config-d6f568",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/d6f568dd5b6ddfd87a7c6350545cb818f902a06f/otelcol/config.go",
+              "revision": "d6f568dd5b6ddfd87a7c6350545cb818f902a06f",
+              "contentDigest": "sha256:5399bf135ca91b9240850c93792bb73511ecc84d9b981eeeba6db9143df5603f",
+              "startLine": 17,
+              "endLine": 194
+            },
+            {
+              "id": "source-otel-old-confmap-d6f568",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/d6f568dd5b6ddfd87a7c6350545cb818f902a06f/confmap/confmap.go",
+              "revision": "d6f568dd5b6ddfd87a7c6350545cb818f902a06f",
+              "contentDigest": "sha256:32ca4e5b223c2074ea63ec6c5276bb0cf86eb79639f95d83b624d213582ac3eb",
+              "startLine": 80,
+              "endLine": 164
+            },
+            {
+              "id": "source-otel-old-logging-config-d6f568",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/d6f568dd5b6ddfd87a7c6350545cb818f902a06f/exporter/loggingexporter/config.go",
+              "revision": "d6f568dd5b6ddfd87a7c6350545cb818f902a06f",
+              "contentDigest": "sha256:592d766814d1ee68577b91cb0dafd9de63605394828450a318d0096144e2ceb3",
+              "startLine": 18,
+              "endLine": 75
+            },
+            {
+              "id": "source-otel-old-logging-factory-d6f568",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/d6f568dd5b6ddfd87a7c6350545cb818f902a06f/exporter/loggingexporter/factory.go",
+              "revision": "d6f568dd5b6ddfd87a7c6350545cb818f902a06f",
+              "contentDigest": "sha256:9fb6228c3738441a3ebfe2874beffc9fba77a4c257d706aaa5ffefc39d4d301a",
+              "startLine": 14,
+              "endLine": 25
+            },
+            {
+              "id": "source-otel-target-collector-config-080b765",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/otelcol/config.go",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:13da27a85b121d39f4f8078aab5f005a2cd8af1cbe702003712a882c86b924b2",
+              "startLine": 17,
+              "endLine": 194
+            },
+            {
+              "id": "source-otel-target-component-id-080b765",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/component/identifiable.go",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:7f6c85ec86b63894a891c56a664fd295859efe291bfd821a9e58078711cd6f2f",
+              "startLine": 14,
+              "endLine": 91
+            },
+            {
+              "id": "source-otel-target-confmap-080b765",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/confmap/confmap.go",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:32ca4e5b223c2074ea63ec6c5276bb0cf86eb79639f95d83b624d213582ac3eb",
+              "startLine": 80,
+              "endLine": 164
             }
           ]
         },
