@@ -193,7 +193,7 @@ func TestV2PolicyMatchesCurrentVendorTreeWithLegacyOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy["vendorTreeDigest"] != "sha256:b6d891bde10ec558b90d1b2cf3f033ed6ff1a0a1598553dcbb706110a11f5069" {
+	if policy["vendorTreeDigest"] != "sha256:a79e35a51ea0a9f749d6f69323b218ebb712ffa68a8f488321ccf6c981ecec4f" {
 		t.Fatalf("unexpected policy digest %q", policy["vendorTreeDigest"])
 	}
 	if err := validateVendorTree(root, policy); err != nil {

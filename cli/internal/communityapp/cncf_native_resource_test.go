@@ -20,17 +20,19 @@ func TestCNCFNativeResourceExamplesUseDirectRawFiles(t *testing.T) {
 	}
 	for _, test := range []struct {
 		project, from, to, directory string
+		now                          string
 		want                         int
 	}{
-		{"metallb", "0.12.1", "0.13.2", "metallb", ExitBlocked},
-		{"contour", "1.19.0", "1.20.0", "contour", ExitBlocked},
-		{"kubevirt", "1.8.4", "1.9.0", "kubevirt", ExitBlocked},
-		{"thanos", "0.41.0", "0.42.0", "thanos", ExitBlocked},
+		{"metallb", "0.12.1", "0.13.2", "metallb", "2026-09-11T18:00:00Z", ExitBlocked},
+		{"contour", "1.19.0", "1.20.0", "contour", "2026-09-11T18:00:00Z", ExitBlocked},
+		{"kubevirt", "1.8.4", "1.9.0", "kubevirt", "2026-09-11T18:00:00Z", ExitBlocked},
+		{"thanos", "0.41.0", "0.42.0", "thanos", "2026-09-11T18:00:00Z", ExitBlocked},
+		{"cortex", "1.17.2", "1.21.1", "cortex", "2026-09-11T23:00:00Z", ExitBlocked},
 	} {
 		t.Run(test.project, func(t *testing.T) {
 			for name, want := range map[string]int{"broken.json": test.want, "fixed.json": ExitOK, "unknown.json": ExitUnknown} {
 				path := read(test.directory, name)
-				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", test.project, "--native-resource", path, "--from", test.from, "--to", test.to, "--now", "2026-09-11T18:00:00Z", "--format", "json")
+				code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", test.project, "--native-resource", path, "--from", test.from, "--to", test.to, "--now", test.now, "--format", "json")
 				if code != want || stderr != "" || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) {
 					t.Fatalf("%s code=%d stdout=%q stderr=%q", name, code, stdout, stderr)
 				}

@@ -24,7 +24,7 @@ type reviewedVector struct {
 
 func reviewClock(t *testing.T) time.Time {
 	t.Helper()
-	v, err := time.Parse(time.RFC3339, "2026-09-11T21:30:00Z")
+	v, err := time.Parse(time.RFC3339, "2026-09-11T23:00:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 57 || len(vectors) != 57 {
+	if len(b.pack.Entries) != 59 || len(vectors) != 59 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 417 {
+	if caseCount != 424 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -69,7 +69,13 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		}
 		for _, scenario := range vector.Cases {
 			t.Run(vector.RuleID+"/"+scenario.Name, func(t *testing.T) {
-				report, err := Check(vector.Project, scenario.Input, reviewClock(t))
+				clock := reviewClock(t)
+				// This source review completed after the historical corpus clock;
+				// preserve its real reviewedAt timestamp in the rule data.
+				if vector.Project == "cloud-custodian" {
+					clock = time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+				}
+				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -361,7 +367,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 52 || all.RuntimeReproduced != 0 {
+	if all.Catalogued != 255 || all.PriorityProjects != 30 || len(all.Projects) != 255 || all.SourceRuleCovered != 54 || all.RuntimeReproduced != 0 {
 		t.Fatalf("unexpected inventory: %+v", all)
 	}
 	priority, err := Catalog(true, "")
@@ -389,11 +395,13 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 			t.Fatalf("%s source preview coverage missing or overstated", want.slug)
 		}
 	}
-	for _, slug := range []string{"cert-manager", "prometheus"} {
-		c, err := Catalog(false, slug)
-		if err != nil || len(c.Projects[0].ExistingChecks) != 1 || c.Projects[0].SourceRuleCount != 0 {
-			t.Fatal("existing check lost or double counted")
-		}
+	certManager, err := Catalog(false, "cert-manager")
+	if err != nil || len(certManager.Projects[0].ExistingChecks) != 1 || certManager.Projects[0].SourceRuleCount != 0 {
+		t.Fatal("cert-manager existing check lost or double counted")
+	}
+	prometheus, err := Catalog(false, "prometheus")
+	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 1 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
+		t.Fatal("Prometheus existing check or source rule lost or double counted")
 	}
 	archived, err := Catalog(false, "curiefense")
 	if err != nil || archived.Projects[0].RepositoryURL != "" {

@@ -15,7 +15,7 @@ import (
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
-func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, args []string) int {
+func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, args []string) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
 	if project == "cloudnativepg" {
 		allowed = []string{"current-resource", "current-resource-digest", "resource", "resource-digest"}
@@ -23,6 +23,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"nats-config", "nats-config-digest"}
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
+	} else if project == "prometheus" {
+		allowed = []string{"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -32,9 +34,12 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var expectedSourceDigest string
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "prometheus":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
+		}
+		if project == "prometheus" && selectedJob == "" {
+			return r.usage("invalid Prometheus selected scrape configuration arguments; use --help")
 		}
 		raw, readErr := readCNCFPrivate(nativePath, 1<<20)
 		if readErr != nil {
@@ -54,6 +59,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
 		} else if project == "flux" {
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
+		} else if project == "prometheus" {
+			prepared, err = cncfprepare.PreparePrometheusScrapeConfig(raw, selectedJob, from, to, complete, precedenceResolved)
 		} else {
 			prepared, err = cncfprepare.PrepareNativeMigration(raw, project, from, to)
 		}

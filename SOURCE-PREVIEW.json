@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:7c7bd71e0c96b0740a988f8ca04243a8b92ad80b8ae3d1ac9f81761a0d436bee",
+    "inventorySha256": "sha256:9b3e39e9322d43512ac331bc816aef9fc448f26d3c46b10fa3f20dfa9357d5d3",
     "counts": {
-      "executableProjects": 62,
+      "executableProjects": 63,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 15
+      "newExecutableScenarios": 17
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
@@ -31,44 +31,20 @@
       "input": "caller-supplied selected current per-OSD metadata JSON object"
     },
     {
+      "project": "cloud-custodian",
+      "repository": "https://github.com/cloud-custodian/cloud-custodian",
+      "from": "0.9.50",
+      "to": "0.9.51",
+      "rule": "selected IAM access-key json-diff policy filter is removed",
+      "input": "caller-supplied private policy JSON"
+    },
+    {
       "project": "cloudnativepg",
       "repository": "https://github.com/cloudnative-pg/cloudnative-pg",
       "from": "1.29.0",
       "to": "1.30.0",
       "rule": "cluster reference immutability",
       "input": "paired native Kubernetes JSON objects"
-    },
-    {
-      "project": "fluent-bit",
-      "repository": "https://github.com/fluent/fluent-bit",
-      "from": "3.2.0",
-      "to": "4.0.0",
-      "rule": "an intended enabled OpenTelemetry HTTP/2 setting must remain explicitly enabled",
-      "input": "caller-declared complete native classic configuration with current-default and preservation declarations"
-    },
-    {
-      "project": "metallb",
-      "repository": "https://github.com/metallb/metallb",
-      "from": "0.12.1",
-      "to": "0.13.2",
-      "rule": "selected legacy ConfigMap configuration is removed",
-      "input": "caller-selected ConfigMap or reviewed CR JSON"
-    },
-    {
-      "project": "nats",
-      "repository": "https://github.com/nats-io/nats-server",
-      "from": "2.10.0",
-      "to": "2.11.0",
-      "rule": "ASCII spaces in supplied server, cluster, or gateway names are rejected",
-      "input": "caller-supplied native JSON NATS configuration subset"
-    },
-    {
-      "project": "contour",
-      "repository": "https://github.com/projectcontour/contour",
-      "from": "1.19.0",
-      "to": "1.20.0",
-      "rule": "selected networking.x-k8s.io/v1alpha1 resources need explicit migration",
-      "input": "caller-selected Kubernetes resource JSON"
     },
     {
       "project": "container-network-interface-cni",
@@ -78,6 +54,14 @@
       "versionKind": "CNI specification editions, not library releases",
       "rule": "non-List configuration is removed",
       "input": "plugin configuration JSON"
+    },
+    {
+      "project": "contour",
+      "repository": "https://github.com/projectcontour/contour",
+      "from": "1.19.0",
+      "to": "1.20.0",
+      "rule": "selected networking.x-k8s.io/v1alpha1 resources need explicit migration",
+      "input": "caller-selected Kubernetes resource JSON"
     },
     {
       "project": "distribution",
@@ -94,6 +78,14 @@
       "to": "4.0.1",
       "rule": "diagd --metrics-endpoint is removed",
       "input": "caller-selected argv JSON"
+    },
+    {
+      "project": "fluent-bit",
+      "repository": "https://github.com/fluent/fluent-bit",
+      "from": "3.2.0",
+      "to": "4.0.0",
+      "rule": "an intended enabled OpenTelemetry HTTP/2 setting must remain explicitly enabled",
+      "input": "caller-declared complete native classic configuration with current-default and preservation declarations"
     },
     {
       "project": "grafana",
@@ -120,6 +112,22 @@
       "input": "native VM or VMI JSON"
     },
     {
+      "project": "metallb",
+      "repository": "https://github.com/metallb/metallb",
+      "from": "0.12.1",
+      "to": "0.13.2",
+      "rule": "selected legacy ConfigMap configuration is removed",
+      "input": "caller-selected ConfigMap or reviewed CR JSON"
+    },
+    {
+      "project": "nats",
+      "repository": "https://github.com/nats-io/nats-server",
+      "from": "2.10.0",
+      "to": "2.11.0",
+      "rule": "ASCII spaces in supplied server, cluster, or gateway names are rejected",
+      "input": "caller-supplied native JSON NATS configuration subset"
+    },
+    {
       "project": "opencost",
       "repository": "https://github.com/opencost/opencost",
       "from": "1.119.0",
@@ -134,6 +142,14 @@
       "to": "1.18.0",
       "rule": "OIDC issuer and audience are required for complete effective configuration",
       "input": "native effective-config JSON with explicit completeness"
+    },
+    {
+      "project": "prometheus",
+      "repository": "https://github.com/prometheus/prometheus",
+      "from": "2.55.1",
+      "to": "3.1.0",
+      "rule": "selected scrape_classic_histograms key is renamed",
+      "input": "caller-selected complete native scrape_config YAML with resolved precedence"
     }
   ],
   "resultScope": [

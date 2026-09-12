@@ -514,6 +514,8 @@ func consumeJSON(decoder *json.Decoder, depth int) error {
 }
 
 var (
-	gitPathPartRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
-	publicPathPartRE = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._+@=,-]*$`)
+	gitPathPartRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	// .github is a public, immutable repository path segment. Keep the narrow
+	// exception explicit so other dot-prefixed path segments remain rejected.
+	publicPathPartRE = regexp.MustCompile(`^(?:[A-Za-z0-9_][A-Za-z0-9._+@=,-]*|\.github)$`)
 )

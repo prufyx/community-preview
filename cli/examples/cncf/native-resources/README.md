@@ -1,7 +1,7 @@
 # Native CNCF resource checks
 
-These are small JSON-only examples for the reviewed predicate in each exact
-transition. They do not connect to a cluster, apply a resource, infer defaults,
+These are small JSON and YAML native-input examples for the reviewed predicate in each exact
+transition. They do not connect to a cluster, apply a resource, observe runtime defaults,
 or establish runtime or whole-upgrade compatibility. Each `broken` input is a
 scoped blocker, each `fixed` input clears that predicate only, and each
 `unknown` input remains unresolved.
@@ -75,22 +75,49 @@ discovery, generated configuration, runtime, or whole-upgrade behavior.
 
 Cortex `1.17.2` → `1.21.1` checks a caller-supplied proposed workload for the
 removed `querier.at-modifier-enabled` option. The admitted input has one named
-`cortex` container, the reviewed target image, explicit `command:
-["/bin/cortex"]`, and literal argv. It does not infer an image entrypoint or
-resolve configuration files, environment, or shell syntax.
+`cortex` container, the exact reviewed target image, and literal argv. It accepts
+explicit `command: ["/bin/cortex"]` or an omitted command only for
+`quay.io/cortexproject/cortex:v1.21.1`, whose retained source maps that exact
+image to `/bin/cortex`; this is not a runtime observation. Null or empty
+commands, wrappers, custom images, configuration files, environment, and shell
+syntax remain unresolved.
 
 ```sh
 cp examples/cncf/native-resources/cortex/broken.json "$work/cortex.json"
 chmod 600 "$work/cortex.json"
 ./prufyx-community check cncf --project cortex \
   --native-resource "$work/cortex.json" \
-  --from 1.17.2 --to 1.21.1 --now 2026-09-11T19:16:43Z --format human
+  --from 1.17.2 --to 1.21.1 --now 2026-09-11T23:00:00Z --format human
 ```
 
 `broken.json` is BLOCKED because it retains the removed option. `fixed.json`
-is a scoped PASS for its literal argv. `unknown.json` omits the explicit
-command and remains UNKNOWN. The check does not establish query semantics,
+is a scoped PASS for its literal argv. `unknown.json` uses a null command and
+remains UNKNOWN. The check does not establish query semantics,
 storage, tenancy, runtime behavior, or whole-upgrade compatibility.
+
+## Prometheus selected scrape configuration
+
+Prometheus `2.55.1` → `3.1.0` renames `scrape_classic_histograms` to
+`always_scrape_classic_histograms`. Supply one complete native `scrape_config`
+mapping and select its literal `job_name`; Prufyx discards the name, targets,
+and every unrelated setting.
+
+```sh
+cp examples/cncf/native-resources/prometheus/broken.yml "$work/prometheus-scrape.yml"
+chmod 600 "$work/prometheus-scrape.yml"
+./prufyx-community check cncf --project prometheus \
+  --scrape-config "$work/prometheus-scrape.yml" --scrape-job selected-api \
+  --scrape-config-complete --scrape-config-precedence-resolved \
+  --from 2.55.1 --to 3.1.0 --now 2026-09-11T23:00:00Z --format human
+```
+
+`broken.yml` is BLOCKED because the selected mapping retains the old key.
+`fixed.yml` is a scoped PASS for the key rename. `unknown.yml` is UNKNOWN
+because absence of both keys does not establish migration intent. The two
+declaration flags are caller assertions that this selected mapping is complete
+and that configuration precedence is resolved. The check does not parse a
+whole `prometheus.yml`, start Prometheus, verify scraping or targets, or prove
+native-histogram or whole-upgrade behavior.
 
 ## NATS selected literal names
 

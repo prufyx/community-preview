@@ -43,6 +43,7 @@ resource. The binary resource is protobuf's reviewed
 | `golang.org/x/term` | `v0.45.0` | BSD-3-Clause; [license](LICENSES/Module-golang-x-term-BSD-3-Clause.txt) and [patent grant](LICENSES/Module-golang-x-term-PATENTS.txt) |
 | `google.golang.org/genproto/googleapis/api` | `v0.0.0-20250825161204-c5933d9347a5` | Apache-2.0; [license](LICENSES/Module-google-genproto-Apache-2.0.txt) |
 | `google.golang.org/protobuf` | `v1.36.11` | BSD-3-Clause; [license](LICENSES/Module-google-protobuf-BSD-3-Clause.txt) and [patent grant](LICENSES/Module-google-protobuf-PATENTS.txt) |
+| `gopkg.in/yaml.v3` | `v3.0.1` | MIT and Apache-2.0 across the module's files; [license](LICENSES/Module-go-yaml-v3-MIT-Apache-2.0.txt) and [notice](LICENSES/Module-go-yaml-v3-NOTICE.txt) |
 
 ## Retained upstream source files
 

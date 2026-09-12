@@ -129,17 +129,27 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 		flag  string
 		state string
 	}{
-		"thanos": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
-		"cortex": {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
-		"nats":   {"--nats-config", "implemented_native_json_configuration_minimizer"},
-		"flux":   {"--native-resource", "implemented_native_rendered_resource_minimizer"},
+		"thanos":     {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
+		"cortex":     {"--native-resource", "implemented_native_kubernetes_workload_minimizer"},
+		"nats":       {"--nats-config", "implemented_native_json_configuration_minimizer"},
+		"flux":       {"--native-resource", "implemented_native_rendered_resource_minimizer"},
+		"prometheus": {"--scrape-config", "implemented_native_selected_scrape_config_minimizer"},
 	}
 	for _, project := range document.Projects {
 		expected, ok := want[project.ProjectID]
 		if !ok {
 			continue
 		}
-		if len(project.Capabilities) != 1 || project.Capabilities[0].LocalPreparer.MetadataState != expected.state || !slices.Contains(project.Capabilities[0].LocalPreparer.Command, expected.flag) || strings.Contains(strings.Join(project.Capabilities[0].LocalPreparer.Command, " "), "prepare") {
+		matched := 0
+		for _, capability := range project.Capabilities {
+			if capability.LocalPreparer.MetadataState == expected.state && slices.Contains(capability.LocalPreparer.Command, expected.flag) && !strings.Contains(strings.Join(capability.LocalPreparer.Command, " "), "prepare") {
+				if project.ProjectID == "prometheus" && (!slices.Contains(capability.LocalPreparer.Command, "--scrape-config-complete") || !slices.Contains(capability.LocalPreparer.Command, "--scrape-config-precedence-resolved")) {
+					t.Fatalf("Prometheus native route omits required declarations: %#v", capability.LocalPreparer.Command)
+				}
+				matched++
+			}
+		}
+		if matched != 1 {
 			t.Fatalf("incorrect native route metadata for %s: %#v", project.ProjectID, project.Capabilities)
 		}
 		delete(want, project.ProjectID)
@@ -147,6 +157,39 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 	if len(want) != 0 {
 		t.Fatalf("missing native route metadata: %#v", want)
 	}
+}
+
+func TestSupportInventory_PrometheusNamedAndCNCFRuleCapabilitiesCoexist(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				Kind string `json:"kind"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "prometheus" {
+			continue
+		}
+		seen := map[string]bool{}
+		for _, capability := range project.Capabilities {
+			seen[capability.Kind] = true
+		}
+		if !seen["embedded_cncf_source_rule"] || !seen["named_local_check"] || len(project.Capabilities) != 2 {
+			t.Fatalf("Prometheus capability union = %#v", project.Capabilities)
+		}
+		return
+	}
+	t.Fatal("Prometheus inventory entry missing")
 }
 
 func TestSupportInventory_CephUsesSelectedCurrentMetadata(t *testing.T) {
