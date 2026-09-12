@@ -644,6 +644,11 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 			"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
 		},
 	},
+	"opentelemetry": {{
+		"command":       []any{"check", "cncf", "--project", "opentelemetry", "--otel-collector-config", "FILE", "--otel-distribution", "official|custom", "--otel-config-complete", "--otel-config-precedence-resolved", "--from", "0.110.0", "--to", "0.111.0"},
+		"metadataState": "implemented_native_selected_opentelemetry_collector_config_minimizer",
+		"limit":         "Checks one caller-selected complete, precedence-resolved native OpenTelemetry Collector configuration for a logging exporter under a caller-declared official distribution. Unsupported YAML or values, defaults, custom distributions, resource presence, pipeline behavior, exporter execution, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+	}},
 }
 
 func communityProjects(rules, registry map[string]any) ([]map[string]any, int, error) {

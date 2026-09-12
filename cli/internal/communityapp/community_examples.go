@@ -313,7 +313,11 @@ func (r runtime) checkPrepared(work, project string, raw []byte) (int, map[strin
 	var stdout bytes.Buffer
 	child := r
 	child.stdout = &stdout
-	code := child.cncf([]string{"--project", project, "--input", input, "--input-digest", communityDigest(raw), "--now", "2026-09-10T00:00:00Z", "--format", "json"})
+	evaluationTime := "2026-09-10T00:00:00Z"
+	if project == "opentelemetry" {
+		evaluationTime = "2026-09-12T02:35:00Z"
+	}
+	code := child.cncf([]string{"--project", project, "--input", input, "--input-digest", communityDigest(raw), "--now", evaluationTime, "--format", "json"})
 	var report map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 		return code, nil, fmt.Errorf("decode %s report: %w", project, err)

@@ -14,6 +14,7 @@ import (
 const (
 	prometheusScrapeRuleID       = "prometheus.scrape-classic-histograms-key-renamed.3-1"
 	prometheusAlertmanagerRuleID = "prometheus.alertmanager-api-v1-removed.3-1"
+	opentelemetryLoggingRuleID   = "opentelemetry.logging-exporter-removed.0-111"
 )
 
 // cncfNativeResourceCheck makes the native-resource adapters useful without
@@ -35,6 +36,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		} else {
 			allowed = []string{"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved"}
 		}
+	} else if project == "opentelemetry" {
+		allowed = []string{"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -45,7 +48,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var selectedRuleID string
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "prometheus":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -68,6 +71,9 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareCortex(raw, from, to)
 		} else if project == "nats" {
 			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
+		} else if project == "opentelemetry" {
+			prepared, err = cncfprepare.PrepareOpenTelemetryCollector(raw, from, to, selectedJob, complete, precedenceResolved)
+			selectedRuleID = opentelemetryLoggingRuleID
 		} else if project == "flux" {
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
 		} else if prometheusAlertmanagerMode {

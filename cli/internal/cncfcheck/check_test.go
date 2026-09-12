@@ -75,6 +75,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				if vector.Project == "cloud-custodian" {
 					clock = time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
 				}
+				if vector.Project == "opentelemetry" {
+					clock = time.Date(2026, 9, 12, 2, 35, 0, 0, time.UTC)
+				}
 				if vector.RuleID == "fluentd.z-literal-treatment.1-17-1-to-1-18-0" || vector.RuleID == "prometheus.alertmanager-api-v1-removed.3-1" {
 					clock = time.Date(2026, 9, 12, 1, 0, 0, 0, time.UTC)
 				}
