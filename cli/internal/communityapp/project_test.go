@@ -76,6 +76,75 @@ func TestProjectCLILokiExamples(t *testing.T) {
 	}
 }
 
+func TestProjectCLILokiStructuredMetadataRoute(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		want       int
+		defaultUse bool
+	}{
+		{"blocked", "limits_config:\n  allow_structured_metadata: true\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: boltdb-shipper\n      schema: v12\n", ExitBlocked, false},
+		{"pass", "limits_config:\n  allow_structured_metadata: false\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: boltdb-shipper\n      schema: v12\n", ExitOK, false},
+		{"default-pass", "limits_config: {}\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n", ExitOK, true},
+		{"unknown-without-default", "limits_config: {}\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n", ExitUnknown, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writePrivateProjectFixture(t, tc.body)
+			args := []string{"check", "project", "--project", "loki", "--loki-schema-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T02:00:00Z", "--format", "json"}
+			if tc.defaultUse {
+				args = append(args, "--use-reviewed-target-default")
+			}
+			var stdout, stderr bytes.Buffer
+			if exit := Run(t.Context(), args, &stdout, &stderr, "test"); exit != tc.want || stderr.Len() != 0 {
+				t.Fatalf("exit=%d want=%d stderr=%q stdout=%q", exit, tc.want, stderr.String(), stdout.String())
+			}
+			for _, private := range []string{path, "2024-01-01", "boltdb-shipper"} {
+				if strings.Contains(stdout.String()+stderr.String(), private) {
+					t.Fatalf("private selected value leaked: %q", private)
+				}
+			}
+			if !strings.Contains(stdout.String(), `"requestedRuleId":"loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0"`) || !strings.Contains(stdout.String(), `"selectedRuleId":"loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0"`) {
+				t.Fatalf("sealed route identity missing: %q", stdout.String())
+			}
+		})
+	}
+	path := writePrivateProjectFixture(t, "limits_config: {}\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n")
+	var stdout, stderr bytes.Buffer
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--loki-schema-config", path, "--effective-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T02:00:00Z"}, &stdout, &stderr, "test"); exit != ExitUsage {
+		t.Fatalf("mixed Loki modes exit=%d output=%q", exit, stdout.String()+stderr.String())
+	}
+	digest := digestCommunityBytes([]byte("limits_config: {}\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n"))
+	stdout.Reset()
+	stderr.Reset()
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--loki-schema-config", path, "--loki-schema-config-digest", digest, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--use-reviewed-target-default", "--now", "2026-09-12T02:00:00Z", "--format", "json"}, &stdout, &stderr, "test"); exit != ExitOK || stderr.Len() != 0 {
+		t.Fatalf("matching schema digest rejected exit=%d stderr=%q", exit, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--loki-schema-config", path, "--loki-schema-config-digest", "sha256:0000000000000000000000000000000000000000000000000000000000000000", "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T02:00:00Z"}, &stdout, &stderr, "test"); exit != ExitIntegrity {
+		t.Fatalf("mismatched schema digest exit=%d stderr=%q", exit, stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if exit := Run(t.Context(), []string{"prepare", "project", "--project", "loki", "--loki-schema-config", path, "--loki-schema-config-digest", digest, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--use-reviewed-target-default", "--format", "json"}, &stdout, &stderr, "test"); exit != ExitOK || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"authority":"CALLER_SUPPLIED_NATIVE_LOKI_SCHEMA_CONFIG"`) {
+		t.Fatalf("matching prepare schema digest rejected exit=%d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
+}
+
+func TestProjectCLILokiStructuredMetadataExamples(t *testing.T) {
+	for name, want := range map[string]int{"schema-structured-broken.yml": ExitBlocked, "schema-structured-fixed.yml": ExitOK, "schema-structured-unknown.yml": ExitUnknown} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "projects", "loki", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := writePrivateProjectFixture(t, string(raw))
+		var stdout, stderr bytes.Buffer
+		exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--loki-schema-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T02:00:00Z", "--format", "json"}, &stdout, &stderr, "test")
+		if exit != want || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"requestedRuleId":"loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0"`) || strings.Contains(stdout.String(), path) {
+			t.Fatalf("%s exit=%d want=%d stdout=%q stderr=%q", name, exit, want, stdout.String(), stderr.String())
+		}
+	}
+}
+
 func TestProjectCLILokiRejectsConflictingModeAndDigest(t *testing.T) {
 	path := writePrivateProjectFixture(t, "compactor:\n  working_directory: /var/loki\n")
 	for _, extra := range [][]string{{"--knowledge-db", "store"}, {"--profile", "cncf"}, {"--workload", path}, {"--effective-config-digest="}} {

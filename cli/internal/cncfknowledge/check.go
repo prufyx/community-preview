@@ -23,10 +23,11 @@ var (
 )
 
 type Request struct {
-	Selection   knowledge.SelectionRequest
-	Project     string
-	Input       []byte
-	InputDigest string
+	Selection      knowledge.SelectionRequest
+	Project        string
+	SelectedRuleID string
+	Input          []byte
+	InputDigest    string
 }
 
 type KnowledgeBinding struct {
@@ -119,11 +120,20 @@ func evaluateSelected(req Request, selected knowledge.VerifiedRevision) (Report,
 		return Report{}, ErrIntegrity
 	}
 	evaluatedAt := selected.VerifiedAt().UTC().Truncate(time.Second)
-	check, err := bundle.Evaluate(req.Project, req.Input, evaluatedAt)
+	var check cncfcheck.Report
+	if req.SelectedRuleID != "" {
+		check, err = bundle.EvaluateRule(req.Project, req.SelectedRuleID, req.Input, evaluatedAt)
+	} else {
+		check, err = bundle.Evaluate(req.Project, req.Input, evaluatedAt)
+	}
 	if err != nil {
 		return Report{}, err
 	}
-	if _, err := cncfcheck.MarshalReport(check); err != nil || check.KnowledgeOrigin != "external_declared" || check.SourceAuthority != "DECLARED_RULE_SOURCE_REFERENCES" || check.KnowledgeRevision != admission.Revision || check.KnowledgePackDigest != selected.BundleDigest() || check.InputFileDigest != digestBytes(req.Input) {
+	expectedSelected := ""
+	if len(check.Check.Claims) == 1 && check.Check.Claims[0].RuleID == req.SelectedRuleID {
+		expectedSelected = req.SelectedRuleID
+	}
+	if _, err := cncfcheck.MarshalReport(check); err != nil || check.KnowledgeOrigin != "external_declared" || check.SourceAuthority != "DECLARED_RULE_SOURCE_REFERENCES" || check.KnowledgeRevision != admission.Revision || check.KnowledgePackDigest != selected.BundleDigest() || check.InputFileDigest != digestBytes(req.Input) || check.RequestedRuleID != req.SelectedRuleID || check.SelectedRuleID != expectedSelected {
 		return Report{}, ErrIntegrity
 	}
 	identity, err := buildidentity.Report()

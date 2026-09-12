@@ -16,7 +16,7 @@ func TestPrometheusSelectedScrapeConfigExamples(t *testing.T) {
 		}
 		path := writeCNCFFile(t, name, raw, 0o600)
 		code, stdout, stderr := runCNCFCLI(t, "check", "cncf", "--project", "prometheus", "--scrape-config", path, "--scrape-job", "selected-api", "--from", "2.55.1", "--to", "3.1.0", "--scrape-config-complete", "--scrape-config-precedence-resolved", "--now", "2026-09-11T23:00:00Z", "--format", "json")
-		if code != want || stderr != "" || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || strings.Contains(stdout, "selected-api") || strings.Contains(stdout, "127.0.0.1") {
+		if code != want || stderr != "" || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || !strings.Contains(stdout, `"selectedRuleId":"`+prometheusScrapeRuleID+`"`) || strings.Contains(stdout, "selected-api") || strings.Contains(stdout, "127.0.0.1") {
 			t.Fatalf("%s code=%d stdout=%q stderr=%q", name, code, stdout, stderr)
 		}
 	}

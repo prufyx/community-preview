@@ -11,12 +11,18 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/knowledge"
 )
 
+const (
+	prometheusScrapeRuleID       = "prometheus.scrape-classic-histograms-key-renamed.3-1"
+	prometheusAlertmanagerRuleID = "prometheus.alertmanager-api-v1-removed.3-1"
+)
+
 // cncfNativeResourceCheck makes the native-resource adapters useful without
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
 func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, args []string) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
+	prometheusAlertmanagerMode := project == "prometheus" && anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
 	if project == "cloudnativepg" {
 		allowed = []string{"current-resource", "current-resource-digest", "resource", "resource-digest"}
 	} else if project == "nats" {
@@ -24,7 +30,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
 	} else if project == "prometheus" {
-		allowed = []string{"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved"}
+		if prometheusAlertmanagerMode {
+			allowed = []string{"alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved"}
+		} else {
+			allowed = []string{"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved"}
+		}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -32,13 +42,14 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var prepared cncfprepare.Prepared
 	var rawDigests []string
 	var expectedSourceDigest string
+	var selectedRuleID string
 	var err error
 	switch project {
 	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "prometheus":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
-		if project == "prometheus" && selectedJob == "" {
+		if project == "prometheus" && !prometheusAlertmanagerMode && selectedJob == "" {
 			return r.usage("invalid Prometheus selected scrape configuration arguments; use --help")
 		}
 		raw, readErr := readCNCFPrivate(nativePath, 1<<20)
@@ -59,8 +70,12 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
 		} else if project == "flux" {
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
+		} else if prometheusAlertmanagerMode {
+			prepared, err = cncfprepare.PreparePrometheusAlertmanagerConfig(raw, from, to, complete, precedenceResolved)
+			selectedRuleID = prometheusAlertmanagerRuleID
 		} else if project == "prometheus" {
 			prepared, err = cncfprepare.PreparePrometheusScrapeConfig(raw, selectedJob, from, to, complete, precedenceResolved)
+			selectedRuleID = prometheusScrapeRuleID
 		} else {
 			prepared, err = cncfprepare.PrepareNativeMigration(raw, project, from, to)
 		}
@@ -102,7 +117,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		if nowText != "" || (replayPath != "" && (revision == "" || bundle == "" || receipt == "" || (project != "cloudnativepg" && nativePin == "") || (project == "cloudnativepg" && (currentPin == "" || proposedPin == "")))) {
 			return r.usage("external native CNCF replay requires every raw resource digest and all knowledge pins")
 		}
-		return r.externalCNCF(cncfknowledge.Request{Selection: knowledge.SelectionRequest{StoreRoot: storeRoot, ExpectedRevision: revision, ExpectedBundleDigest: bundle, ExpectedTrustReceiptDigest: receipt}, Project: project, Input: prepared.CanonicalInputJSON, InputDigest: prepared.InputDigest}, replayPath, format)
+		return r.externalCNCF(cncfknowledge.Request{Selection: knowledge.SelectionRequest{StoreRoot: storeRoot, ExpectedRevision: revision, ExpectedBundleDigest: bundle, ExpectedTrustReceiptDigest: receipt}, Project: project, SelectedRuleID: selectedRuleID, Input: prepared.CanonicalInputJSON, InputDigest: prepared.InputDigest}, replayPath, format)
 	}
 	if revision != "" || bundle != "" || receipt != "" || nowText == "" || replayPath != "" {
 		return r.usage("native CNCF resource checks require canonical --now or an explicit signed knowledge selection")
@@ -111,7 +126,12 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	if err != nil || now.Nanosecond() != 0 || now.Format(time.RFC3339) != nowText {
 		return r.usage("CNCF check time must be explicit canonical UTC with whole seconds")
 	}
-	report, err := cncfcheck.Check(project, prepared.CanonicalInputJSON, now)
+	var report cncfcheck.Report
+	if selectedRuleID != "" {
+		report, err = cncfcheck.CheckRule(project, selectedRuleID, prepared.CanonicalInputJSON, now)
+	} else {
+		report, err = cncfcheck.Check(project, prepared.CanonicalInputJSON, now)
+	}
 	if err != nil {
 		return r.cncfError("CNCF source-constraint check failed", err)
 	}
@@ -126,6 +146,15 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	} else {
 		if _, err := fmt.Fprintf(r.stdout, "%s native input review\nraw input digests: %s\nprepared input digest: %s\naggregate: UNKNOWN\nnetwork used: false\nwhole-upgrade compatibility: UNKNOWN\n", project, joinNativeDigests(rawDigests), prepared.InputDigest); err != nil {
 			return ExitIntegrity
+		}
+		if prometheusAlertmanagerMode {
+			selection := "literal api_version from the caller-selected mapping"
+			if prepared.Reason == cncfprepare.ReasonPrometheusAlertmanagerAPIDefaultV2 {
+				selection = "api_version omitted; exact target source-derived default v2"
+			}
+			if _, err := fmt.Fprintf(r.stdout, "selected API-version input: %s\ninput authority: caller-selected mapping; not observed running configuration\nscope: Alertmanager API-version selection only; v2 support, reachability and alert delivery remain unverified\n", selection); err != nil {
+				return ExitIntegrity
+			}
 		}
 		for _, claim := range report.Check.Claims {
 			if _, err := fmt.Fprintf(r.stdout, "%s: %s (%s)\nnext action: %s\n", claim.RuleID, claim.Status, claim.ReasonCode, claim.NextAction); err != nil {

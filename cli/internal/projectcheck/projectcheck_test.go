@@ -26,7 +26,9 @@ func TestClosedRegistryAndScopedResults(t *testing.T) {
 		{"kibana", "xpack.reporting.roles.allow: [reporting_user]\n", 10},
 		{"kibana", "server.host: localhost\n", 0},
 		{"loki", "compactor:\n  shared_store: filesystem\n", 10},
-		{"loki", "compactor:\n  working_directory: /var/loki\n", 0},
+		// Generic Check evaluates every reviewed rule for the transition; the
+		// effective-config route uses CheckRule to preserve its single-rule UX.
+		{"loki", "compactor:\n  working_directory: /var/loki\n", 11},
 	} {
 		prepared, err := projectprepare.PrepareEffectiveConfig(tc.project, []byte(tc.raw), map[string]string{"grafana": "10.4.0", "kibana": "8.18.0", "loki": "2.9.8"}[tc.project], map[string]string{"grafana": "11.0.0", "kibana": "9.0.0", "loki": "3.0.0"}[tc.project], true, true)
 		if err != nil {
@@ -49,6 +51,51 @@ func TestClosedRegistryAndScopedResults(t *testing.T) {
 		if report.Assessment != "UNKNOWN" || report.KnowledgeOrigin != "embedded_only" || report.RuntimeReproduced != 0 || report.NetworkUsed {
 			t.Fatalf("authority fields=%+v", report)
 		}
+	}
+}
+
+func TestCheckRuleSealsNativeLokiSelection(t *testing.T) {
+	prepared, err := projectprepare.PrepareLokiStructuredMetadata([]byte("limits_config: {}\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n"), projectprepare.LokiFrom, projectprepare.LokiTo, true, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := CheckRule(projectprepare.LokiProject, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 2, 0, 0, 0, time.UTC), projectprepare.LokiStructuredMetadataRuleID)
+	if err != nil || ClaimExit(report) != 0 || report.RequestedRuleID != projectprepare.LokiStructuredMetadataRuleID || report.SelectedRuleID != projectprepare.LokiStructuredMetadataRuleID || len(report.Check.Claims) != 1 {
+		t.Fatalf("selected report=%+v err=%v", report, err)
+	}
+	encoded, err := MarshalReport(report)
+	if err != nil || bytes.Contains(encoded, []byte("2024-01-01")) || bytes.Contains(encoded, []byte("boltdb-shipper")) {
+		t.Fatalf("sealed report leaked input: err=%v bytes=%s", err, encoded)
+	}
+	if _, err := CheckRule(projectprepare.LokiProject, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 2, 0, 0, 0, time.UTC), "loki.unknown"); err != ErrInvalid {
+		t.Fatalf("unknown requested route should be rejected: %v", err)
+	}
+	if _, err := CheckRule("grafana", prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 2, 0, 0, 0, time.UTC), "grafana.legacy-alerting-config.10-4-to-11-0"); err != ErrInvalid {
+		t.Fatalf("cross-project requested route should be rejected: %v", err)
+	}
+	if _, err := CheckRule(projectprepare.LokiProject, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 2, 0, 0, 0, time.UTC), ""); err != ErrInvalid {
+		t.Fatalf("blank requested route should be rejected: %v", err)
+	}
+	wrongPair, err := projectprepare.PrepareLokiStructuredMetadata([]byte("limits_config:\n  allow_structured_metadata: true\nschema_config:\n  configs:\n    - from: 2024-01-01\n      store: tsdb\n      schema: v13\n"), "2.9.7", projectprepare.LokiTo, true, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongReport, err := CheckRule(projectprepare.LokiProject, wrongPair.CanonicalInputJSON, time.Date(2026, 9, 12, 2, 0, 0, 0, time.UTC), projectprepare.LokiStructuredMetadataRuleID)
+	if err != nil || ClaimExit(wrongReport) != 11 || wrongReport.RequestedRuleID != projectprepare.LokiStructuredMetadataRuleID || wrongReport.SelectedRuleID != "" || len(wrongReport.Check.Claims) != 0 {
+		t.Fatalf("wrong-pair ownership=%+v err=%v", wrongReport, err)
+	}
+	if _, err := MarshalReport(wrongReport); err != nil {
+		t.Fatalf("wrong-pair sealed UNKNOWN should marshal: %v", err)
+	}
+	mutated := report
+	mutated.RequestedRuleID = "loki.compactor-shared-store.2-9-to-3-0"
+	if _, err := MarshalReport(mutated); err != ErrIntegrity {
+		t.Fatalf("requested/selected identity mutation should fail seal: %v", err)
+	}
+	mutated = report
+	mutated.SelectedRuleID = "loki.compactor-shared-store.2-9-to-3-0"
+	if _, err := MarshalReport(mutated); err != ErrIntegrity {
+		t.Fatalf("selected identity mutation should fail seal: %v", err)
 	}
 }
 

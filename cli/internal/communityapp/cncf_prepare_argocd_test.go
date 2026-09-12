@@ -37,7 +37,7 @@ func TestArgoCDPreparationFeedsScopedExistingRule(t *testing.T) {
 		status                 string
 	}{
 		{"true plus required inheritance blocks", "true", true, true, ExitOK, ExitBlocked, "BLOCKED"},
-		{"false preserves scoped predicate", "false", true, true, ExitOK, ExitOK, "PASS"},
+		{"false preserves scoped predicate", "false", true, true, ExitOK, ExitUnknown, "PASS"},
 		{"field absent remains unknown", "true", false, true, ExitUnknown, ExitUnknown, "UNKNOWN"},
 		{"intent omitted remains unknown", "true", true, false, ExitUnknown, ExitUnknown, "UNKNOWN"},
 		{"malformed setting remains unknown", "False", true, true, ExitUnknown, ExitUnknown, "UNKNOWN"},
@@ -57,6 +57,23 @@ func TestArgoCDPreparationFeedsScopedExistingRule(t *testing.T) {
 			code, report, stderr := runCNCFCLI(t, "check", "cncf", "--project", "argo-cd", "--input", prepared, "--input-digest", cncfDigest([]byte(input)), "--now", "2026-09-09T06:00:00Z", "--format", "json")
 			if code != tc.checkCode || stderr != "" || !strings.Contains(report, `"status":"`+tc.status+`"`) || !strings.Contains(report, `"assessment":"UNKNOWN"`) || strings.Contains(report, "argo-canary-never-retain") || strings.Contains(report, "private-argo") {
 				t.Fatalf("check code=%d stderr=%q report=%s", code, stderr, report)
+			}
+			if tc.name == "false preserves scoped predicate" {
+				var document struct {
+					Check struct {
+						Claims []struct{ RuleID, Status, ReasonCode string } `json:"claims"`
+					} `json:"check"`
+				}
+				if json.Unmarshal([]byte(report), &document) != nil || len(document.Check.Claims) != 2 {
+					t.Fatalf("generic Argo report=%s", report)
+				}
+				claims := map[string]struct{ status, reason string }{}
+				for _, claim := range document.Check.Claims {
+					claims[claim.RuleID] = struct{ status, reason string }{claim.Status, claim.ReasonCode}
+				}
+				if claims["argo-cd.required-rbac-inheritance.3-0"].status != "PASS" || claims["argo-cd.resource-exclusions-v2-visibility-preservation.3-0"].status != "UNKNOWN" || claims["argo-cd.resource-exclusions-v2-visibility-preservation.3-0"].reason != "RULE_EVIDENCE_CLOCK_BEFORE_REVIEW" {
+					t.Fatalf("generic Argo claims=%v", claims)
+				}
 			}
 		})
 	}

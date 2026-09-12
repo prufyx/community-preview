@@ -119,6 +119,23 @@ and that configuration precedence is resolved. The check does not parse a
 whole `prometheus.yml`, start Prometheus, verify scraping or targets, or prove
 native-histogram or whole-upgrade behavior.
 
+### Alertmanager API selection
+
+The `alertmanager-*.yml` files are individual selected native
+`alerting.alertmanagers` entry mappings. They are not full `prometheus.yml`
+documents. Run them with `--alertmanager-config FILE` plus
+`--alertmanager-config-complete --alertmanager-config-precedence-resolved` for
+the same exact `2.55.1` → `3.1.0` transition.
+
+`alertmanager-broken.yml` is BLOCKED because it selects API v1.
+`alertmanager-fixed.yml` explicitly selects v2. `alertmanager-default-v2.yml`
+omits the key and uses the exact target source-derived v2 default. Both are
+scoped PASS results only for API-version selection. `alertmanager-unknown.yml`
+is a full-config wrapper and remains UNKNOWN. Addresses, credentials, paths,
+and unrelated settings are discarded. These results do not establish that an
+actual Alertmanager supports v2, is reachable, or can receive alerts; validate
+Alertmanager compatibility and the complete target configuration separately.
+
 ## NATS selected literal names
 
 NATS `2.10.0` → `2.11.0` rejects ASCII spaces in explicitly supplied

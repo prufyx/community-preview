@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prufyx/prufyx-cli/internal/cncfprepare"
 )
 
 type externalFixtureDocument struct {
@@ -48,6 +50,30 @@ func kyvernoEntry(t *testing.T) Entry {
 		}
 	}
 	t.Fatal("kyverno entry missing")
+	return Entry{}
+}
+
+func ruleEntry(t *testing.T, project, ruleID string) Entry {
+	t.Helper()
+	base, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range base.pack.Entries {
+		if entry.Project != project {
+			continue
+		}
+		var shape struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(entry.Rule, &shape); err != nil {
+			t.Fatal(err)
+		}
+		if shape.ID == ruleID {
+			return entry
+		}
+	}
+	t.Fatalf("rule %q for %q missing", ruleID, project)
 	return Entry{}
 }
 
@@ -132,6 +158,77 @@ func TestExternalBundleDoesNotFallbackToEmbeddedRules(t *testing.T) {
 	}
 }
 
+func TestExternalSelectedRuleDoesNotFallbackOrCrossProjects(t *testing.T) {
+	const kyvernoRuleID = "kyverno.reports-chunk-size-removed.1-13"
+	bundle, err := ParseExternalBundle(externalFixture(t, []Entry{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := bundle.EvaluateRule("kyverno", kyvernoRuleID, kyvernoInput(t, "blocked"), externalReviewClock())
+	if err != nil || report.RequestedRuleID != kyvernoRuleID || report.SelectedRuleID != "" || len(report.Check.Claims) != 0 || ClaimExit(report) != 11 || !strings.Contains(report.NextAction, "no exact rule") {
+		t.Fatalf("selected empty report=%+v err=%v", report, err)
+	}
+	if _, err := bundle.EvaluateRule("prometheus", kyvernoRuleID, kyvernoInput(t, "blocked"), externalReviewClock()); err == nil {
+		t.Fatal("cross-project external rule selection admitted")
+	}
+
+	bundle, err = ParseExternalBundle(externalFixture(t, []Entry{kyvernoEntry(t)}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err = bundle.EvaluateRule("kyverno", kyvernoRuleID, kyvernoInput(t, "blocked"), externalReviewClock())
+	if err != nil || report.RequestedRuleID != kyvernoRuleID || report.SelectedRuleID != kyvernoRuleID || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "BLOCKED" || ClaimExit(report) != 10 {
+		t.Fatalf("selected external report=%+v err=%v", report, err)
+	}
+}
+
+func TestExternalSelectedPrometheusRuleCannotReuseSourceDefaultForFuturePair(t *testing.T) {
+	const ruleID = "prometheus.alertmanager-api-v1-removed.3-1"
+	prepared, err := cncfprepare.PreparePrometheusAlertmanagerConfig([]byte("scheme: http\n"), "3.1.0", "3.2.0", true, true)
+	if err != nil || prepared.State != cncfprepare.StateUnknown || prepared.Reason != cncfprepare.ReasonPrometheusAlertmanagerUnsupported {
+		t.Fatalf("prepared=%+v err=%v", prepared, err)
+	}
+	entry := ruleEntry(t, "prometheus", ruleID)
+	var rule map[string]json.RawMessage
+	if err := json.Unmarshal(entry.Rule, &rule); err != nil {
+		t.Fatal(err)
+	}
+	var subject struct {
+		Component string `json:"component"`
+		From      string `json:"from"`
+		To        string `json:"to"`
+	}
+	if err := json.Unmarshal(rule["subject"], &subject); err != nil {
+		t.Fatal(err)
+	}
+	subject.From, subject.To = "3.1.0", "3.2.0"
+	rule["subject"], err = json.Marshal(subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry.Rule, err = json.Marshal(rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(entry.Rule, &rule); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(rule["subject"], &subject); err != nil || subject.Component != "pkg:github/prometheus/prometheus" || subject.From != "3.1.0" || subject.To != "3.2.0" {
+		t.Fatalf("future selected rule subject=%+v err=%v", subject, err)
+	}
+	bundle, err := ParseExternalBundle(externalFixture(t, []Entry{entry}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := bundle.EvaluateRule("prometheus", ruleID, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 0, 30, 0, 0, time.UTC))
+	if err != nil || report.RequestedRuleID != ruleID || report.SelectedRuleID != ruleID || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "UNKNOWN" || report.Check.Claims[0].ReasonCode != "RULE_FACT_UNAVAILABLE" || ClaimExit(report) != 11 {
+		t.Fatalf("future-pair selected report=%+v err=%v", report, err)
+	}
+	if strings.Contains(string(prepared.CanonicalInputJSON), "omitted_default_v2") {
+		t.Fatal("unreviewed target inherited the reviewed target's source-derived default")
+	}
+}
+
 func TestExternalBundleRejectsMalformedClosedShapes(t *testing.T) {
 	valid := externalFixture(t, []Entry{})
 	tests := [][]byte{
@@ -197,24 +294,28 @@ func TestExternalBundleSealRejectsMutation(t *testing.T) {
 }
 
 func TestExternalBundleEvidenceStatesRemainScoped(t *testing.T) {
-	entry := kyvernoEntry(t)
 	for _, test := range []struct {
-		name     string
-		replace  []byte
-		with     []byte
-		expected string
+		name    string
+		replace []byte
+		with    []byte
+		reason  string
 	}{
-		{"withdrawn", []byte(`"state": "active"`), []byte(`"state": "withdrawn"`), "UNKNOWN"},
-		{"expired", []byte(`"validUntil": "2026-12-07T12:07:56Z"`), []byte(`"validUntil": "2026-09-08T12:09:59Z"`), "UNKNOWN"},
+		{"withdrawn", []byte(`"state": "active"`), []byte(`"state": "withdrawn"`), "RULE_EVIDENCE_WITHDRAWN"},
+		{"expired", []byte(`"validUntil": "2026-12-08T00:53:06Z"`), []byte(`"validUntil": "2026-09-09T00:59:59Z"`), "RULE_EVIDENCE_STALE"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			entry.Rule = bytes.Replace(entry.Rule, test.replace, test.with, 1)
+			entry := kyvernoEntry(t)
+			updated := bytes.Replace(entry.Rule, test.replace, test.with, 1)
+			if bytes.Equal(updated, entry.Rule) {
+				t.Fatal("evidence fixture mutation did not apply")
+			}
+			entry.Rule = updated
 			bundle, err := ParseExternalBundle(externalFixture(t, []Entry{entry}))
 			if err != nil {
 				t.Fatal(err)
 			}
-			report, err := bundle.Evaluate("kyverno", kyvernoInput(t, "blocked"), externalReviewClock())
-			if err != nil || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != test.expected {
+			report, err := bundle.EvaluateRule("kyverno", "kyverno.reports-chunk-size-removed.1-13", kyvernoInput(t, "blocked"), externalReviewClock())
+			if err != nil || report.SelectedRuleID == "" || len(report.Check.Claims) != 1 || report.Check.Claims[0].Status != "UNKNOWN" || report.Check.Claims[0].ReasonCode != test.reason {
 				t.Fatalf("evidence state=%+v err=%v", report.Check.Claims, err)
 			}
 		})

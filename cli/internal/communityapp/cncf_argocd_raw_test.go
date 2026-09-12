@@ -213,3 +213,28 @@ func TestArgoCDRawConfigReviewDoesNotChangeExistingCanonicalMode(t *testing.T) {
 		t.Fatalf("canonical mode changed: %d/%d %q/%q equal=%t", code1, code2, stderr1, stderr2, stdout1 == stdout2)
 	}
 }
+
+func TestArgoCDRawConfigReviewKeepsOldRuleSealedAtGenericClock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "argocd-cm.json")
+	writeArgoCDOperatorConfig(t, path, "false", true)
+	intent := "true"
+	args := argoCDRawReviewArgs(path, "2.14.0", "3.0.0", &intent, "json")
+	for i := range args {
+		if args[i] == "--now" {
+			args[i+1] = "2026-09-09T06:00:00Z"
+			break
+		}
+	}
+	code, stdout, stderr := runCNCFCLI(t, args...)
+	var report struct {
+		RequestedRuleID string `json:"requestedRuleId"`
+		SelectedRuleID  string `json:"selectedRuleId"`
+		Check           struct {
+			Claims []struct{ RuleID, Status string } `json:"claims"`
+		} `json:"check"`
+	}
+	if code != ExitOK || stderr != "" || json.Unmarshal([]byte(stdout), &report) != nil || report.RequestedRuleID != "argo-cd.required-rbac-inheritance.3-0" || report.SelectedRuleID != report.RequestedRuleID || len(report.Check.Claims) != 1 || report.Check.Claims[0].RuleID != report.RequestedRuleID || report.Check.Claims[0].Status != "PASS" {
+		t.Fatalf("code=%d stderr=%q report=%s", code, stderr, stdout)
+	}
+	assertArgoCDRawReviewRedacted(t, stdout, path)
+}

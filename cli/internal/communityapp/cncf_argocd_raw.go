@@ -55,7 +55,7 @@ func (r runtime) cncfArgoCDConfigMap(path, pin, from, to, intentText string, now
 	if err != nil {
 		return r.argoCDIntegrityFailure()
 	}
-	report, err := cncfcheck.Check("argo-cd", prepared.CanonicalInputJSON, now)
+	report, err := cncfcheck.CheckRule("argo-cd", "argo-cd.required-rbac-inheritance.3-0", prepared.CanonicalInputJSON, now)
 	if err != nil {
 		return r.cncfError("CNCF source-constraint check failed", err)
 	}

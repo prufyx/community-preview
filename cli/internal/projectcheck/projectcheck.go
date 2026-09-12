@@ -18,6 +18,11 @@ import (
 
 const PolicyDeclaration = "Prufyx community project source-constraint preview v1: exact reviewed external project identity and current/proposed endpoints; native caller-supplied configuration, workload, or selected current metadata reduced to compiled facts; scoped PASS/BLOCKED/UNKNOWN; whole-upgrade assessment remains UNKNOWN; no CNCF membership, runtime, signature, external feed, or upload authority. Maintainer source reviews expire after 90 days."
 
+const (
+	lokiCompactorRuleID          = "loki.compactor-shared-store.2-9-to-3-0"
+	lokiStructuredMetadataRuleID = "loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0"
+)
+
 var (
 	ErrInvalid   = errors.New("invalid community project check request")
 	ErrIntegrity = errors.New("community project check integrity failure")
@@ -90,6 +95,8 @@ type bundle struct {
 type Report struct {
 	Schema                string                  `json:"schema"`
 	Project               string                  `json:"project"`
+	RequestedRuleID       string                  `json:"requestedRuleId,omitempty"`
+	SelectedRuleID        string                  `json:"selectedRuleId,omitempty"`
 	Assessment            string                  `json:"assessment"`
 	KnowledgeOrigin       string                  `json:"knowledgeOrigin"`
 	KnowledgeRevision     string                  `json:"knowledgeRevision"`
@@ -114,6 +121,7 @@ func definitions() []constraintengine.FactDefinition {
 		{ID: "component.fluent_bit.proposed_http2_enabled", Component: "pkg:github/fluent/fluent-bit", Type: constraintengine.FactBool},
 		{ID: "component.kibana.reporting_roles_allow_present", Component: "pkg:github/elastic/kibana", Type: constraintengine.FactBool},
 		{ID: "component.loki.compactor_legacy_shared_store_present", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
+		{ID: "component.loki.structured_metadata_requires_tsdb_v13", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
 	}
 }
 
@@ -209,17 +217,26 @@ func strict(raw []byte, out any) error {
 }
 
 func (b bundle) ruleSet(project, from, to string) (constraintengine.RuleSet, int, error) {
+	rules, count, _, err := b.ruleSetSelected(project, from, to, "")
+	return rules, count, err
+}
+
+func (b bundle) ruleSetSelected(project, from, to, requestedRuleID string) (constraintengine.RuleSet, int, string, error) {
 	rules := make([]json.RawMessage, 0, 2)
+	selectedRuleID := ""
 	for _, e := range b.pack.Entries {
 		if e.Project != project {
 			continue
 		}
 		var binding ruleBinding
 		if json.Unmarshal(e.Rule, &binding) != nil {
-			return constraintengine.RuleSet{}, 0, ErrIntegrity
+			return constraintengine.RuleSet{}, 0, "", ErrIntegrity
 		}
-		if from == "" && to == "" || binding.Subject.From == from && binding.Subject.To == to {
+		if (from == "" && to == "" || binding.Subject.From == from && binding.Subject.To == to) && (requestedRuleID == "" || binding.ID == requestedRuleID) {
 			rules = append(rules, e.Rule)
+			if requestedRuleID != "" {
+				selectedRuleID = binding.ID
+			}
 		}
 	}
 	doc := struct {
@@ -231,10 +248,10 @@ func (b bundle) ruleSet(project, from, to string) (constraintengine.RuleSet, int
 	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules}
 	raw, err := json.Marshal(doc)
 	if err != nil {
-		return constraintengine.RuleSet{}, 0, ErrIntegrity
+		return constraintengine.RuleSet{}, 0, "", ErrIntegrity
 	}
 	parsed, err := constraintengine.ParseRuleSet(raw, b.registry)
-	return parsed, len(rules), err
+	return parsed, len(rules), selectedRuleID, err
 }
 
 func Check(project string, inputRaw []byte, now time.Time) (Report, error) {
@@ -245,7 +262,39 @@ func Check(project string, inputRaw []byte, now time.Time) (Report, error) {
 	return checkWithBundle(b, project, inputRaw, now)
 }
 
+// CheckRule evaluates one rule selected by a native input route. The caller
+// cannot supply a rule through the CLI; routes bind this ID in code before
+// evaluation. Check remains the generic all-rules evaluator.
+func CheckRule(project string, inputRaw []byte, now time.Time, requestedRuleID string) (Report, error) {
+	if project != "loki" || requestedRuleID != lokiCompactorRuleID && requestedRuleID != lokiStructuredMetadataRuleID {
+		return Report{}, ErrInvalid
+	}
+	b, err := load()
+	if err != nil {
+		return Report{}, err
+	}
+	known := false
+	for _, candidate := range b.pack.Entries {
+		var binding ruleBinding
+		if json.Unmarshal(candidate.Rule, &binding) != nil {
+			return Report{}, ErrIntegrity
+		}
+		if binding.ID == requestedRuleID {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return Report{}, ErrInvalid
+	}
+	return checkWithBundleRule(b, project, inputRaw, now, requestedRuleID)
+}
+
 func checkWithBundle(b bundle, project string, inputRaw []byte, now time.Time) (Report, error) {
+	return checkWithBundleRule(b, project, inputRaw, now, "")
+}
+
+func checkWithBundleRule(b bundle, project string, inputRaw []byte, now time.Time, requestedRuleID string) (Report, error) {
 	identity, ok := b.identities[project]
 	if !ok {
 		return Report{}, ErrInvalid
@@ -258,7 +307,7 @@ func checkWithBundle(b bundle, project string, inputRaw []byte, now time.Time) (
 	if !ok {
 		return Report{}, ErrInvalid
 	}
-	rules, selected, err := b.ruleSet(project, from, to)
+	rules, selected, selectedRuleID, err := b.ruleSetSelected(project, from, to, requestedRuleID)
 	if err != nil {
 		return Report{}, ErrIntegrity
 	}
@@ -270,7 +319,7 @@ func checkWithBundle(b bundle, project string, inputRaw []byte, now time.Time) (
 	if selected == 0 {
 		nextAction = "no reviewed rule matches this exact project transition; retain UNKNOWN or add independently reviewed embedded rule metadata"
 	}
-	report := Report{Schema: "prufyx.io/community-project-source-check/v1alpha1", Project: project, Assessment: "UNKNOWN", KnowledgeOrigin: "embedded_only", KnowledgeRevision: b.pack.Revision, KnowledgePackDigest: b.packDigest, ProjectRegistryDigest: b.registryDigest, InputFileDigest: digest(inputRaw), SourceAuthority: "PACKAGED_MAINTAINER_REVIEWED_EXTERNAL_PROJECT_RULES_NOT_RUNTIME_PROOF", NextAction: nextAction, Check: result}
+	report := Report{Schema: "prufyx.io/community-project-source-check/v1alpha1", Project: project, RequestedRuleID: requestedRuleID, SelectedRuleID: selectedRuleID, Assessment: "UNKNOWN", KnowledgeOrigin: "embedded_only", KnowledgeRevision: b.pack.Revision, KnowledgePackDigest: b.packDigest, ProjectRegistryDigest: b.registryDigest, InputFileDigest: digest(inputRaw), SourceAuthority: "PACKAGED_MAINTAINER_REVIEWED_EXTERNAL_PROJECT_RULES_NOT_RUNTIME_PROOF", NextAction: nextAction, Check: result}
 	report.seal = &reportSeal{}
 	raw, _ := json.Marshal(report)
 	report.digest = digest(raw)
@@ -307,6 +356,9 @@ func requestedTransition(inputRaw []byte, component string) (string, string, boo
 
 func MarshalReport(report Report) ([]byte, error) {
 	if report.seal == nil || report.Schema != "prufyx.io/community-project-source-check/v1alpha1" || report.Assessment != "UNKNOWN" || report.KnowledgeOrigin != "embedded_only" || report.NetworkUsed || report.RuntimeReproduced != 0 {
+		return nil, ErrIntegrity
+	}
+	if report.RequestedRuleID == "" && report.SelectedRuleID != "" || report.RequestedRuleID != "" && report.SelectedRuleID != "" && report.RequestedRuleID != report.SelectedRuleID {
 		return nil, ErrIntegrity
 	}
 	if _, err := constraintengine.MarshalReport(report.Check); err != nil {

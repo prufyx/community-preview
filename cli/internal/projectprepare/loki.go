@@ -43,7 +43,8 @@ func lokiCompactorLegacySharedStore(raw []byte) (found, supported bool, err erro
 	var compactor *yaml.Node
 	for index := 0; index < len(root.Content); index += 2 {
 		key, value := root.Content[index], root.Content[index+1]
-		lower := strings.ToLower(key.Value)
+		trimmed := strings.TrimSpace(key.Value)
+		lower := strings.ToLower(trimmed)
 		if lower == lokiCompactorKey || strings.HasPrefix(lower, lokiCompactorKey+".") {
 			if key.Value != lokiCompactorKey || lower != lokiCompactorKey || compactor != nil {
 				return false, false, nil
@@ -57,7 +58,8 @@ func lokiCompactorLegacySharedStore(raw []byte) (found, supported bool, err erro
 	found = false
 	for index := 0; index < len(compactor.Content); index += 2 {
 		key, value := compactor.Content[index], compactor.Content[index+1]
-		lower := strings.ToLower(key.Value)
+		trimmed := strings.TrimSpace(key.Value)
+		lower := strings.ToLower(trimmed)
 		if lokiRelevantCompactorKey(lower) {
 			if key.Value != lower || strings.Contains(lower, ".") {
 				return false, false, nil
@@ -78,7 +80,7 @@ func lokiCompactorLegacySharedStore(raw []byte) (found, supported bool, err erro
 // duplicate mapping keys throughout the supplied document. Duplicate keys are
 // a malformed input; other unsupported YAML features produce UNKNOWN.
 func lokiSafeYAMLNode(node *yaml.Node) (valid, duplicate bool) {
-	if node == nil || node.Kind == yaml.AliasNode || node.Alias != nil || node.Anchor != "" {
+	if node == nil || node.Kind == yaml.AliasNode || node.Alias != nil || node.Anchor != "" || node.Style&yaml.TaggedStyle != 0 {
 		return false, false
 	}
 	switch node.Kind {
@@ -89,7 +91,7 @@ func lokiSafeYAMLNode(node *yaml.Node) (valid, duplicate bool) {
 		seen := map[string]bool{}
 		for index := 0; index < len(node.Content); index += 2 {
 			key, value := node.Content[index], node.Content[index+1]
-			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" || key.Anchor != "" || key.Alias != nil || key.Value == "<<" {
+			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" || key.Anchor != "" || key.Alias != nil || key.Style&yaml.TaggedStyle != 0 || key.Value == "<<" {
 				return false, false
 			}
 			if seen[key.Value] {
@@ -131,7 +133,7 @@ func lokiNestedRelevantCompactorKey(node *yaml.Node) bool {
 	}
 	if node.Kind == yaml.MappingNode {
 		for index := 0; index < len(node.Content); index += 2 {
-			if lokiRelevantCompactorKey(strings.ToLower(node.Content[index].Value)) || lokiNestedRelevantCompactorKey(node.Content[index+1]) {
+			if lokiRelevantCompactorKey(strings.ToLower(strings.TrimSpace(node.Content[index].Value))) || lokiNestedRelevantCompactorKey(node.Content[index+1]) {
 				return true
 			}
 		}

@@ -17,6 +17,8 @@ type Report struct {
 	KnowledgePackDigest string                  `json:"knowledgePackDigest"`
 	CatalogueDigest     string                  `json:"catalogueDigest"`
 	InputFileDigest     string                  `json:"inputFileDigest"`
+	RequestedRuleID     string                  `json:"requestedRuleId,omitempty"`
+	SelectedRuleID      string                  `json:"selectedRuleId,omitempty"`
 	SourceAuthority     string                  `json:"sourceAuthority"`
 	RuntimeReproduced   int                     `json:"runtimeReproduced"`
 	NetworkUsed         bool                    `json:"networkUsed"`
@@ -34,10 +36,24 @@ func Check(project string, inputRaw []byte, now time.Time) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	return b.check(project, inputRaw, now)
+	return b.check(project, "", inputRaw, now)
 }
 
-func (b bundle) check(project string, inputRaw []byte, now time.Time) (Report, error) {
+// CheckRule evaluates one closed maintainer-selected rule. It is intended for
+// native routes whose parser inspected exactly that capability. Callers cannot
+// use it to suppress arbitrary unknown claims: the rule must belong to project.
+func CheckRule(project, ruleID string, inputRaw []byte, now time.Time) (Report, error) {
+	b, err := load()
+	if err != nil {
+		return Report{}, err
+	}
+	if ruleID == "" {
+		return Report{}, ErrInvalid
+	}
+	return b.check(project, ruleID, inputRaw, now)
+}
+
+func (b bundle) check(project, selectedRuleID string, inputRaw []byte, now time.Time) (Report, error) {
 	if !b.hasProject(project) {
 		return Report{}, ErrInvalid
 	}
@@ -45,7 +61,19 @@ func (b bundle) check(project string, inputRaw []byte, now time.Time) (Report, e
 	if err != nil {
 		return Report{}, ErrInvalid
 	}
-	rules, err := b.rulesForAdmittedInput(project, inputRaw)
+	var rules constraintengine.RuleSet
+	if selectedRuleID != "" {
+		owned, ownershipErr := b.ownsRuleID(project, selectedRuleID)
+		if ownershipErr != nil {
+			return Report{}, ErrIntegrity
+		}
+		if !owned {
+			return Report{}, ErrInvalid
+		}
+		rules, err = b.selectedRuleSet(project, selectedRuleID)
+	} else {
+		rules, err = b.rulesForAdmittedInput(project, inputRaw)
+	}
 	if err != nil {
 		return Report{}, ErrIntegrity
 	}
@@ -60,12 +88,21 @@ func (b bundle) check(project string, inputRaw []byte, now time.Time) (Report, e
 		Schema: "prufyx.io/cncf-source-check/v1alpha1", Project: project, Assessment: "UNKNOWN",
 		KnowledgeOrigin: "embedded", KnowledgeRevision: b.pack.Revision, KnowledgePackDigest: b.packDigest,
 		CatalogueDigest: b.catalogueDigest, InputFileDigest: digest(inputRaw),
+		RequestedRuleID: selectedRuleID,
 		SourceAuthority: "PACKAGED_MAINTAINER_REVIEWED_SOURCE_RULES_NOT_RUNTIME_PROOF",
 		NextAction:      "review each scoped claim; whole-upgrade behavior and runtime evidence remain unverified",
 		Check:           result,
 	}
+	if selectedRuleID != "" && len(result.Claims) == 1 && result.Claims[0].RuleID == selectedRuleID {
+		report.SelectedRuleID = selectedRuleID
+		report.NextAction = "review the selected native-input claim; other project rules, configuration and whole-upgrade behavior remain unassessed"
+	}
 	if len(result.Claims) == 0 {
-		report.NextAction = "no generic rules are packaged for this project; inspect its existing named checks in the catalogue or contribute an exact transition with primary source evidence"
+		if selectedRuleID != "" {
+			report.NextAction = "the selected reviewed native-input rule is unavailable; retain UNKNOWN and select knowledge that contains that exact rule"
+		} else {
+			report.NextAction = "no generic rules are packaged for this project; inspect its existing named checks in the catalogue or contribute an exact transition with primary source evidence"
+		}
 	}
 	report.seal = &reportSeal{}
 	raw, err := json.Marshal(report)
