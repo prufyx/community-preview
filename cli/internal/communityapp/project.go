@@ -81,7 +81,7 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 
 func (r runtime) prepareProject(args []string) int {
 	if hasHelp(args) {
-		fmt.Fprintln(r.stdout, "Usage: prufyx prepare project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "Usage: prufyx prepare project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled [--effective-config-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
@@ -125,7 +125,7 @@ func (r runtime) prepareProject(args []string) int {
 
 func (r runtime) project(args []string) int {
 	if hasHelp(args) {
-		fmt.Fprintln(r.stdout, "Usage: prufyx check project --project grafana|kibana --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "Usage: prufyx check project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project fluent-bit --effective-config FILE --from 3.2.0 --to 4.0.0 --effective-config-complete --current-default-was-used --preserve-http2-enabled --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.5.0 --to 3.6.0 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from 17.2.7 --to 18.2.0 --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")

@@ -1,8 +1,9 @@
 # Community project checks
 
 `prufyx check project` is a separate, embedded-only source-rule preview for a
-small maintainer-reviewed registry outside the CNCF Landscape. It does not
-assert CNCF membership and does not use the CNCF knowledge profile or store.
+small maintainer-reviewed registry separate from the bundled CNCF Landscape
+identity registry. It does not assert CNCF membership and does not use the
+CNCF knowledge profile or store.
 
 From the repository root, build the preview with the validated offline
 toolchain settings and keep its binary and private inputs outside the checkout:
@@ -17,7 +18,7 @@ test "$(go env GOVERSION)" = go1.26.8
   go build -trimpath -buildvcs=false -o "$PREVIEW_DIR/prufyx-community" ./cmd/prufyx-community)
 ```
 
-Three checks inspect native effective-configuration files locally:
+Four checks inspect native effective-configuration files locally:
 
 - Grafana `10.4.0` → `11.0.0`: whether a proposed `grafana.ini` explicitly
   sets `[alerting] enabled=true`, which Grafana 11 rejects during settings
@@ -33,6 +34,11 @@ Three checks inspect native effective-configuration files locally:
   TLS, connectivity, collector behavior, and whole-upgrade compatibility
   remain UNKNOWN. Fluent Bit is a neutral community-project identity; CNCF
   membership is not asserted.
+- Grafana Loki `2.9.8` → `3.0.0`: whether the selected top-level `compactor`
+  mapping in a proposed native Loki YAML document retains `shared_store` or
+  `shared_store_key_prefix`, which the reviewed 3.0 compactor configuration
+  removes. Passing this predicate does not validate Loki startup, storage,
+  schema, index, retention, data migration, or data access.
 
 The Fluent Bit example files are native classic configuration snippets. Copy
 one to a private file and declare the current default and preservation intent:
@@ -56,6 +62,32 @@ tabs, Unicode whitespace, continuations, other sections, and unresolved
 `grpc on|auto` forms remain UNKNOWN. Values for unrelated rows are discarded.
 Use `fixed.conf` for a scoped PASS and `unknown.conf` for an unsupported
 configuration shape; `broken.conf` is BLOCKED under the preservation intent.
+
+The Loki check uses the same private-file and declaration boundary. From the
+repository root, copy the fixed public example into the private directory and
+check the exact reviewed transition:
+
+```sh
+umask 077
+cp cli/examples/projects/loki/fixed.yml "$PREVIEW_DIR/loki-proposed.yml"
+"$PREVIEW_DIR/prufyx-community" check project \
+  --project loki \
+  --effective-config "$PREVIEW_DIR/loki-proposed.yml" \
+  --from 2.9.8 --to 3.0.0 \
+  --effective-config-complete --precedence-resolved \
+  --now 2026-09-12T00:00:00Z
+```
+
+The Loki parser accepts one plain YAML document with one selected top-level
+`compactor` mapping. Duplicate keys, aliases, anchors, merge keys, custom
+tags, multiple documents, nested or case-ambiguous reviewed keys, and
+unresolved template or environment expressions remain UNKNOWN or fail input
+admission. Present reviewed keys are classified only when their values are
+literal YAML strings; null, Boolean, sequence, and mapping values remain
+UNKNOWN instead of being attributed to this upgrade. Unrelated configuration
+values are discarded. A scoped PASS means only that the two reviewed legacy
+keys are absent from this caller-declared complete and precedence-resolved
+selection.
 
 The Argo Workflows `3.5.0` → `3.6.0` check inspects one caller-supplied native
 Kubernetes Deployment. It selects the unique `argo-server` container bound to

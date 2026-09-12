@@ -36,6 +36,9 @@ func TestStableReadRejectsSymlinkAndPrivateKey(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "key"), []byte("-----BEGIN "+"PRIVATE KEY-----\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(filepath.Join(root, "key"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := stableRead(root, "key", false); err == nil || !strings.Contains(err.Error(), "private-key") {
 		t.Fatalf("private key accepted: %v", err)
 	}

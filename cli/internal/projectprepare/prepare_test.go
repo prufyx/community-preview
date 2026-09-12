@@ -126,6 +126,73 @@ func TestPrepareKibanaNativeYAMLAndJSON(t *testing.T) {
 	}
 }
 
+func TestPrepareLokiNativeCompactorYAML(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw, state   string
+		value              *bool
+		complete, resolved bool
+	}{
+		{"shared-store-blocked", "auth_enabled: false\ncompactor:\n  working_directory: /var/loki\n  shared_store: filesystem\n", "PREPARED", boolPointer(true), true, true},
+		{"prefix-blocked", "compactor:\n  shared_store_key_prefix: index/\n", "PREPARED", boolPointer(true), true, true},
+		{"fixed", "compactor:\n  working_directory: /var/loki\n", "PREPARED", boolPointer(false), true, true},
+		{"incomplete", "compactor:\n  working_directory: /var/loki\n", "UNKNOWN", nil, false, true},
+		{"precedence-unresolved", "compactor:\n  working_directory: /var/loki\n", "UNKNOWN", nil, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prepared, err := PrepareEffectiveConfig(LokiProject, []byte(tc.raw), LokiFrom, LokiTo, tc.complete, tc.resolved)
+			if err != nil || prepared.State != tc.state {
+				t.Fatalf("state=%q err=%v", prepared.State, err)
+			}
+			assertCanonicalFact(t, prepared.CanonicalInputJSON, LokiFact, tc.value)
+			if bytes.Contains(prepared.CanonicalInputJSON, []byte("filesystem")) || bytes.Contains(prepared.CanonicalInputJSON, []byte("/var/loki")) || bytes.Contains(prepared.CanonicalInputJSON, []byte("index/")) {
+				t.Fatal("raw Loki configuration leaked")
+			}
+		})
+	}
+}
+
+func TestPrepareLokiRejectsMalformedAndDeclinesAmbiguousYAML(t *testing.T) {
+	for _, raw := range []string{
+		"compactor:\n  shared_store: filesystem\n  shared_store: s3\n",
+		"compactor:\n  safe: true\n  safe: false\n",
+	} {
+		if _, err := PrepareEffectiveConfig(LokiProject, []byte(raw), LokiFrom, LokiTo, true, true); err == nil {
+			t.Fatalf("duplicate YAML accepted: %q", raw)
+		}
+	}
+	for _, raw := range []string{
+		"server:\n  http_listen_port: 3100\n",
+		"compactor: null\n",
+		"Compactor:\n  shared_store: filesystem\n",
+		"compactor.shared_store: filesystem\n",
+		"compactor:\n  Shared_Store: filesystem\n",
+		"compactor:\n  shared_store.child: filesystem\n",
+		"compactor:\n  storage:\n    shared_store: filesystem\n",
+		"defaults: &defaults\n  shared_store: filesystem\ncompactor:\n  <<: *defaults\n",
+		"compactor: !include compactor.yml\n",
+		"compactor:\n  working_directory: ${LOKI_DATA}\n",
+		"compactor:\n  working_directory: $LOKI_DATA\n",
+		"compactor:\n  working_directory: '{{ .Values.data }}'\n",
+		"compactor:\n  shared_store: null\n",
+		"compactor:\n  shared_store: true\n",
+		"compactor:\n  shared_store: [filesystem]\n",
+		"compactor:\n  shared_store: {type: filesystem}\n",
+		"compactor:\n  working_directory: /var/loki\n---\ncompactor: {}\n",
+	} {
+		prepared, err := PrepareEffectiveConfig(LokiProject, []byte(raw), LokiFrom, LokiTo, true, true)
+		if err != nil || prepared.State != "UNKNOWN" {
+			t.Fatalf("ambiguous YAML %q state=%q err=%v", raw, prepared.State, err)
+		}
+		assertCanonicalFact(t, prepared.CanonicalInputJSON, LokiFact, nil)
+	}
+	malformed, err := PrepareEffectiveConfig(LokiProject, []byte("compactor: [\n"), LokiFrom, LokiTo, true, true)
+	if err != nil || malformed.State != "UNKNOWN" {
+		// Malformed YAML is admitted only as an UNKNOWN minimized fact; it is
+		// never interpreted as key absence.
+		t.Fatalf("malformed YAML state=%q err=%v", malformed.State, err)
+	}
+}
+
 func TestPrepareRejectsIdentityAndShapeErrors(t *testing.T) {
 	for _, tc := range []struct {
 		project, from, to string

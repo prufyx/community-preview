@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-11.6",
+  "revision": "cncf-2026-09-12.1",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:96dad57ff2e58403f8cd26202be3644ef2cea5d883bc998d908d2acb59adf6d4",
+  "registryDigest": "sha256:f825da8866c57ebd3d64ed9d9dc8315934ecb3f0384e518e8318c997d8b63b3a",
   "entries": [
     {
       "project": "argo-cd",
@@ -2154,6 +2154,136 @@
       }
     },
     {
+      "project": "fluentd",
+      "description": "Fluentd 1.17.1 preserved selected classic-config literals, while 1.18.0 routes unquoted embedded markers through interpolation handling. This checks one complete caller-selected literal only.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.fluentd.selected_value_complete",
+          "component": "pkg:github/fluent/fluentd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The selected literal declaration is complete."
+        },
+        {
+          "side": "proposed",
+          "id": "component.fluentd.current_default_used",
+          "component": "pkg:github/fluent/fluentd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The caller declares the reviewed current default was used."
+        },
+        {
+          "side": "proposed",
+          "id": "component.fluentd.preserve_literal_treatment",
+          "component": "pkg:github/fluent/fluentd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The caller declares that literal treatment must be preserved."
+        },
+        {
+          "side": "proposed",
+          "id": "component.fluentd.literal_treatment_change_risk",
+          "component": "pkg:github/fluent/fluentd",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "The selected literal contains one simple embedded marker and remains unwrapped."
+        }
+      ],
+      "rule": {
+        "id": "fluentd.z-literal-treatment.1-17-1-to-1-18-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/fluent/fluentd",
+          "from": "1.17.1",
+          "to": "1.18.0"
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/fluent/fluentd",
+            "factId": "component.fluentd.selected_value_complete",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/fluent/fluentd",
+            "factId": "component.fluentd.current_default_used",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/fluent/fluentd",
+            "factId": "component.fluentd.preserve_literal_treatment",
+            "boolValue": true
+          }
+        ],
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/fluent/fluentd",
+          "factId": "component.fluentd.literal_treatment_change_risk",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-12T00:03:11Z",
+          "validUntil": "2026-12-10T00:03:11Z",
+          "sources": [
+            {
+              "id": "old-literal-parser",
+              "url": "https://github.com/fluent/fluentd/blob/78a7972bfe6b421f08472701f04f00515ed24bee/lib/fluent/config/literal_parser.rb",
+              "revision": "78a7972bfe6b421f08472701f04f00515ed24bee",
+              "contentDigest": "sha256:0618b29122a8413385baeb6c88b8583d1f451d668b5ccf6cf8cd2817c5fe9f49",
+              "startLine": 226,
+              "endLine": 280
+            },
+            {
+              "id": "old-literal-parser-tests",
+              "url": "https://github.com/fluent/fluentd/blob/78a7972bfe6b421f08472701f04f00515ed24bee/test/config/test_literal_parser.rb",
+              "revision": "78a7972bfe6b421f08472701f04f00515ed24bee",
+              "contentDigest": "sha256:5d0dfacd4c5067914054efb06953b25a3e38e2dea6c7d0cf29ada31261e804d2",
+              "startLine": 299,
+              "endLine": 309
+            },
+            {
+              "id": "target-literal-parser",
+              "url": "https://github.com/fluent/fluentd/blob/46372ddd521870f6a203baefb5a598209486d0bc/lib/fluent/config/literal_parser.rb",
+              "revision": "46372ddd521870f6a203baefb5a598209486d0bc",
+              "contentDigest": "sha256:e2b8b58d952f4d12629c31bbe6a41d54da9509feefa26fca0d4e29ab93d5645f",
+              "startLine": 67,
+              "endLine": 289
+            },
+            {
+              "id": "target-literal-parser-tests",
+              "url": "https://github.com/fluent/fluentd/blob/46372ddd521870f6a203baefb5a598209486d0bc/test/config/test_literal_parser.rb",
+              "revision": "46372ddd521870f6a203baefb5a598209486d0bc",
+              "contentDigest": "sha256:304e8dcb7db345671189359d2dfa3528f7000c8831ac8b80a6d7cedd798f4340",
+              "startLine": 299,
+              "endLine": 324
+            },
+            {
+              "id": "target-release-changelog",
+              "url": "https://github.com/fluent/fluentd/blob/46372ddd521870f6a203baefb5a598209486d0bc/CHANGELOG.md",
+              "revision": "46372ddd521870f6a203baefb5a598209486d0bc",
+              "contentDigest": "sha256:6d052ea77e3801d9311fd8d91cbd7ccd9112b48f934060f782da903222cef369",
+              "startLine": 15,
+              "endLine": 20
+            },
+            {
+              "id": "target-v1-parser-consumer",
+              "url": "https://github.com/fluent/fluentd/blob/46372ddd521870f6a203baefb5a598209486d0bc/lib/fluent/config/v1_parser.rb",
+              "revision": "46372ddd521870f6a203baefb5a598209486d0bc",
+              "contentDigest": "sha256:01dd4c906b5416cf5c74ed2b6c274ca214d4be982202c31fe00356711fc6385f",
+              "startLine": 107,
+              "endLine": 135
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Quote the unchanged selected literal or revise it explicitly, then reassess this narrow literal-treatment check. Ruby parsing, interpolation safety, runtime behavior and the rest of the Fluentd configuration remain unresolved."
+      }
+    },
+    {
       "project": "flux",
       "description": "Flux removal of five beta APIs from CRDs; absence in proposed manifests does not prove stored-version migration or reconciliation.",
       "requiredFacts": [
@@ -2266,6 +2396,77 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Convert the legacy installer configuration to the documented harbor.yml format and separately review its settings."
+      }
+    },
+    {
+      "project": "harbor",
+      "description": "Harbor 2.8 removes the docker-compose installer --with-chartmuseum flag; this checks only one complete caller-selected literal installer argv.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.harbor.installer_with_chartmuseum_present",
+          "component": "pkg:github/goharbor/harbor",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected complete Harbor installer argv contains the removed --with-chartmuseum option."
+        }
+      ],
+      "rule": {
+        "id": "harbor.installer-with-chartmuseum-flag-removed.2-8",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/goharbor/harbor",
+          "from": "2.7.0",
+          "to": "2.8.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/goharbor/harbor",
+          "factId": "component.harbor.installer_with_chartmuseum_present",
+          "boolValue": true
+        },
+        "appliesWhen": [],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T22:50:15Z",
+          "validUntil": "2026-12-10T22:50:15Z",
+          "sources": [
+            {
+              "id": "harbor-v2-7-installer-parser",
+              "url": "https://github.com/goharbor/harbor/blob/6113469a567623054a58d0f5506b90a55adca7ff/make/install.sh",
+              "revision": "6113469a567623054a58d0f5506b90a55adca7ff",
+              "contentDigest": "sha256:a98746fe4b18e004b0caf0d7c76e0244dcf93c1d1a20069a12fe92ef152ac992",
+              "startLine": 28,
+              "endLine": 45
+            },
+            {
+              "id": "harbor-v2-7-installer-state",
+              "url": "https://github.com/goharbor/harbor/blob/6113469a567623054a58d0f5506b90a55adca7ff/make/install.sh",
+              "revision": "6113469a567623054a58d0f5506b90a55adca7ff",
+              "contentDigest": "sha256:a98746fe4b18e004b0caf0d7c76e0244dcf93c1d1a20069a12fe92ef152ac992",
+              "startLine": 76,
+              "endLine": 91
+            },
+            {
+              "id": "harbor-v2-8-installer-forwarding",
+              "url": "https://github.com/goharbor/harbor/blob/89ef156d09a64fd08b7df6d67510e921cfffcee6/make/install.sh",
+              "revision": "89ef156d09a64fd08b7df6d67510e921cfffcee6",
+              "contentDigest": "sha256:568a682b22f1f96316236f4bc61dd43cace3d1d994354bc4357a0e25d3f5b9d7",
+              "startLine": 72,
+              "endLine": 83
+            },
+            {
+              "id": "harbor-v2-8-installer-parser",
+              "url": "https://github.com/goharbor/harbor/blob/89ef156d09a64fd08b7df6d67510e921cfffcee6/make/install.sh",
+              "revision": "89ef156d09a64fd08b7df6d67510e921cfffcee6",
+              "contentDigest": "sha256:568a682b22f1f96316236f4bc61dd43cace3d1d994354bc4357a0e25d3f5b9d7",
+              "startLine": 26,
+              "endLine": 42
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove --with-chartmuseum from the selected Harbor installer argv before 2.8.0; this does not execute the installer or assess chart, database, or runtime migration."
       }
     },
     {

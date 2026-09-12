@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:9b3e39e9322d43512ac331bc816aef9fc448f26d3c46b10fa3f20dfa9357d5d3",
+    "inventorySha256": "sha256:cebe66b4d6404032f319a6d711850f879bf517297b783d6a79de57d0d1a11a89",
     "counts": {
-      "executableProjects": 63,
+      "executableProjects": 64,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "newExecutableScenarios": 17
+      "newExecutableScenarios": 20
     },
     "toolchain": "Go 1.26.8 with vendored modules; offline build and local file evaluation"
   },
@@ -88,6 +88,14 @@
       "input": "caller-declared complete native classic configuration with current-default and preservation declarations"
     },
     {
+      "project": "fluentd",
+      "repository": "https://github.com/fluent/fluentd",
+      "from": "1.17.1",
+      "to": "1.18.0",
+      "rule": "one selected unquoted interpolation marker changes literal treatment",
+      "input": "paired caller-declared literal JSON values with selected-value completeness, current-default, and preservation guards"
+    },
+    {
       "project": "grafana",
       "repository": "https://github.com/grafana/grafana",
       "from": "10.4.0",
@@ -96,12 +104,28 @@
       "input": "caller-declared complete native effective grafana.ini"
     },
     {
+      "project": "harbor",
+      "repository": "https://github.com/goharbor/harbor",
+      "from": "2.7.0",
+      "to": "2.8.0",
+      "rule": "selected complete installer argv removes --with-chartmuseum",
+      "input": "caller-declared complete literal Harbor installer argv JSON"
+    },
+    {
       "project": "kibana",
       "repository": "https://github.com/elastic/kibana",
       "from": "8.18.0",
       "to": "9.0.0",
       "rule": "xpack.reporting.roles.allow is removed",
       "input": "caller-declared complete native effective kibana.yml"
+    },
+    {
+      "project": "loki",
+      "repository": "https://github.com/grafana/loki",
+      "from": "2.9.8",
+      "to": "3.0.0",
+      "rule": "selected compactor shared_store and shared_store_key_prefix keys are removed",
+      "input": "caller-declared complete native Loki YAML with resolved precedence"
     },
     {
       "project": "kubevirt",

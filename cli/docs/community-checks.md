@@ -13,6 +13,31 @@ JSON file readable only by its owner because Helm values commonly contain
 credentials. Relative paths are accepted. Create inputs under `umask 077`, or
 run `chmod 600 values.json` before the check.
 
+## Fluentd selected-literal treatment
+
+For Fluentd `1.17.1` to `1.18.0`, `prepare cncf --project fluentd` accepts a
+private JSON declaration containing paired selected `current` and `proposed`
+literal values. It requires all three caller guards to be true:
+`selectedValueComplete`, `currentDefaultUsed`, and
+`preserveLiteralTreatment`. It derives only whether one simple unquoted
+`#{...}` marker is present. The selected values must be byte-identical, except
+for the exact single-quote wrapper around the unchanged current literal.
+This does not parse a Fluentd file, Ruby, interpolation, plugins, or runtime
+behavior. Use the private-copy walkthrough in
+[`examples/cncf/fluentd-literal-treatment`](../examples/cncf/fluentd-literal-treatment/README.md).
+
+## Harbor installer argv
+
+For Harbor `2.7.0` to `2.8.0`, `prepare cncf --project harbor` accepts one
+private JSON declaration of the selected installer argv. Set
+`effectiveArgvDeclared=true` only after selecting a complete, literal
+`make/install.sh` argument vector. The check classifies only the removed
+`--with-chartmuseum` option. `--help`, wrappers, values, duplicates, unknown
+options, and unresolved inputs remain UNKNOWN. It does not execute the
+installer or inspect Harbor configuration, charts, database state, or runtime.
+Use the private-copy walkthrough in
+[`examples/cncf/harbor-installer-argv`](../examples/cncf/harbor-installer-argv/README.md).
+
 ## cert-manager removed monitor values
 
 ```sh

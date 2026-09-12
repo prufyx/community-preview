@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-source-rule-pack/v1alpha1",
-  "revision": "community-project-rules-2026-09-11.4",
+  "revision": "community-project-rules-2026-09-12.1",
   "policyId": "community-project-source-preview-v1",
   "policyDigest": "sha256:16b3a461dfc639f997c6f048d4dc6f0cf5bda3c02c12fdc4f390bf52fc2ff144",
   "entries": [
@@ -172,6 +172,43 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Remove xpack.reporting.roles.allow and grant reporting access through Kibana feature privileges, then recheck the precedence-resolved config."
+      }
+    },
+    {
+      "project": "loki",
+      "description": "Loki 3.0 removes two legacy string-valued compactor shared-store settings; this checks only their presence in one complete, precedence-resolved proposed native Loki YAML compactor mapping.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.loki.compactor_legacy_shared_store_present",
+          "component": "pkg:github/grafana/loki",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the proposed complete selected Loki compactor mapping contains shared_store or shared_store_key_prefix with a literal YAML string value."
+        }
+      ],
+      "rule": {
+        "id": "loki.compactor-shared-store.2-9-to-3-0",
+        "operator": "forbid_predicate_value",
+        "subject": {"component": "pkg:github/grafana/loki", "from": "2.9.8", "to": "3.0.0"},
+        "condition": {"side": "proposed", "component": "pkg:github/grafana/loki", "factId": "component.loki.compactor_legacy_shared_store_present", "boolValue": true},
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-11T23:48:14Z",
+          "validUntil": "2026-12-10T23:48:14Z",
+          "sources": [
+            {"id": "loki-v2-compactor-legacy-keys", "url": "https://github.com/grafana/loki/blob/94e00299ec9b36ad97c147641566b6922268c54e/pkg/storage/stores/indexshipper/compactor/compactor.go", "revision": "94e00299ec9b36ad97c147641566b6922268c54e", "contentDigest": "sha256:60559d5b4f415ce2db9b56d1bf10e5683a1dfc2218a3e3a72aacd40c7d28822f", "startLine": 73, "endLine": 108},
+            {"id": "loki-v3-cmd-config-failure", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/cmd/loki/main.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:4bedb098af4451d03112d4f2441895fdafdc485ec3306e8ba73ecf1441d95c99", "startLine": 36, "endLine": 45},
+            {"id": "loki-v3-compactor-keys-removed", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/compactor/compactor.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:df60208086c18e486cf7c8b498c38e47f1ce23ffe83a7c280cb6ad4c8bcfdf0e", "startLine": 73, "endLine": 109},
+            {"id": "loki-v3-config-error-propagation", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/util/cfg/cfg.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:d35c54a0026b2c23adb8884bb15842daddb04177fb20f8a06df758848d7f5626", "startLine": 28, "endLine": 44},
+            {"id": "loki-v3-dynamic-strict-first", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/util/cfg/dynamic.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:26971a79f17e3091a73d7b01a5701880757562cfcc4ba65380145530b2930fab", "startLine": 13, "endLine": 40},
+            {"id": "loki-v3-strict-file-loader", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/util/cfg/files.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:b0460e3b42949704dd54076f1caa16615eb08698c5ce498d9796af887b000c83", "startLine": 40, "endLine": 120},
+            {"id": "loki-v3-top-level-compactor-binding", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/pkg/loki/loki.go", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:5cf53ee390408bf0df3953f61a4039da4162dbb5475cf40cfc0a68156ae11221", "startLine": 74, "endLine": 102},
+            {"id": "loki-v3-upgrade-shared-store-removal", "url": "https://github.com/grafana/loki/blob/b4f7181c7aa9484e66976e8a933111a9b85ea8c2/docs/sources/setup/upgrade/_index.md", "revision": "b4f7181c7aa9484e66976e8a933111a9b85ea8c2", "contentDigest": "sha256:a37d623da6a49ae793923e6364ac0578c5e3137be583edfcff56883e58d25894", "startLine": 85, "endLine": 145}
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove shared_store and shared_store_key_prefix from the selected compactor mapping, then separately follow Loki 3.0 storage, index, retention, and data-access migration guidance."
       }
     }
   ]

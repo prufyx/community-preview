@@ -9,7 +9,7 @@ import (
 )
 
 func TestProjectCLIEndToEndAndPrivacy(t *testing.T) {
-	now := "2026-09-11T20:00:00Z"
+	now := "2026-09-12T00:00:00Z"
 	for _, tc := range []struct {
 		name, project, from, to, body string
 		want                          int
@@ -19,6 +19,9 @@ func TestProjectCLIEndToEndAndPrivacy(t *testing.T) {
 		{"kibana-blocked", "kibana", "8.18.0", "9.0.0", "xpack.reporting.roles.allow: [private-role]\n", ExitBlocked},
 		{"kibana-pass", "kibana", "8.18.0", "9.0.0", "server.host: private-host\n", ExitOK},
 		{"wrong-pair", "kibana", "8.17.0", "9.0.0", "server.host: private-host\n", ExitUnknown},
+		{"loki-blocked", "loki", "2.9.8", "3.0.0", "compactor:\n  shared_store: private-store\n", ExitBlocked},
+		{"loki-pass", "loki", "2.9.8", "3.0.0", "compactor:\n  working_directory: /private/loki\n", ExitOK},
+		{"loki-unknown", "loki", "2.9.8", "3.0.0", "compactor:\n  working_directory: ${PRIVATE_PATH}\n", ExitUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			path := writePrivateProjectFixture(t, tc.body)
@@ -27,12 +30,66 @@ func TestProjectCLIEndToEndAndPrivacy(t *testing.T) {
 			if exit != tc.want {
 				t.Fatalf("exit=%d want=%d stderr=%q stdout=%q", exit, tc.want, stderr.String(), stdout.String())
 			}
-			for _, secret := range []string{path, "secret.invalid", "private-role", "private-host"} {
+			for _, secret := range []string{path, "secret.invalid", "private-role", "private-host", "private-store", "/private/loki", "PRIVATE_PATH"} {
 				if strings.Contains(stdout.String(), secret) || strings.Contains(stderr.String(), secret) {
 					t.Fatalf("private value leaked: %q", secret)
 				}
 			}
 		})
+	}
+}
+
+func TestProjectCLILokiPinnedSourcesAndScopedOutput(t *testing.T) {
+	path := writePrivateProjectFixture(t, "compactor:\n  shared_store_key_prefix: private-index/\n")
+	var stdout, stderr bytes.Buffer
+	exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--effective-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T00:00:00Z"}, &stdout, &stderr, "test")
+	if exit != ExitBlocked || stderr.Len() != 0 {
+		t.Fatalf("exit=%d stderr=%q stdout=%q", exit, stderr.String(), stdout.String())
+	}
+	for _, source := range []string{"pkg/storage/stores/indexshipper/compactor/compactor.go", "docs/sources/setup/upgrade/_index.md"} {
+		if !strings.Contains(stdout.String(), source) {
+			t.Fatalf("missing source %q", source)
+		}
+	}
+	for _, private := range []string{path, "private-index"} {
+		if strings.Contains(stdout.String()+stderr.String(), private) {
+			t.Fatalf("private input leaked: %q", private)
+		}
+	}
+	if !strings.Contains(stdout.String(), "whole-upgrade assessment: UNKNOWN") {
+		t.Fatalf("missing scope limit: %q", stdout.String())
+	}
+}
+
+func TestProjectCLILokiExamples(t *testing.T) {
+	for name, want := range map[string]int{"broken.yml": ExitBlocked, "fixed.yml": ExitOK, "unknown.yml": ExitUnknown} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "examples", "projects", "loki", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := writePrivateProjectFixture(t, string(raw))
+		var stdout, stderr bytes.Buffer
+		exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--effective-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T00:00:00Z", "--format", "json"}, &stdout, &stderr, "test")
+		if exit != want || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"assessment":"UNKNOWN"`) || strings.Contains(stdout.String(), path) || strings.Contains(stdout.String(), "/var/loki") {
+			t.Fatalf("%s exit=%d stdout=%q stderr=%q", name, exit, stdout.String(), stderr.String())
+		}
+	}
+}
+
+func TestProjectCLILokiRejectsConflictingModeAndDigest(t *testing.T) {
+	path := writePrivateProjectFixture(t, "compactor:\n  working_directory: /var/loki\n")
+	for _, extra := range [][]string{{"--knowledge-db", "store"}, {"--profile", "cncf"}, {"--workload", path}, {"--effective-config-digest="}} {
+		args := []string{"check", "project", "--project", "loki", "--effective-config", path, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T00:00:00Z"}
+		args = append(args, extra...)
+		var stdout, stderr bytes.Buffer
+		if exit := Run(t.Context(), args, &stdout, &stderr, "test"); exit != ExitUsage || strings.Contains(stdout.String()+stderr.String(), path) {
+			t.Fatalf("extra=%v exit=%d output=%q", extra, exit, stdout.String()+stderr.String())
+		}
+	}
+	digest := digestCommunityBytes([]byte("compactor:\n  working_directory: /var/loki\n"))
+	var stdout, stderr bytes.Buffer
+	if exit := Run(t.Context(), []string{"check", "project", "--project", "loki", "--effective-config", path, "--effective-config-digest", digest, "--from", "2.9.8", "--to", "3.0.0", "--effective-config-complete", "--precedence-resolved", "--now", "2026-09-12T00:00:00Z", "--format", "json"}, &stdout, &stderr, "test"); exit != ExitOK {
+		t.Fatalf("pinned exit=%d stderr=%q", exit, stderr.String())
 	}
 }
 
@@ -51,6 +108,9 @@ func TestProjectCLIRejectsExternalSelectorsAndUnsafeFiles(t *testing.T) {
 	}
 	unsafe := filepath.Join(t.TempDir(), "config.ini")
 	if err := os.WriteFile(unsafe, []byte("[alerting]\nenabled=false\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(unsafe, 0644); err != nil {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer

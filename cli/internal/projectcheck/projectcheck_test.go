@@ -13,10 +13,10 @@ import (
 
 func TestClosedRegistryAndScopedResults(t *testing.T) {
 	projects, err := Projects()
-	if err != nil || len(projects) != 5 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" {
+	if err != nil || len(projects) != 6 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" || projects[5] != "loki" {
 		t.Fatalf("projects=%v err=%v", projects, err)
 	}
-	now := time.Date(2026, 9, 11, 20, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		project, raw string
 		want         int
@@ -25,8 +25,10 @@ func TestClosedRegistryAndScopedResults(t *testing.T) {
 		{"grafana", "[unified_alerting]\nenabled=true\n", 0},
 		{"kibana", "xpack.reporting.roles.allow: [reporting_user]\n", 10},
 		{"kibana", "server.host: localhost\n", 0},
+		{"loki", "compactor:\n  shared_store: filesystem\n", 10},
+		{"loki", "compactor:\n  working_directory: /var/loki\n", 0},
 	} {
-		prepared, err := projectprepare.PrepareEffectiveConfig(tc.project, []byte(tc.raw), map[string]string{"grafana": "10.4.0", "kibana": "8.18.0"}[tc.project], map[string]string{"grafana": "11.0.0", "kibana": "9.0.0"}[tc.project], true, true)
+		prepared, err := projectprepare.PrepareEffectiveConfig(tc.project, []byte(tc.raw), map[string]string{"grafana": "10.4.0", "kibana": "8.18.0", "loki": "2.9.8"}[tc.project], map[string]string{"grafana": "11.0.0", "kibana": "9.0.0", "loki": "3.0.0"}[tc.project], true, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -171,6 +173,17 @@ func TestWrongPairIncompleteAndUnknownProject(t *testing.T) {
 	}
 	if _, err := Check("prometheus", prepared.CanonicalInputJSON, now); err == nil {
 		t.Fatal("unreviewed project accepted")
+	}
+}
+
+func TestLokiUnreviewedTransitionIsUnknown(t *testing.T) {
+	prepared, err := projectprepare.PrepareEffectiveConfig(projectprepare.LokiProject, []byte("compactor: {}\n"), "2.9.7", projectprepare.LokiTo, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := Check(projectprepare.LokiProject, prepared.CanonicalInputJSON, time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil || ClaimExit(report) != 11 || len(report.Check.Claims) != 0 || !bytes.Contains([]byte(report.NextAction), []byte("no reviewed rule matches")) {
+		t.Fatalf("unreviewed Loki transition report=%+v err=%v", report, err)
 	}
 }
 

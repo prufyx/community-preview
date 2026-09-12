@@ -1,6 +1,6 @@
 {
   "schema": "prufyx.io/community-project-registry/v1alpha1",
-  "revision": "community-projects-2026-09-11.4",
+  "revision": "community-projects-2026-09-12.1",
   "projects": [
     {
       "slug": "argo-workflows",
@@ -39,6 +39,14 @@
       "name": "Kibana",
       "repositoryURL": "https://github.com/elastic/kibana",
       "component": "pkg:github/elastic/kibana",
+      "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
+      "cncfMembership": "NOT_ASSERTED"
+    },
+    {
+      "slug": "loki",
+      "name": "Grafana Loki",
+      "repositoryURL": "https://github.com/grafana/loki",
+      "component": "pkg:github/grafana/loki",
       "identityAuthority": "MAINTAINER_REVIEWED_EXTERNAL_REPOSITORY",
       "cncfMembership": "NOT_ASSERTED"
     }
