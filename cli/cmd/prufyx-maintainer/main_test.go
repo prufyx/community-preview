@@ -28,6 +28,27 @@ func TestMaintainerCLI_Help(t *testing.T) {
 	}
 }
 
+func TestMaintainerCLI_ProjectExactTagsAreTheOnlyNewRepeatableOption(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "private")
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	request := filepath.Join(parent, "request.json")
+	var out, errOut bytes.Buffer
+	if err := run([]string{"project", "init", "--repository", "https://github.com/acme/sample", "--exact-tag", "v1.0.0", "--exact-tag", "v2.0.0", "--license-anchor-tag", "v2.0.0", "--output", request}, &out, &errOut); err != nil {
+		t.Fatalf("repeatable exact tag rejected: %v %s", err, errOut.String())
+	}
+	if _, err := os.Stat(request); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"project", "init", "--repository", "https://github.com/acme/sample", "--repository", "https://github.com/acme/other", "--output", filepath.Join(parent, "bad.json")}, &out, &errOut); err == nil {
+		t.Fatal("unrelated duplicate accepted")
+	}
+	if err := run([]string{"project", "init", "--repository", "https://github.com/acme/sample", "--exact-tag", "v1.0.0", "--license-anchor-tag", "v1.0.0", "--license-anchor-tag", "v1.0.0", "--output", filepath.Join(parent, "bad-exact.json")}, &out, &errOut); err == nil || err.Error() != "prufyx-maintainer: duplicate option rejected" {
+		t.Fatalf("exact-tag singleton duplicate not rejected: %v", err)
+	}
+}
+
 func TestMaintainerCLI_ReviewRecordHelpAndOptionErrorsAreSanitized(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if err := run([]string{"review-record", "verify", "--help"}, &out, &errOut); err != nil {

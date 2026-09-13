@@ -65,7 +65,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		if len(args) >= 2 && args[1] == "cncf" {
 			return r.cncfCatalog(args[2:])
 		}
-		return r.usage("Usage: prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]")
+		if len(args) >= 2 && args[1] == "checks" {
+			return r.catalogChecks(args[2:])
+		}
+		return r.usage("Usage: prufyx catalog <cncf|checks> [flags]")
 	case "version":
 		identity, err := buildidentity.Report()
 		if err != nil {
@@ -139,6 +142,7 @@ Usage:
   prufyx prepare cncf --project harbor --input FILE --from 2.7.0 --to 2.8.0 or 2.10.3|2.11.2|2.12.4|2.13.5|2.14.4 --to 2.15.2 [--input-digest SHA256] [--format human|json|input]
   prufyx prepare cncf --project containerd --input FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only [--input-digest SHA256] [--format human|json|input]
   prufyx catalog cncf [--priority] [--project SLUG] [--format human|json]
+  prufyx catalog checks --project SLUG [--from VERSION --to VERSION] [--format human|json]
   prufyx check cncf --project argo-cd --config-map FILE --from 2.14.0 --to 3.0.0 [--requires-inherited-application-permissions true|false] --now RFC3339 [--config-map-digest SHA256] [--format human|json]
   prufyx check cncf --project argo-cd --resource-exclusions-config-map FILE --from 2.14.0 --to 3.0.0 --resource-exclusions-config-complete --resource-exclusions-precedence-resolved [--requires-v2-visibility-of-v3-default-excluded-resources true] --now RFC3339 [--resource-exclusions-config-map-digest SHA256] [--format human|json]
   prufyx check cncf --project knative --service FILE --from 1.22.0 --to 1.23.0 --now RFC3339 [--service-digest SHA256] [--format human|json]

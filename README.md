@@ -15,9 +15,9 @@ Have a public GitHub project with useful release notes or changelogs? Start with
 the [local project onboarding guide](cli/docs/project-onboarding.md)
 or [suggest the repository](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml).
 The repository URL is enough to begin; source onboarding does not add a support
-claim or executable check. Automatic sync currently requires a matching
-published GitHub Release; the guide covers the explicit pinned-source fallback
-for other repository layouts.
+claim or executable check. Default sync requires a matching published GitHub
+Release. Repositories without Releases can instead use the guide's explicit,
+bounded Git-tag selection; it does not discover or infer tags.
 
 ## Quickstart: a MetalLB migration fact
 
@@ -67,6 +67,8 @@ The current generated inventory reports **66 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
 contains the exact capabilities and source bindings.
+Use [`catalog checks`](cli/docs/community-checks.md#discovering-embedded-source-rule-routes)
+to discover the embedded source-rule identities and exact local input routes for one project.
 
 Explicit adopter-managed refresh continues through the existing signed TUF
 import/update path. A Community CLI built from this source reports authenticated

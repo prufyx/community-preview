@@ -18,6 +18,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/prufyx/prufyx-cli/internal/checkroutemetadata"
 )
 
 const Schema = "prufyx.io/community-support-inventory/v1alpha1"
@@ -592,7 +594,7 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 					"limit":         "Checks one caller-selected complete, precedence-resolved native Argo CD argocd-cm YAML for an absent, explicit empty, or exact reviewed resource.exclusions target default with explicit v2-visibility-preservation intent. Other values, resource existence, watches, UI, reconciliation, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
 				},
 			}
-		} else if native, ok := nativeCNCFInputMetadata[project]; ok {
+		} else if native, ok := nativeCNCFRoutes(project); ok {
 			if len(native) == 1 {
 				capability["localPreparer"] = native[0].inventoryValue()
 			} else {
@@ -618,6 +620,18 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 		projects = append(projects, map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}})
 	}
 	return projects, len(entries), nil
+}
+
+func nativeCNCFRoutes(project string) ([]nativeCNCFInputRoute, bool) {
+	if legacy, ok := checkroutemetadata.LegacyInventoryRoutes(project); ok {
+		routes := make([]nativeCNCFInputRoute, 0, len(legacy))
+		for _, route := range legacy {
+			routes = append(routes, nativeCNCFInputRoute{"command": route.Command, "metadataState": route.MetadataState, "limit": route.Limit})
+		}
+		return routes, true
+	}
+	routes, ok := nativeCNCFInputMetadata[project]
+	return routes, ok
 }
 
 // nativeCNCFInputMetadata describes direct check routes that intentionally do
@@ -677,28 +691,6 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 		"metadataState": "implemented_native_selected_coredns_corefile_minimizer",
 		"limit":         "Checks only direct federation directive presence in one caller-selected complete Corefile under a caller-declared official distribution. The route is limited to the reviewed 1.6.9 to 1.7.0 transition and origins 1.9.4, 1.10.1, 1.11.4, 1.12.4, or 1.13.2 to target 1.14.7. Imports, snippets, substitutions, custom distributions, unsupported structure, plugin validity, DNS behavior, runtime state, and whole-upgrade safety remain UNKNOWN.",
 	}},
-	"envoy": {{
-		"command":       []any{"check", "cncf", "--project", "envoy", "--envoy-bootstrap", "FILE", "--envoy-bootstrap-selected", "--from", "1.38.4", "--to", "1.39.1"},
-		"metadataState": "implemented_native_selected_envoy_bootstrap_minimizer",
-		"limit":         "Blocker-only route checking direct V2 transport_api_version at ADS, LDS, or CDS api_config_source paths in one caller-selected directly loaded JSON bootstrap. It is limited to origins 1.34.14, 1.35.13, 1.36.10, 1.37.6, or 1.38.4 to target 1.39.1. V3, AUTO, absence, and unsupported structure remain UNKNOWN; there is no native PASS or historical 1.18 native route. Bootstrap completeness, distribution identity, xDS behavior, runtime state, and whole-upgrade safety remain UNKNOWN.",
-	}},
-	"prometheus": {
-		{
-			"command":       []any{"check", "cncf", "--project", "prometheus", "--alertmanager-config", "FILE", "--from", "2.55.1", "--to", "3.1.0", "--alertmanager-config-complete", "--alertmanager-config-precedence-resolved"},
-			"metadataState": "implemented_native_selected_alertmanager_config_minimizer",
-			"limit":         "Checks only literal api_version in one caller-selected complete native alerting.alertmanagers entry; an omitted key uses the exact target source-derived v2 default. Addresses, credentials, paths, full configuration, Alertmanager compatibility, reachability, alert delivery, runtime behavior, and whole-upgrade safety remain unresolved.",
-		},
-		{
-			"command":       []any{"check", "cncf", "--project", "prometheus", "--scrape-config", "FILE", "--scrape-job", "NAME", "--scrape-config-complete", "--scrape-config-precedence-resolved"},
-			"metadataState": "implemented_native_selected_scrape_config_minimizer",
-			"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
-		},
-		{
-			"command":       []any{"check", "cncf", "--project", "prometheus", "--prometheus-config", "FILE", "--prometheus-config-complete", "--prometheus-config-precedence-resolved", "--prometheus-rule", "remote-write-http2-default", "--prometheus-remote-write-name", "NAME", "--prometheus-remote-write-http2-required=true|false", "--from", "2.55.1", "--to", "3.14.0"},
-			"metadataState": "implemented_native_selected_remote_write_http2_minimizer",
-			"limit":         "Checks one literal-name remote_write entry's direct inline enable_http2 value or exact reviewed omitted default against an explicit endpoint requirement. It does not validate the whole configuration, runtime flags, endpoint support, protocol negotiation, delivery, startup, or whole-upgrade safety.",
-		},
-	},
 	"opentelemetry": {
 		{
 			"command":       []any{"check", "cncf", "--project", "opentelemetry", "--otel-collector-config", "FILE", "--otel-distribution", "official|custom", "--otel-config-complete", "--otel-config-precedence-resolved", "--from", "0.110.0", "--to", "0.111.0"},
@@ -816,7 +808,11 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 		} else if project == "mariadb" {
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "10.11.8", "--to", "11.4.2", "--effective-config-complete", "--precedence-resolved", "--upstream-distribution", "--require-innodb-defragmentation", "true|false"}, "metadataState": "implemented_native_mariadb_option_file_minimizer", "limit": "Requires one caller-selected complete, precedence-resolved upstream MariaDB option file and an explicit true or false removed-behavior requirement. Includes, aliases, prefixes, unsupported groups, packaged or fork-specific behavior remain UNKNOWN."}
 		} else if project == "mariadb-operator" {
-			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--mariadb-resource", "FILE", "--from", "26.3.0", "--to", "26.6.0", "--resource-complete", "--pre-operator-update"}, "metadataState": "implemented_native_mariadb_operator_resource_minimizer", "limit": "Requires one caller-selected complete native apiVersion k8s.mariadb.com/v1alpha1, kind MariaDB resource, explicit Galera-only scope, and the pre-operator-update declaration. It checks only the documented autoUpdateDataPlane prerequisite; admission, cluster state, runtime behavior, controller progress, data-plane completion, and whole-upgrade safety remain UNKNOWN."}
+			route, ok := checkroutemetadata.LegacyCommunityInventoryRoute(project)
+			if !ok {
+				return nil, 0, invalid("missing MariaDB Operator legacy route")
+			}
+			preparer = map[string]any{"command": route.Command, "metadataState": route.MetadataState, "limit": route.Limit}
 		}
 		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
 		if project == "loki" {

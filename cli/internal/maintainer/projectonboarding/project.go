@@ -151,7 +151,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, options O
 	}
 	switch args[0] {
 	case "help", "--help", "-h":
-		_, _ = io.WriteString(stdout, "usage: prufyx-maintainer project <init|sync|verify|status|inspect|proposal> [options]\ninit --repository HTTPS_GITHUB_REPO --output NEW_REQUEST [--slug SLUG] [--release-limit 1..10] [--tag-prefix PREFIX] [--changelog-paths PATH,...]\nsync --manifest REQUEST --output-parent PRIVATE_DIR [--previous SNAPSHOT]\nverify|status|proposal --snapshot SNAPSHOT\ninspect --snapshot SNAPSHOT [--tag TAG] [--include-notes]\n")
+		_, _ = io.WriteString(stdout, "usage: prufyx-maintainer project <init|sync|verify|status|inspect|proposal> [options]\ninit --repository HTTPS_GITHUB_REPO --output NEW_REQUEST [--slug SLUG] [--release-limit 1..10] [--tag-prefix PREFIX] [--changelog-paths PATH,...]\nexact-tag init: init --repository HTTPS_GITHUB_REPO --exact-tag TAG [--exact-tag TAG ...] --license-anchor-tag TAG --output NEW_REQUEST [--slug SLUG] [--changelog-paths PATH,...]\nsync --manifest REQUEST --output-parent PRIVATE_DIR [--previous SNAPSHOT]\nverify --snapshot SNAPSHOT [--previous PRIOR_EXACT_TAG_SNAPSHOT]\nstatus|proposal --snapshot SNAPSHOT\ninspect --snapshot SNAPSHOT [--tag TAG] [--include-notes]\n")
 		return 0
 	case "init":
 		return runInit(args[1:], stderr)
@@ -177,6 +177,9 @@ func rejectReason(stderr io.Writer, reason string) int {
 }
 
 func runInit(args []string, stderr io.Writer) int {
+	if hasLongFlag(args, "--exact-tag") || hasLongFlag(args, "--license-anchor-tag") {
+		return runExactTagInit(args, stderr)
+	}
 	flags := flag.NewFlagSet("project init", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var repository, output, slug, prefix, license, pathsCSV string
@@ -227,6 +230,15 @@ func runInit(args []string, stderr io.Writer) int {
 	return 0
 }
 
+func hasLongFlag(args []string, name string) bool {
+	for _, arg := range args {
+		if arg == name || strings.HasPrefix(arg, name+"=") {
+			return true
+		}
+	}
+	return false
+}
+
 func deriveSlug(owner, name string) string {
 	value := strings.ToLower(owner + "-" + name)
 	value = strings.Map(func(character rune) rune {
@@ -275,6 +287,11 @@ func runSync(ctx context.Context, args []string, stdout, stderr io.Writer, optio
 		return reject(stderr)
 	}
 	request, err := parseRequest(raw)
+	if err != nil {
+		if exactRequest, exactErr := parseExactTagRequest(raw); exactErr == nil {
+			return runExactTagSync(ctx, exactRequest, parent, previous, stdout, stderr, options)
+		}
+	}
 	if err != nil || sourcecorpus.ValidatePrivateDirectoryPath(parent) != nil {
 		return reject(stderr)
 	}
@@ -289,7 +306,7 @@ func runSync(ctx context.Context, args []string, stdout, stderr io.Writer, optio
 	var priorSnapshot map[string]any
 	if previous != "" {
 		priorSnapshot, previousObjects, err = VerifySnapshot(previous)
-		if err != nil || priorSnapshot["repository"].(map[string]any)["canonicalRepositoryURL"] != request.repo {
+		if err != nil || priorSnapshot["schema"] != SnapshotSchema || priorSnapshot["repository"].(map[string]any)["canonicalRepositoryURL"] != request.repo {
 			return reject(stderr)
 		}
 		previousDigest = digestMust(priorSnapshot)
@@ -907,11 +924,17 @@ func scanJSON(decoder *json.Decoder, depth int, tokens *int) error {
 }
 
 func runVerify(args []string, stdout, stderr io.Writer) int {
-	if len(args) != 2 || args[0] != "--snapshot" {
+	if (len(args) != 2 && len(args) != 4) || args[0] != "--snapshot" || (len(args) == 4 && args[2] != "--previous") {
 		return reject(stderr)
 	}
 	snapshot, _, err := VerifySnapshot(args[1])
 	if err != nil {
+		return reject(stderr)
+	}
+	if snapshot["schema"] == ExactTagSnapshotSchema {
+		return runExactTagVerify(args, stdout, stderr)
+	}
+	if len(args) != 2 {
 		return reject(stderr)
 	}
 	if emitJSON(stdout, map[string]any{"schema": "prufyx.io/public-project-onboarding-verification/v1", "snapshotDigest": digestMust(snapshot), "verification": "VERIFIED_RETAINED_PUBLIC_PROJECT_EVIDENCE", "reviewState": "NOT_REVIEWED", "admissionState": "NOT_ADMITTED"}) != nil {
@@ -926,6 +949,9 @@ func runStatus(args []string, stdout, stderr io.Writer) int {
 	snapshot, _, err := VerifySnapshot(args[1])
 	if err != nil {
 		return reject(stderr)
+	}
+	if snapshot["schema"] == ExactTagSnapshotSchema {
+		return runExactTagStatus(args, stdout, stderr)
 	}
 	if emitJSON(stdout, map[string]any{"schema": "prufyx.io/public-project-onboarding-status/v1", "snapshotDigest": digestMust(snapshot), "repository": publicRepository(snapshot), "releaseCount": int64(len(snapshot["releases"].([]any))), "sourceCount": int64(len(snapshot["sources"].([]any))), "freshness": "NOT_CHECKED_OFFLINE", "upstreamContinuity": "NOT_CHECKED_OFFLINE", "nonRevocation": "NOT_CHECKED_OFFLINE", "review": snapshot["review"]}) != nil {
 		return rejectReason(stderr, "OUTPUT_WRITE_FAILURE")
@@ -946,6 +972,9 @@ func runInspect(args []string, stdout, stderr io.Writer) int {
 	snapshot, objects, err := VerifySnapshot(path)
 	if err != nil {
 		return reject(stderr)
+	}
+	if snapshot["schema"] == ExactTagSnapshotSchema {
+		return runExactTagInspect(path, tag, includeNotes, stdout, stderr)
 	}
 	releases := []any{}
 	for _, r := range snapshot["releases"].([]any) {
@@ -988,6 +1017,9 @@ func runProposal(args []string, stdout, stderr io.Writer) int {
 	snapshot, _, err := VerifySnapshot(args[1])
 	if err != nil {
 		return reject(stderr)
+	}
+	if snapshot["schema"] == ExactTagSnapshotSchema {
+		return runExactTagProposal(args, stdout, stderr)
 	}
 	releases := make([]any, 0, len(snapshot["releases"].([]any)))
 	for _, item := range snapshot["releases"].([]any) {
@@ -1046,6 +1078,9 @@ func VerifySnapshot(directory string) (map[string]any, map[string][]byte, error)
 		return nil, nil, ErrRejected
 	}
 	snapshot, ok := value.(map[string]any)
+	if ok && snapshot["schema"] == ExactTagSnapshotSchema {
+		return verifyExactTagSnapshot(directory, snapshot)
+	}
 	if !ok || snapshot["schema"] != SnapshotSchema || snapshot["authority"] != Authority {
 		return nil, nil, ErrRejected
 	}

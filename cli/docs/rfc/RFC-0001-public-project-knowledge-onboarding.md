@@ -8,9 +8,9 @@
 ## Summary
 
 Add a local, Go-only workflow that starts with a public GitHub repository URL,
-collects a bounded snapshot of recent published release metadata and selected
-commit-pinned changelog and license files, verifies the retained bytes offline,
-and produces a source-only proposal suitable for a public issue. The workflow
+collects a bounded snapshot of recent published release metadata or explicitly
+selected Git tags and commit-pinned changelog and license files, verifies the
+retained bytes offline, and produces a source-only proposal. The workflow
 does not require CNCF membership, repository control, manually calculated
 digests, a hosted Prufyx service, or a compatibility rule. Source observations,
 maintainer review, executable rules, and signed publication remain separate
@@ -57,9 +57,9 @@ Non-goals:
   version compatibility, support state, or rule behavior.
 - Automatically opening issues, changing the catalogue, signing packages,
   publishing data, or operating a hosted synchronization service.
-- Automatically ingesting repositories that publish only Git tags, a package
-  index, or a changelog without any matching published GitHub Release. Those
-  layouts need an explicit pinned-source capture in the first release.
+- Listing or inferring Git tags, ingesting package indexes, or treating a
+  changelog as a release. Tag-only repositories require an explicit bounded v2
+  tag selection; no tag order or latest-version meaning is inferred.
 
 ## Detailed Design
 
@@ -145,12 +145,16 @@ exact `refs/tags/<tag>` reference and accepts either a lightweight commit target
 or one directly annotated tag object whose target is a commit. It records the
 reference response, optional annotated-tag response, and final 40-character
 commit. Nested annotated tags are outside the first-release contract.
-An explicit sync with `--previous` rejects continuity when the same repository
-ID and reobserved tag resolve to a different commit. Each snapshot records the
-reference response it observed; it does not claim that the upstream reference
-stayed unchanged after that request. Standalone offline verification validates
-the previous digest's shape but cannot reconstruct its relationship without the
-previous snapshot.
+Release-mode continuity rejects a reobserved tag when its peeled commit changes.
+Exact-tag v2 uses the stronger direct-or-annotated reference identity tuple for
+every shared selected tag. Each snapshot records the reference response it
+observed; it does not claim that the upstream reference stayed unchanged after
+that request. Exact-tag v2 offline verification with both current and prior
+snapshots independently verifies them, recomputes their shared/new/omitted
+partition, and reports replayed continuity. Verification with only the initial
+snapshot reports no prior; verification of a lineage-bearing current snapshot
+without the prior reports that continuity was not replayed. Omitted prior tags
+are not reobserved or revalidated.
 
 Configured changelog candidates and built-in license filename candidates are
 fetched only by resolved commit and conservative repository-relative path.
@@ -184,19 +188,23 @@ The `prufyx-maintainer project` command family has six operations:
    and writes `prufyx.io/public-project-onboarding-request/v1` without network
    access. `--release-limit` defaults to 5 and is capped at 10. Optional
    `--slug`, `--tag-prefix`, comma-separated `--changelog-paths`, and
-   `--license-disposition` selectors are bounded.
+   `--license-disposition` selectors are bounded. The additive exact-tag form
+   requires one through ten repeated `--exact-tag TAG` values plus
+   `--license-anchor-tag TAG`, rejects the release-limit and tag-prefix
+   selectors, and writes the closed v2 request.
 2. `project sync --manifest FILE --output-parent DIR` is the only network
    operation. It resolves repository identity, lists
    the bounded recent published releases, resolves exact tag references, fetches
    selected files at peeled commits, and writes a new private
    `snapshot-<sha256>` directory. `--previous SNAPSHOT` adds continuity checks.
-   It rejects a repository with no matching published GitHub Release in this
-   first version. A tag-only or changelog-only repository can use the existing
-   explicit [public source capture](../public-source-capture.md) after a
-   maintainer selects immutable references; automatic discovery is future work.
+   Release mode rejects a repository with no matching published GitHub Release.
+   Exact-tag mode resolves only the explicitly selected refs and never calls a
+   Releases or tag-list endpoint.
 3. `project verify --snapshot DIR` performs only local schema, digest, object,
-   and retained tag-binding checks. Previous-snapshot continuity is performed by
-   `sync --previous`, which loads both snapshots.
+   and retained tag-binding checks. For exact-tag v2,
+   `project verify --snapshot CURRENT --previous PRIOR` additionally verifies
+   both snapshots and mechanically replays immediate continuity. V1 retains its
+   two-argument command contract.
 4. `project status --snapshot DIR` reports retained counts and the declared
    review/admission state without contacting GitHub. It makes no current
    freshness or non-revocation claim.
@@ -213,11 +221,12 @@ the behavioral boundaries above are normative. Commands refuse implicit
 network access, overwrite of immutable snapshots, symlinked inputs, permissive
 private stores, unbounded pagination, and ambiguous selectors.
 
-The public handoff uses the additive schema
-`prufyx.io/public-project-source-only-proposal/v1`. It binds the project
-repository ID, selected snapshot digest, release IDs, tags, peeled commits,
-release-body digests and times, public immutable file references, generated
-hashes, and an optional retained license observation. Its source-only schema and
+The public handoff uses
+`prufyx.io/public-project-source-only-proposal/v1` for release mode and the
+additive `/v2` schema for exact-tag mode. It binds the applicable project
+repository ID, selected snapshot digest, release or explicit tag identities,
+peeled commits, public immutable file references, generated hashes, and an
+optional retained license observation. Its source-only schema and
 fixed `NOT_REVIEWED` and `NOT_ADMITTED` states keep the handoff outside rule
 admission. It does not reuse the CNCF Landscape gate or
 claim a version transition. Existing `prufyx.io/upstream-evidence-packet/v1`
@@ -391,6 +400,19 @@ A hosted service could simplify synchronization, but it introduces accounts,
 abuse prevention, persistent multi-user data, deletion requests, availability,
 and secret management before the workflow is proven. The local path provides a
 complete developer experience first.
+
+## Explicit exact-tag v2 extension
+
+`project init` also accepts repeated `--exact-tag TAG` with a required
+`--license-anchor-tag TAG`. This opt-in request v2 captures one through ten
+caller-selected, unique Git tags in declared order. It is not a tag discovery,
+version ordering, or latest-release mechanism. The tag-only snapshot, receipt,
+status, inspection, and proposal schemas are distinct from v1 and contain
+tag-ref observations rather than fabricated release IDs, dates, bodies, or
+URLs. The fixed-host capture resolves only each exact ref and, where needed,
+one annotated tag object; it never lists tags or requests GitHub Releases.
+With `--previous`, only shared tags in the immediately prior selection are
+compared; omitted tags are `NOT_REOBSERVED_NOT_REVALIDATED`.
 
 ## References
 

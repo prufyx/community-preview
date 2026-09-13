@@ -13,6 +13,28 @@ JSON file readable only by its owner because Helm values commonly contain
 credentials. Relative paths are accepted. Create inputs under `umask 077`, or
 run `chmod 600 values.json` before the check.
 
+## Discovering embedded source-rule routes
+
+Use `catalog checks` to inspect the exact embedded source-rule identities for
+one project and, optionally, one exact transition. It reads no configuration,
+does not evaluate a check, and reports source evidence freshness as
+`NOT_EVALUATED`.
+
+```sh
+./prufyx catalog checks --project prometheus --from 2.55.1 --to 3.1.0 --format json
+./prufyx catalog checks --project mariadb-operator --from 26.3.0 --to 26.6.0
+```
+
+The output distinguishes generic embedded CNCF canonical-input coverage from
+exact native routes. Each generic canonical input itself contains the listed
+exact from/to pair, so its command deliberately has no `--from` or `--to`
+flags. Community project rules are discoverable but their generic
+declaration route is `NOT_EXPOSED_BY_PUBLIC_CLI`; only a mechanically bound
+native descriptor may recommend `check project`. A descriptor is typed command
+guidance: replace `FILE`, `NAME`, `RFC3339`, and `BOOL` with caller-supplied
+values. It does not declare an assessment, validate a target, or establish
+runtime behavior. Named checks appear only as scoped `--help` hints.
+
 ## Fluentd selected-literal treatment
 
 For Fluentd `1.17.1` to `1.18.0`, `prepare cncf --project fluentd` accepts a

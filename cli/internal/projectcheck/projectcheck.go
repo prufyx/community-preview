@@ -113,6 +113,41 @@ type Report struct {
 	seal                  *reportSeal
 	digest                string
 }
+
+// RuleIdentity is the stable public identity of one rule already admitted by
+// the embedded community pack. It contains no caller input or evidence bytes.
+type RuleIdentity struct {
+	Project   string `json:"project"`
+	Component string `json:"component"`
+	RuleID    string `json:"ruleId"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+}
+
+// EmbeddedRuleIdentities returns every integrity-checked embedded community
+// rule in stable project/rule order without evaluating it.
+func EmbeddedRuleIdentities() ([]RuleIdentity, error) {
+	b, err := load()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RuleIdentity, 0, len(b.pack.Entries))
+	for _, entry := range b.pack.Entries {
+		var binding ruleBinding
+		if err := json.Unmarshal(entry.Rule, &binding); err != nil || binding.ID == "" || binding.Subject.Component == "" || binding.Subject.From == "" || binding.Subject.To == "" {
+			return nil, ErrIntegrity
+		}
+		result = append(result, RuleIdentity{Project: entry.Project, Component: binding.Subject.Component, RuleID: binding.ID, From: binding.Subject.From, To: binding.Subject.To})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Project != result[j].Project {
+			return result[i].Project < result[j].Project
+		}
+		return result[i].RuleID < result[j].RuleID
+	})
+	return result, nil
+}
+
 type reportSeal struct{}
 
 func definitions() []constraintengine.FactDefinition {

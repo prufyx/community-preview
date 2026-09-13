@@ -1,6 +1,50 @@
 package cncfcheck
 
-import "sort"
+import (
+	"encoding/json"
+	"sort"
+)
+
+// RuleIdentity is the stable public identity of one rule already admitted by
+// the embedded pack. It deliberately omits facts, evidence, and input values.
+type RuleIdentity struct {
+	Project   string `json:"project"`
+	Component string `json:"component"`
+	RuleID    string `json:"ruleId"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+}
+
+// EmbeddedRuleIdentities returns every integrity-checked embedded rule in a
+// stable order. It performs no evaluation or source-input access.
+func EmbeddedRuleIdentities() ([]RuleIdentity, error) {
+	b, err := load()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RuleIdentity, 0, len(b.pack.Entries))
+	for _, entry := range b.pack.Entries {
+		var shape struct {
+			ID      string `json:"id"`
+			Subject struct {
+				Component string `json:"component"`
+				From      string `json:"from"`
+				To        string `json:"to"`
+			} `json:"subject"`
+		}
+		if err := json.Unmarshal(entry.Rule, &shape); err != nil || shape.ID == "" || shape.Subject.Component == "" || shape.Subject.From == "" || shape.Subject.To == "" {
+			return nil, ErrIntegrity
+		}
+		result = append(result, RuleIdentity{Project: entry.Project, Component: shape.Subject.Component, RuleID: shape.ID, From: shape.Subject.From, To: shape.Subject.To})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Project != result[j].Project {
+			return result[i].Project < result[j].Project
+		}
+		return result[i].RuleID < result[j].RuleID
+	})
+	return result, nil
+}
 
 type Project struct {
 	Slug              string   `json:"slug"`

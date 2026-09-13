@@ -63,6 +63,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-rotated-package" {
 		repeatable = "--successor-root"
 	}
+	if len(args) > 1 && args[0] == "project" && args[1] == "init" {
+		repeatable = "--exact-tag"
+	}
 	if duplicateLongFlag(args[1:], repeatable) {
 		return &commandError{code: 2, message: "prufyx-maintainer: duplicate option rejected"}
 	}
