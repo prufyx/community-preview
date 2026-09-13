@@ -79,3 +79,24 @@ Outputs are new `0600` files. A failed write leaves any newly created path for
 explicit operator cleanup; the helper never deletes an output path after a
 failure. A valid signature envelope is still not a published package or a
 configured update source.
+
+## Root-transition contribution
+
+`sign-root-transition` is separate from `sign-role`; `sign-role` continues to
+reject the root role. The command requires the exact current root and exact
+self-signed successor template with their pinned digests, plus the prepared
+unsigned successor, request and canonical payload digest. It reads an encrypted
+root key and the passphrase only through the existing terminal-only path. The
+returned envelope is one contribution, never threshold readiness, authorization,
+or a finalized transition.
+
+```sh
+prufyx-maintainer knowledge-sign sign-root-transition \
+  --trusted-root /absolute/current-root.json --trusted-root-digest sha256:<current> \
+  --successor-template /absolute/proposed-root.json --successor-template-digest sha256:<template> \
+  --unsigned /absolute/publisher/root-transition-step/root.unsigned.json \
+  --request /absolute/publisher/root-transition-step/root.request.json \
+  --payload-digest sha256:<payload> --authority trusted \
+  --key /absolute/operator-private/root.key.pem \
+  --output /absolute/publisher/root-old-signature.json
+```

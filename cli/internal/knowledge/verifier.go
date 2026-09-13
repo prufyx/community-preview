@@ -84,8 +84,12 @@ func verifyPackageForProfile(pkg importPackage, profile profileSpec, prior *trus
 	if err := os.Mkdir(targetDir, 0o700); err != nil {
 		return verificationResult{}, err
 	}
+	resetDownstreamCache := rootChainRotatesUpdateAuthority(localRoot, pkg.files)
 	if prior != nil {
 		for name, raw := range map[string][]byte{"timestamp.json": prior.timestamp, "snapshot.json": prior.snapshot, "targets.json": prior.targets} {
+			if resetDownstreamCache && (name == "timestamp.json" || name == "snapshot.json") {
+				continue
+			}
 			if len(raw) > 0 {
 				if err := os.WriteFile(filepath.Join(metaDir, name), raw, 0o600); err != nil {
 					return verificationResult{}, err
@@ -95,7 +99,7 @@ func verifyPackageForProfile(pkg importPackage, profile profileSpec, prior *trus
 	}
 
 	fetcher := newMemoryFetcher(pkg, fetchHook)
-	cfg := &config.UpdaterConfig{Fetcher: fetcher, LocalTrustedRoot: append([]byte(nil), localRoot...), LocalMetadataDir: metaDir, LocalTargetsDir: targetDir, RemoteMetadataURL: "https://offline.invalid/metadata", RemoteTargetsURL: "https://offline.invalid/targets", MaxRootRotations: 8, MaxDelegations: 0, RootMaxLength: 128 << 10, TimestampMaxLength: 64 << 10, SnapshotMaxLength: 256 << 10, TargetsMaxLength: 256 << 10, DisableLocalCache: false, PrefixTargetsWithHash: true, UnsafeLocalMode: false}
+	cfg := &config.UpdaterConfig{Fetcher: fetcher, LocalTrustedRoot: append([]byte(nil), localRoot...), LocalMetadataDir: metaDir, LocalTargetsDir: targetDir, RemoteMetadataURL: "https://offline.invalid/metadata", RemoteTargetsURL: "https://offline.invalid/targets", MaxRootRotations: 8, MaxDelegations: 0, RootMaxLength: rootMetadataMaxBytes, TimestampMaxLength: 64 << 10, SnapshotMaxLength: 256 << 10, TargetsMaxLength: 256 << 10, DisableLocalCache: false, PrefixTargetsWithHash: true, UnsafeLocalMode: false}
 	u, err := updater.New(cfg)
 	if err != nil {
 		return verificationResult{}, err
@@ -109,7 +113,7 @@ func verifyPackageForProfile(pkg importPackage, profile profileSpec, prior *trus
 	if err != nil {
 		return verificationResult{}, err
 	}
-	material, err := materialFromTrusted(trusted, prior, pkg, initialDigest, localRoot, accepted)
+	material, err := materialFromTrusted(trusted, prior, pkg, initialDigest, localRoot, accepted, resetDownstreamCache)
 	if err != nil {
 		return verificationResult{}, err
 	}
@@ -140,9 +144,12 @@ func verifyPackageForProfile(pkg importPackage, profile profileSpec, prior *trus
 	return result, nil
 }
 
-const sha256Size = 32
+const (
+	sha256Size           = 32
+	rootMetadataMaxBytes = 128 << 10
+)
 
-func materialFromTrusted(trusted trustedmetadata.TrustedMetadata, prior *trustMaterial, pkg importPackage, initialDigest string, initialRoot []byte, accepted map[string][]byte) (trustMaterial, error) {
+func materialFromTrusted(trusted trustedmetadata.TrustedMetadata, prior *trustMaterial, pkg importPackage, initialDigest string, initialRoot []byte, accepted map[string][]byte, resetDownstreamCache bool) (trustMaterial, error) {
 	if trusted.Root == nil {
 		return trustMaterial{}, ErrIntegrity
 	}
@@ -185,7 +192,7 @@ func materialFromTrusted(trusted trustedmetadata.TrustedMetadata, prior *trustMa
 	material.timestamp = trustedTimestampRaw(trusted.Timestamp, accepted["timestamp"])
 	material.snapshot = trustedVersionedRaw(trusted.Snapshot, "snapshot", accepted["snapshot"])
 	material.targets = trustedVersionedRaw(trusted.Targets[metadata.TARGETS], "targets", accepted["targets"])
-	if prior != nil {
+	if prior != nil && !resetDownstreamCache {
 		if trusted.Timestamp == nil && roleAuthorityUnchanged(prior.root, rootRaw, metadata.TIMESTAMP) {
 			material.timestamp = append([]byte(nil), prior.timestamp...)
 			material.state.Timestamp = prior.state.Timestamp
