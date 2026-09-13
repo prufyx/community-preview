@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgesign"
 	"golang.org/x/sys/unix"
 )
 
@@ -268,6 +269,79 @@ func TestMaintainerCLIKnowledgeSignRejectsNonTTYWithoutEchoingArguments(t *testi
 	}
 }
 
+func TestMaintainerCLIKnowledgeSignVerifyKeyRejectsNonTTYWithoutEchoingArguments(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyDir := filepath.Join(parent, "keys")
+	expires := time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	initialized, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: keyDir, RootExpires: expires, Passphrase: []byte("operator passphrase 123")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	readEnd, writeEnd, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalStdin := os.Stdin
+	os.Stdin = readEnd
+	defer func() {
+		os.Stdin = originalStdin
+		_ = readEnd.Close()
+		_ = writeEnd.Close()
+	}()
+	var stdout, stderr bytes.Buffer
+	err = run([]string{"knowledge-sign", "verify-key", "--root", filepath.Join(keyDir, "root.json"), "--root-digest", initialized.RootDigest, "--role", "targets", "--key", filepath.Join(keyDir, "targets.key.pem")}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("non-TTY restored-key verification accepted")
+	}
+	for _, canary := range []string{"keys", initialized.RootDigest, "Passphrase"} {
+		if strings.Contains(err.Error(), canary) || strings.Contains(stdout.String()+stderr.String(), canary) {
+			t.Fatalf("sensitive value leaked: error=%q stdout=%q stderr=%q", err, stdout.String(), stderr.String())
+		}
+	}
+}
+
+func TestMaintainerCLISignerKeyRequiresAbsolutePath(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	keyDir := filepath.Join(parent, "keys")
+	if _, err := knowledgesign.Init(knowledgesign.InitOptions{
+		KeyDir: keyDir, RootExpires: time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339),
+		Passphrase: []byte("operator passphrase 123"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	abs := filepath.Join(keyDir, "targets.key.pem")
+	if raw, err := signerKey(abs); err != nil || len(raw) == 0 {
+		t.Fatalf("absolute encrypted key rejected: bytes=%d err=%v", len(raw), err)
+	}
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(keyDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Chdir(oldwd); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if _, err := signerKey("targets.key.pem"); err == nil {
+		t.Fatal("relative encrypted key accepted")
+	}
+}
+
 func TestMaintainerCLIKnowledgeSignHelpDoesNotPromptOrWrite(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{"knowledge-sign", "init", "--help"}, &stdout, &stderr); err != nil {
@@ -281,6 +355,13 @@ func TestMaintainerCLIKnowledgeSignHelpDoesNotPromptOrWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(stdout.String(), "knowledge-sign sign-role") || stderr.Len() != 0 {
+		t.Fatalf("unexpected help stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	stdout.Reset()
+	if err := run([]string{"knowledge-sign", "verify-key", "--help"}, &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "knowledge-sign verify-key") || stderr.Len() != 0 {
 		t.Fatalf("unexpected help stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }

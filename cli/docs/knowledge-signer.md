@@ -31,6 +31,29 @@ passphrase backup outside Git. Move `root.key.pem` offline after initialization.
 This helper does not prove custody, backup recovery, rotation, revocation, or
 an official trust root.
 
+Check one restored encrypted key against an independently pinned public root
+before using it. This reads the passphrase once from a terminal with echo
+disabled and writes no key, signature, package, or trust-store file:
+
+```sh
+prufyx-maintainer knowledge-sign verify-key \
+  --root /absolute/operator-private/prufyx-keys/root.json \
+  --root-digest sha256:<independently-verified-root-digest> \
+  --role targets \
+  --key /absolute/restored-private/targets.key.pem
+```
+
+`verify-key` accepts one owner-owned, single-link `0600` encrypted PEM and one
+of `root`, `targets`, `snapshot`, or `timestamp`. Its
+`prufyx.io/local-tuf-key-verification/v1` JSON receipt reports only
+that the decrypted public key matches the selected role in the supplied root.
+It does not assess role threshold readiness or root expiry, prove custody or
+backup health, activate trust, authorize an update, sign a payload, or contact
+a network. A cryptographic key-role match against an expired root is therefore
+not current trust and cannot permit an update. The helper makes a best effort to
+overwrite temporary passphrase and decrypted-key byte slices; Go does not offer
+a general memory-erasure guarantee.
+
 Sign one publisher-prepared role with the matching role key. All paths are
 absolute. The root digest and payload digest come from an independently checked
 publisher request; the signer derives the payload again from the exact unsigned
