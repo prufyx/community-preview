@@ -540,6 +540,9 @@ func VerifyArchive(o ArchiveOptions) error {
 	for _, name := range []string{"RELEASE-METADATA.json", "SOURCE-REVISION", "prufyx"} {
 		expected[o.PackageName+"/"+name] = false
 	}
+	guidePath := o.PackageName + "/GETTING-STARTED.md"
+	expected[guidePath] = false
+	regular[guidePath] = BinaryGettingStartedGuide()
 	licenseRoot := filepath.Join(o.RepositoryRoot, "LICENSES")
 	if _, err := os.Stat(licenseRoot); err != nil {
 		return reject("repository LICENSES input is unavailable")

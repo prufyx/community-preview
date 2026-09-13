@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepublish"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgesign"
 	"golang.org/x/sys/unix"
@@ -158,6 +159,120 @@ func TestMaintainerCLIFinalizesRootTransitionWithRepeatedSignatures(t *testing.T
 	}
 	if raw, readErr := os.ReadFile(output); readErr != nil || len(raw) == 0 {
 		t.Fatalf("finalized root missing: bytes=%d err=%v", len(raw), readErr)
+	}
+}
+
+func TestMaintainerCLIFinalizesRotatedPackage(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	passphrase := []byte("rotated cli test passphrase 123")
+	expires := time.Now().UTC().Add(7 * 24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	oldDir, successorDir := filepath.Join(parent, "old-keys"), filepath.Join(parent, "successor-keys")
+	old, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: oldDir, RootExpires: expires, Passphrase: append([]byte(nil), passphrase...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	successorTemplate, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: successorDir, RootExpires: expires, Passphrase: append([]byte(nil), passphrase...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transitionOptions := knowledgepublish.RootTransitionOptions{TrustedRoot: old.Root, TrustedRootDigest: old.RootDigest, SuccessorTemplate: successorTemplate.Root, SuccessorTemplateDigest: successorTemplate.RootDigest}
+	transition, err := knowledgepublish.PrepareRootTransition(transitionOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transitionPayloadDigest := fmt.Sprintf("sha256:%x", sha256.Sum256(transition.Payload))
+	signTransition := func(authority, keyPath string) []byte {
+		t.Helper()
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			for i := range key {
+				key[i] = 0
+			}
+		}()
+		raw, err := knowledgesign.SignRootTransition(knowledgesign.RootTransitionSignOptions{TrustedRoot: old.Root, TrustedRootDigest: old.RootDigest, SuccessorTemplate: successorTemplate.Root, SuccessorTemplateDigest: successorTemplate.RootDigest, UnsignedMetadata: transition.UnsignedMetadata, Request: transition.Request, ExpectedPayloadDigest: transitionPayloadDigest, Authority: authority, EncryptedKey: key, Passphrase: append([]byte(nil), passphrase...)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	successor, _, err := knowledgepublish.FinalizeRootTransition(knowledgepublish.RootTransitionFinalizeOptions{RootTransitionOptions: transitionOptions, UnsignedMetadata: transition.UnsignedMetadata, Request: transition.Request, Signatures: [][]byte{signTransition("trusted", filepath.Join(oldDir, "root.key.pem")), signTransition("successor", filepath.Join(successorDir, "root.key.pem"))}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	successorDigest := fmt.Sprintf("sha256:%x", sha256.Sum256(successor))
+	target, err := cncfcheck.ExportEmbeddedExternalBundle("94")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signRole := func(role string, preparation knowledgepublish.Preparation) []byte {
+		t.Helper()
+		key, err := os.ReadFile(filepath.Join(successorDir, role+".key.pem"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			for i := range key {
+				key[i] = 0
+			}
+		}()
+		envelope, err := knowledgesign.SignRole(knowledgesign.SignOptions{Root: successor, RootDigest: successorDigest, Role: role, Unsigned: preparation.UnsignedMetadata, ExpectedPayloadDigest: fmt.Sprintf("sha256:%x", sha256.Sum256(preparation.Payload)), EncryptedKey: key, Passphrase: append([]byte(nil), passphrase...)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := knowledgepublish.FinalizeRole(successor, successorDigest, role, preparation.UnsignedMetadata, envelope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	targetsPreparation, err := knowledgepublish.PrepareTargets(knowledgepublish.TargetsOptions{Root: successor, RootDigest: successorDigest, Target: target, Version: 1, Expires: time.Now().UTC().Add(72 * time.Hour).Truncate(time.Second).Format(time.RFC3339)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := signRole("targets", targetsPreparation)
+	snapshotPreparation, err := knowledgepublish.PrepareSnapshot(knowledgepublish.SnapshotOptions{Root: successor, RootDigest: successorDigest, Target: target, Targets: targets, Version: 1, Expires: time.Now().UTC().Add(48 * time.Hour).Truncate(time.Second).Format(time.RFC3339)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := signRole("snapshot", snapshotPreparation)
+	timestampPreparation, err := knowledgepublish.PrepareTimestamp(knowledgepublish.TimestampOptions{Root: successor, RootDigest: successorDigest, Target: target, Targets: targets, Snapshot: snapshot, Version: 1, Expires: time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp := signRole("timestamp", timestampPreparation)
+	write := func(name string, raw []byte) string {
+		t.Helper()
+		path := filepath.Join(parent, name)
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	output := filepath.Join(parent, "rotated.tar")
+	var stdout, stderr bytes.Buffer
+	err = run([]string{"knowledge-publish", "finalize-rotated-package", "--initial-root", write("1.root.json", old.Root), "--initial-root-digest", old.RootDigest, "--successor-root", write("2.root.json", successor), "--target", write("constraints.json", target), "--targets", write("targets.json", targets), "--snapshot", write("snapshot.json", snapshot), "--timestamp", write("timestamp.json", timestamp), "--output", output}, &stdout, &stderr)
+	if err != nil || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"status":"VERIFIED_FOR_PACKAGING"`) || !strings.Contains(stdout.String(), `"rootDigest":"`+old.RootDigest+`"`) {
+		t.Fatalf("route stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
+	}
+	if raw, readErr := os.ReadFile(output); readErr != nil || len(raw) == 0 {
+		t.Fatalf("rotated output bytes=%d err=%v", len(raw), readErr)
+	}
+	stdout.Reset()
+	err = run([]string{"knowledge-publish", "finalize-rotated-package", "--initial-root", filepath.Join(parent, "1.root.json"), "--initial-root-digest", old.RootDigest, "--successor-root", filepath.Join(parent, "2.root.json"), "--target", filepath.Join(parent, "constraints.json"), "--targets", filepath.Join(parent, "targets.json"), "--snapshot", filepath.Join(parent, "snapshot.json"), "--timestamp", filepath.Join(parent, "timestamp.json"), "--output", output}, &stdout, &stderr)
+	if err == nil || stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("existing output accepted: stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
+	}
+	for i := range passphrase {
+		passphrase[i] = 0
 	}
 }
 
@@ -550,5 +665,24 @@ func TestMaintainerCLI_RootTransitionCommandsRouteAndRedact(t *testing.T) {
 	err := run([]string{"knowledge-publish", "prepare-root-transition", "--trusted-root", "PRIVATE_ROOT_CANARY"}, &out, &errOut)
 	if err == nil || strings.Contains(err.Error(), "PRIVATE_ROOT_CANARY") || strings.Contains(errOut.String(), "PRIVATE_ROOT_CANARY") {
 		t.Fatalf("publisher rejection leaked: err=%q stderr=%q", err, errOut.String())
+	}
+}
+
+func TestMaintainerCLI_RotatedPackageRouteAllowsOnlySuccessorRepetition(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"knowledge-publish", "finalize-rotated-package", "--help"}, &out, &errOut); err != nil || !strings.Contains(out.String(), "finalize-rotated-package") || !strings.Contains(out.String(), "--successor-root") || !strings.Contains(out.String(), "N+1..K") || !strings.Contains(out.String(), "currently trusting N") || !strings.Contains(out.String(), "not store eligibility") || errOut.Len() != 0 {
+		t.Fatalf("help out=%q err=%v stderr=%q", out.String(), err, errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	err := run([]string{"knowledge-publish", "finalize-rotated-package", "--successor-root", "one", "--successor-root=two", "--output", "one", "--output=two"}, &out, &errOut)
+	if err == nil || err.Error() != "prufyx-maintainer: duplicate option rejected" || out.Len() != 0 || errOut.Len() != 0 {
+		t.Fatalf("singleton duplicate escaped: out=%q err=%v stderr=%q", out.String(), err, errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	err = run([]string{"knowledge-publish", "finalize-rotated-package", "--successor-root", "one", "--successor-root=two"}, &out, &errOut)
+	if err == nil || err.Error() == "prufyx-maintainer: duplicate option rejected" || out.Len() != 0 || errOut.Len() != 0 {
+		t.Fatalf("repeatable successor rejected by global duplicate guard: out=%q err=%v stderr=%q", out.String(), err, errOut.String())
 	}
 }

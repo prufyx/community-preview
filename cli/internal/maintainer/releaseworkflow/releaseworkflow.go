@@ -565,6 +565,9 @@ func binary(v, t, out string) (string, error) {
 	if e = copyTree(filepath.Join(staged, "LICENSES"), filepath.Join(pkg, "LICENSES")); e != nil {
 		return "", e
 	}
+	if e = writeBinaryGettingStarted(pkg); e != nil {
+		return "", e
+	}
 	if e = os.WriteFile(filepath.Join(pkg, "SOURCE-REVISION"), []byte(rev+"\n"), 0644); e != nil {
 		return "", e
 	}
@@ -591,6 +594,15 @@ func binary(v, t, out string) (string, error) {
 	}
 	return dst.assetPath(archiveName), nil
 }
+
+func writeBinaryGettingStarted(pkg string) error {
+	path := filepath.Join(pkg, "GETTING-STARTED.md")
+	if err := os.WriteFile(path, releasehelpers.BinaryGettingStartedGuide(), 0644); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0644)
+}
+
 func exitCode(e error) (int, error) {
 	if e == nil {
 		return 0, nil
