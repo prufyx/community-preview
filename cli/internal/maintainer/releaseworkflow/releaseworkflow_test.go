@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
 )
 
 func TestVersionAndTargetAdmission(t *testing.T) {
@@ -42,6 +44,25 @@ func TestSourceTreeChecksumUsesCanonicalTarLabel(t *testing.T) {
 	want := strings.Repeat("a", 64) + "  source-tree.tar\n"
 	if got := string(sourceTreeChecksum("sha256:" + strings.Repeat("a", 64))); got != want {
 		t.Fatalf("source tree checksum = %q", got)
+	}
+}
+
+func TestWriteBinaryGettingStartedUsesVerifiedGuideBytes(t *testing.T) {
+	pkg := t.TempDir()
+	if err := writeBinaryGettingStarted(pkg); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(pkg, "GETTING-STARTED.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(raw, releasehelpers.BinaryGettingStartedGuide()) {
+		t.Fatal("assembled guide differs from archive verifier contract")
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0644 {
+		t.Fatalf("assembled guide mode=%v err=%v", info, err)
 	}
 }
 

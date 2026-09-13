@@ -60,6 +60,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-root-transition" {
 		repeatable = "--signatures"
 	}
+	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-rotated-package" {
+		repeatable = "--successor-root"
+	}
 	if duplicateLongFlag(args[1:], repeatable) {
 		return &commandError{code: 2, message: "prufyx-maintainer: duplicate option rejected"}
 	}

@@ -196,3 +196,35 @@ prufyx-maintainer knowledge-publish finalize-root-transition \
   --output /absolute/publisher/2.root.json \
   > /absolute/publisher/root-transition-receipt.json
 ```
+
+## Rotated package finalization
+
+After each successor root has been finalized through the root-transition workflow,
+create a **manual** package anchored to the independently pinned initial root. Give
+the ordered, finalized successor roots from `N+1` through the final authority; the
+initial root is supplied for bootstrap verification and is never packaged as a
+metadata member.
+
+```sh
+prufyx-maintainer knowledge-publish finalize-rotated-package \
+  --initial-root /absolute/1.root.json --initial-root-digest sha256:<root-1> \
+  --successor-root /absolute/2.root.json \
+  --target /absolute/constraints.v1.json \
+  --targets /absolute/publisher/1.targets.json \
+  --snapshot /absolute/publisher/1.snapshot.json \
+  --timestamp /absolute/publisher/timestamp.json \
+  --output /absolute/publisher/cncf-rotated.tar \
+  > /absolute/publisher/rotated-finalization-receipt.json
+```
+
+The route accepts one through eight contiguous successor roots. It verifies every
+root transition from the supplied initial root, authenticates all final-authority
+metadata at the actual UTC clock, and emits a receipt whose `rootDigest` and
+`verification.initialRootDigest` both bind that exact initial root. The package
+contains only successor-root metadata and is therefore intentionally
+starting-root-specific: an already advanced store must use its normal update
+path instead.
+
+This command creates no release plan, feed, trust bootstrap, or custody proof.
+It preserves a complete valid empty replacement target for an intentional
+withdrawal; malformed or incomplete target metadata is rejected.

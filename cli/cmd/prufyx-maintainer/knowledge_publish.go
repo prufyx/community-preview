@@ -28,11 +28,69 @@ func runKnowledgePublish(args []string, stdout io.Writer) error {
 		return runFinalizeRole(args[1:])
 	case "finalize-root-transition":
 		return runFinalizeRootTransition(args[1:], stdout)
+	case "finalize-rotated-package":
+		return runFinalizeRotatedPackage(args[1:], stdout)
 	case "finalize-package":
 		return runFinalizeKnowledgePackage(args[1:], stdout)
 	default:
 		return knowledgePublishError()
 	}
+}
+
+func runFinalizeRotatedPackage(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("knowledge-publish finalize-rotated-package", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var initialRoot, initialDigest, target, targets, snapshot, timestamp, output string
+	var successors []string
+	flags.StringVar(&initialRoot, "initial-root", "", "independently pinned initial root")
+	flags.StringVar(&initialDigest, "initial-root-digest", "", "exact initial root SHA-256")
+	flags.Func("successor-root", "finalized successor root; repeat in N+1 order", func(v string) error { successors = append(successors, v); return nil })
+	flags.StringVar(&target, "target", "", "complete CNCF external target")
+	flags.StringVar(&targets, "targets", "", "finalized targets metadata")
+	flags.StringVar(&snapshot, "snapshot", "", "finalized snapshot metadata")
+	flags.StringVar(&timestamp, "timestamp", "", "finalized timestamp metadata")
+	flags.StringVar(&output, "output", "", "new anchored rotated package")
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			if _, e := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-publish finalize-rotated-package --initial-root ABS --initial-root-digest sha256:... --successor-root ABS [--successor-root ABS ...] --target ABS --targets ABS --snapshot ABS --timestamp ABS --output ABS"); e != nil {
+				return e
+			}
+			_, e := fmt.Fprintln(stdout, "supply 1-8 finalized successors in N+1..K order; the package is for a client currently trusting N. The receipt is stateless verification, not store eligibility.")
+			return e
+		}
+		return knowledgePublishError()
+	}
+	if flags.NArg() != 0 || initialRoot == "" || initialDigest == "" || target == "" || targets == "" || snapshot == "" || timestamp == "" || output == "" || !filepath.IsAbs(output) || len(successors) == 0 || len(successors) > 8 {
+		return knowledgePublishError()
+	}
+	initialRaw, e1 := readPublishInput(initialRoot, knowledgepublish.MaxRootBytes)
+	targetRaw, e2 := readPublishInput(target, knowledgepublish.MaxTargetBytes)
+	targetsRaw, e3 := readPublishInput(targets, knowledgepublish.MaxRoleBytes)
+	snapshotRaw, e4 := readPublishInput(snapshot, knowledgepublish.MaxRoleBytes)
+	timestampRaw, e5 := readPublishInput(timestamp, knowledgepublish.MaxRoleBytes)
+	rootRaw := make([][]byte, 0, len(successors))
+	for _, path := range successors {
+		raw, e := readPublishInput(path, knowledgepublish.MaxRootBytes)
+		if e != nil {
+			return knowledgePublishError()
+		}
+		rootRaw = append(rootRaw, raw)
+	}
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil {
+		return knowledgePublishError()
+	}
+	packageRaw, receipt, err := knowledgepublish.FinalizeRotatedPackage(knowledgepublish.RotatedFinalizePackageOptions{InitialRoot: initialRaw, InitialRootDigest: initialDigest, SuccessorRoots: rootRaw, Target: targetRaw, Targets: targetsRaw, Snapshot: snapshotRaw, Timestamp: timestampRaw})
+	if err != nil || knowledgepublish.WriteExclusive(output, packageRaw) != nil {
+		return knowledgePublishError()
+	}
+	encoded, err := json.Marshal(receipt)
+	if err != nil {
+		return knowledgePublishError()
+	}
+	if _, err = fmt.Fprintln(stdout, string(encoded)); err != nil {
+		return &commandError{code: 2, message: "knowledge-publish: receipt output failed"}
+	}
+	return nil
 }
 
 func runPrepareRootTransition(args []string, stdout io.Writer) error {

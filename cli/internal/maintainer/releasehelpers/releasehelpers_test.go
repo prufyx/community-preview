@@ -107,7 +107,7 @@ func TestWriteSBOMRejectsMalformedPolicy(t *testing.T) {
 	}
 }
 
-func TestVerifyArchiveBindsLicenseFilesAndRejectsExtraMembers(t *testing.T) {
+func TestVerifyArchiveBindsGuideAndLicenseFilesAndRejectsUnsafeMembers(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"LICENSE", "NOTICE", "THIRD-PARTY.md"} {
 		if err := os.WriteFile(filepath.Join(root, name), []byte(name+"\n"), 0600); err != nil {
@@ -121,21 +121,29 @@ func TestVerifyArchiveBindsLicenseFilesAndRejectsExtraMembers(t *testing.T) {
 		t.Fatal(err)
 	}
 	archivePath := filepath.Join(t.TempDir(), "release.tar.gz")
-	writeArchiveFixture(t, archivePath, 17, "", root)
+	writeArchiveFixture(t, archivePath, 17, "", root, BinaryGettingStartedGuide())
 	if err := VerifyArchive(ArchiveOptions{Archive: archivePath, PackageName: "pkg", RepositoryRoot: root, BuildEpoch: "17"}); err != nil {
 		t.Fatalf("valid archive rejected: %v", err)
 	}
-	writeArchiveFixture(t, archivePath, 17, "pkg/extra", root)
+	writeArchiveFixture(t, archivePath, 17, "", root, nil)
+	if err := VerifyArchive(ArchiveOptions{Archive: archivePath, PackageName: "pkg", RepositoryRoot: root, BuildEpoch: "17"}); err == nil {
+		t.Fatal("archive without GETTING-STARTED.md accepted")
+	}
+	writeArchiveFixture(t, archivePath, 17, "", root, []byte("altered guide\n"))
+	if err := VerifyArchive(ArchiveOptions{Archive: archivePath, PackageName: "pkg", RepositoryRoot: root, BuildEpoch: "17"}); err == nil {
+		t.Fatal("archive with altered GETTING-STARTED.md accepted")
+	}
+	writeArchiveFixture(t, archivePath, 17, "pkg/extra", root, BinaryGettingStartedGuide())
 	if err := VerifyArchive(ArchiveOptions{Archive: archivePath, PackageName: "pkg", RepositoryRoot: root, BuildEpoch: "17"}); err == nil {
 		t.Fatal("archive with an extra member accepted")
 	}
-	writeArchiveFixture(t, archivePath, 17, "pkg/../escape", root)
+	writeArchiveFixture(t, archivePath, 17, "pkg/../escape", root, BinaryGettingStartedGuide())
 	if err := VerifyArchive(ArchiveOptions{Archive: archivePath, PackageName: "pkg", RepositoryRoot: root, BuildEpoch: "17"}); err == nil {
 		t.Fatal("archive with a traversal member accepted")
 	}
 }
 
-func writeArchiveFixture(t *testing.T, path string, epoch int64, extraName, root string) {
+func writeArchiveFixture(t *testing.T, path string, epoch int64, extraName, root string, guide []byte) {
 	t.Helper()
 	f, err := os.Create(path)
 	if err != nil {
@@ -164,6 +172,9 @@ func writeArchiveFixture(t *testing.T, path string, epoch int64, extraName, root
 	write("pkg/RELEASE-METADATA.json", 0644, nil)
 	write("pkg/SOURCE-REVISION", 0644, nil)
 	write("pkg/prufyx", 0755, nil)
+	if guide != nil {
+		write("pkg/GETTING-STARTED.md", 0644, guide)
+	}
 	directory("pkg/LICENSES/")
 	write("pkg/LICENSES/module.txt", 0644, []byte("module license\n"))
 	if extraName != "" {

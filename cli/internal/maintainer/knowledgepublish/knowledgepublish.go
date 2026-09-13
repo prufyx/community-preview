@@ -10,8 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,7 +18,6 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/knowledge"
 	"github.com/prufyx/prufyx-cli/internal/knowledgereleaseplan"
-	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/v2/metadata"
 )
@@ -287,69 +284,7 @@ func FinalizePackage(opts FinalizePackageOptions) ([]byte, FinalizationReceipt, 
 	if err != nil {
 		return nil, FinalizationReceipt{}, err
 	}
-	targetDigest, admission, err := admitTarget(opts.Target)
-	if err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	targets, snapshot, err := admitTargetsSnapshot(root, opts.Target, opts.Targets, opts.Snapshot)
-	if err != nil || validateSnapshot(snapshot, opts.Targets, targets.Signed.Version) != nil {
-		return nil, FinalizationReceipt{}, fmt.Errorf("signed target chain: %w", ErrRejected)
-	}
-	timestamp, err := parseTimestamp(opts.Timestamp, true)
-	if err != nil || root.VerifyDelegate(metadata.TIMESTAMP, timestamp) != nil || validateTimestamp(timestamp, opts.Snapshot, snapshot.Signed.Version) != nil {
-		return nil, FinalizationReceipt{}, fmt.Errorf("signed timestamp: %w", ErrRejected)
-	}
-
-	txn, err := os.MkdirTemp("", "prufyx-knowledge-publish-")
-	if err != nil {
-		return nil, FinalizationReceipt{}, fmt.Errorf("publisher workspace: %w", err)
-	}
-	defer os.RemoveAll(txn)
-	if err := os.Chmod(txn, 0o700); err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	repository := filepath.Join(txn, "repository")
-	if err := os.MkdirAll(filepath.Join(repository, "targets", "knowledge"), 0o700); err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	if err := os.Mkdir(filepath.Join(repository, "metadata"), 0o700); err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	entries := map[string][]byte{
-		filepath.Join("metadata", fmt.Sprintf("%d.targets.json", targets.Signed.Version)):                                                     opts.Targets,
-		filepath.Join("metadata", fmt.Sprintf("%d.snapshot.json", snapshot.Signed.Version)):                                                   opts.Snapshot,
-		filepath.Join("metadata", "timestamp.json"):                                                                                           opts.Timestamp,
-		filepath.Join("targets", "knowledge", strings.TrimPrefix(targetDigest, "sha256:")+"."+filepath.Base(knowledge.ConstraintsTargetPath)): opts.Target,
-	}
-	for name, raw := range entries {
-		if err := os.WriteFile(filepath.Join(repository, name), raw, 0o600); err != nil {
-			return nil, FinalizationReceipt{}, fmt.Errorf("stage repository: %w", err)
-		}
-	}
-	packageRaw, err := knowledgepack.PackageDirectory(repository, "cncf")
-	if err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	rootPath, packagePath := filepath.Join(txn, "root.json"), filepath.Join(txn, "package.tar")
-	if err := os.WriteFile(rootPath, opts.Root, 0o600); err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	if err := os.WriteFile(packagePath, packageRaw, 0o600); err != nil {
-		return nil, FinalizationReceipt{}, err
-	}
-	verification, err := knowledge.VerifyConstraints(knowledge.VerifyRequest{
-		PackagePath: packagePath, BootstrapRootPath: rootPath, BootstrapRootDigest: rootDigest,
-		ExpectedPackageDigest: digest(packageRaw), ExpectedRevision: admission.Revision, ExpectedBundleDigest: targetDigest,
-	})
-	if err != nil {
-		return nil, FinalizationReceipt{}, fmt.Errorf("consumer verification: %w", err)
-	}
-	receipt := FinalizationReceipt{
-		Schema: FinalReceiptSchema, Status: "VERIFIED_FOR_PACKAGING", Profile: "cncf", NetworkUsed: false, KeysHandled: false,
-		RootDigest: rootDigest, TargetDigest: targetDigest, PackageDigest: digest(packageRaw), KnowledgeRevision: admission.Revision,
-		CapabilityDigest: admission.EngineCapabilityDigest, Verification: verification,
-	}
-	return packageRaw, receipt, nil
+	return finalizeAdmittedPackage(opts.Root, rootDigest, root, nil, opts.Target, opts.Targets, opts.Snapshot, opts.Timestamp)
 }
 
 func prepare[T metadata.Roles](roleName string, root *metadata.Metadata[metadata.RootType], rootDigest string, role *metadata.Metadata[T], targetDigest, priorDigest string) (Preparation, error) {
