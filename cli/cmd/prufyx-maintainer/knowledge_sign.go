@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/prufyx/prufyx-cli/internal/currentbundle"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepublish"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgesign"
 	"golang.org/x/term"
 )
@@ -23,14 +26,80 @@ func runKnowledgeSign(args []string, stdout, stderr io.Writer) error {
 		return runKnowledgeSignInit(args[1:], stdout, stderr)
 	case "sign-role":
 		return runKnowledgeSignRole(args[1:], stdout, stderr)
+	case "sign-root-transition":
+		return runKnowledgeSignRootTransition(args[1:], stdout, stderr)
 	case "verify-key":
 		return runKnowledgeSignVerifyKey(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign <init|sign-role|verify-key> [options]")
+		_, err := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign <init|sign-role|sign-root-transition|verify-key> [options]")
 		return err
 	default:
 		return knowledgeSignError()
 	}
+}
+
+func runKnowledgeSignRootTransition(args []string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("knowledge-sign sign-root-transition", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var trusted, trustedDigest, template, templateDigest, unsigned, request, payloadDigest, authority, key, output string
+	flags.StringVar(&trusted, "trusted-root", "", "currently trusted signed public root")
+	flags.StringVar(&trustedDigest, "trusted-root-digest", "", "independently verified trusted root SHA-256")
+	flags.StringVar(&template, "successor-template", "", "self-signed public successor root template")
+	flags.StringVar(&templateDigest, "successor-template-digest", "", "exact successor template SHA-256")
+	flags.StringVar(&unsigned, "unsigned", "", "exact prepared unsigned successor root")
+	flags.StringVar(&request, "request", "", "exact prepared root-transition request")
+	flags.StringVar(&payloadDigest, "payload-digest", "", "exact OLPC canonical successor payload SHA-256")
+	flags.StringVar(&authority, "authority", "", "trusted or successor root authorization set")
+	flags.StringVar(&key, "key", "", "encrypted local root key")
+	flags.StringVar(&output, "output", "", "new root signature contribution")
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			_, e := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign sign-root-transition --trusted-root ABS --trusted-root-digest sha256:... --successor-template ABS --successor-template-digest sha256:... --unsigned ABS --request ABS --payload-digest sha256:... --authority trusted|successor --key ABS --output ABS")
+			return e
+		}
+		return knowledgeSignError()
+	}
+	if flags.NArg() != 0 || trusted == "" || trustedDigest == "" || template == "" || templateDigest == "" || unsigned == "" || request == "" || payloadDigest == "" || (authority != "trusted" && authority != "successor") || key == "" || output == "" || !filepath.IsAbs(output) {
+		return knowledgeSignError()
+	}
+	tr, e1 := signerInput(trusted, 128<<10)
+	tp, e2 := signerInput(template, 128<<10)
+	un, e3 := signerInput(unsigned, 128<<10)
+	rq, e4 := signerInput(request, 128<<10)
+	kr, e5 := signerKey(key)
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil {
+		return knowledgeSignError()
+	}
+	if preflightRootTransitionSign(tr, trustedDigest, tp, templateDigest, un, rq, payloadDigest) != nil {
+		return knowledgeSignError()
+	}
+	passphrase, err := promptRootTransitionPassphrase(stderr, false)
+	if err != nil {
+		return knowledgeSignError()
+	}
+	if err = knowledgesign.SignRootTransitionToFile(knowledgesign.RootTransitionSignOptions{TrustedRoot: tr, TrustedRootDigest: trustedDigest, SuccessorTemplate: tp, SuccessorTemplateDigest: templateDigest, UnsignedMetadata: un, Request: rq, ExpectedPayloadDigest: payloadDigest, Authority: authority, EncryptedKey: kr, Passphrase: passphrase}, output); err != nil {
+		return knowledgeSignError()
+	}
+	return nil
+}
+
+// promptRootTransitionPassphrase is a narrow seam for proving that public
+// transition binding failures stop before terminal input. Production uses the
+// same terminal-only prompt as every other signing command.
+var promptRootTransitionPassphrase = promptPassphrase
+
+func digestForSigner(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// preflightRootTransitionSign is deliberately called before terminal input.
+func preflightRootTransitionSign(trusted []byte, trustedDigest string, template []byte, templateDigest string, unsigned []byte, request []byte, payloadDigest string) error {
+	prepared, err := knowledgepublish.ValidateRootTransition(knowledgepublish.RootTransitionOptions{TrustedRoot: trusted, TrustedRootDigest: trustedDigest, SuccessorTemplate: template, SuccessorTemplateDigest: templateDigest}, unsigned, request)
+	if err != nil || digestForSigner(prepared.Payload) != payloadDigest {
+		return knowledgeSignError()
+	}
+	return nil
 }
 
 func runKnowledgeSignVerifyKey(args []string, stdout, stderr io.Writer) error {

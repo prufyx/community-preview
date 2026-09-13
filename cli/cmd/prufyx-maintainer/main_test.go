@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepublish"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgesign"
 	"golang.org/x/sys/unix"
 )
@@ -66,6 +70,94 @@ func TestMaintainerCLIRejectsDuplicateLongOption(t *testing.T) {
 	var out, errOut bytes.Buffer
 	if err := run([]string{"release-gate", "generate", "--source-root", "one", "--source-root=two"}, &out, &errOut); err == nil {
 		t.Fatal("duplicate singleton option accepted")
+	}
+	if err := run([]string{"knowledge-publish", "finalize-role", "--signatures", "one", "--signatures=two"}, &out, &errOut); err == nil || err.Error() != "prufyx-maintainer: duplicate option rejected" {
+		t.Fatalf("repeated signature option escaped its exact route: %v", err)
+	}
+	if err := run([]string{"knowledge-publish", "finalize-root-transition", "--output", "one", "--output=two"}, &out, &errOut); err == nil || err.Error() != "prufyx-maintainer: duplicate option rejected" {
+		t.Fatalf("duplicate singleton accepted on root-transition route: %v", err)
+	}
+}
+
+func TestMaintainerCLIFinalizesRootTransitionWithRepeatedSignatures(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	passphrase := []byte("operator passphrase 123")
+	expires := time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	trustedDir := filepath.Join(parent, "trusted-keys")
+	templateDir := filepath.Join(parent, "template-keys")
+	trusted, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: trustedDir, RootExpires: expires, Passphrase: append([]byte(nil), passphrase...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: templateDir, RootExpires: expires, Passphrase: append([]byte(nil), passphrase...)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := knowledgepublish.PrepareRootTransition(knowledgepublish.RootTransitionOptions{TrustedRoot: trusted.Root, TrustedRootDigest: trusted.RootDigest, SuccessorTemplate: template.Root, SuccessorTemplateDigest: template.RootDigest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixture := func(name string, raw []byte) string {
+		t.Helper()
+		fixture := filepath.Join(parent, name)
+		if err := os.WriteFile(fixture, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return fixture
+	}
+	trustedPath := writeFixture("trusted.root.json", trusted.Root)
+	templatePath := writeFixture("template.root.json", template.Root)
+	unsignedPath := writeFixture("unsigned.root.json", prepared.UnsignedMetadata)
+	requestPath := writeFixture("request.json", prepared.Request)
+	payloadDigest := fmt.Sprintf("sha256:%x", sha256.Sum256(prepared.Payload))
+	sign := func(authority, keyPath string) []byte {
+		t.Helper()
+		encryptedKey, err := os.ReadFile(keyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		envelope, err := knowledgesign.SignRootTransition(knowledgesign.RootTransitionSignOptions{
+			TrustedRoot: trusted.Root, TrustedRootDigest: trusted.RootDigest,
+			SuccessorTemplate: template.Root, SuccessorTemplateDigest: template.RootDigest,
+			UnsignedMetadata: prepared.UnsignedMetadata, Request: prepared.Request,
+			ExpectedPayloadDigest: payloadDigest, Authority: authority,
+			EncryptedKey: encryptedKey, Passphrase: append([]byte(nil), passphrase...),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return envelope
+	}
+	trustedEnvelope := writeFixture("trusted-signature.json", sign("trusted", filepath.Join(trustedDir, "root.key.pem")))
+	successorEnvelope := writeFixture("successor-signature.json", sign("successor", filepath.Join(templateDir, "root.key.pem")))
+	output := filepath.Join(parent, "2.root.json")
+	var stdout, stderr bytes.Buffer
+	err = run([]string{
+		"knowledge-publish", "finalize-root-transition",
+		"--trusted-root", trustedPath,
+		"--trusted-root-digest", trusted.RootDigest,
+		"--successor-template", templatePath,
+		"--successor-template-digest", template.RootDigest,
+		"--unsigned", unsignedPath,
+		"--request", requestPath,
+		"--signatures", trustedEnvelope,
+		"--signatures", successorEnvelope,
+		"--output", output,
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stderr.Len() != 0 || !strings.Contains(stdout.String(), `"status":"FINALIZED"`) {
+		t.Fatalf("unexpected finalization output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if raw, readErr := os.ReadFile(output); readErr != nil || len(raw) == 0 {
+		t.Fatalf("finalized root missing: bytes=%d err=%v", len(raw), readErr)
 	}
 }
 
@@ -342,6 +434,78 @@ func TestMaintainerCLISignerKeyRequiresAbsolutePath(t *testing.T) {
 	}
 }
 
+func TestMaintainerCLIRootTransitionBindingFailurePrecedesPassphraseAndOutput(t *testing.T) {
+	parent, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	trustedDir := filepath.Join(parent, "trusted-keys")
+	templateDir := filepath.Join(parent, "template-keys")
+	expires := time.Now().UTC().Add(time.Hour).Truncate(time.Second).Format(time.RFC3339)
+	trusted, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: trustedDir, RootExpires: expires, Passphrase: []byte("operator passphrase 123")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	template, err := knowledgesign.Init(knowledgesign.InitOptions{KeyDir: templateDir, RootExpires: expires, Passphrase: []byte("operator passphrase 123")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := knowledgepublish.PrepareRootTransition(knowledgepublish.RootTransitionOptions{TrustedRoot: trusted.Root, TrustedRootDigest: trusted.RootDigest, SuccessorTemplate: template.Root, SuccessorTemplateDigest: template.RootDigest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFixture := func(name string, raw []byte) string {
+		t.Helper()
+		path := filepath.Join(parent, name)
+		if err := os.WriteFile(path, raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	trustedPath := writeFixture("trusted.root.json", trusted.Root)
+	templatePath := writeFixture("template.root.json", template.Root)
+	unsignedPath := writeFixture("unsigned.root.json", prepared.UnsignedMetadata)
+	tamperedRequest := append([]byte(nil), prepared.Request...)
+	tamperedRequest[len(tamperedRequest)-2] ^= 1
+	requestPath := writeFixture("tampered.request.json", tamperedRequest)
+	output := filepath.Join(parent, "must-not-exist.envelope.json")
+	prompted := false
+	originalPrompt := promptRootTransitionPassphrase
+	promptRootTransitionPassphrase = func(io.Writer, bool) ([]byte, error) {
+		prompted = true
+		return []byte("operator passphrase 123"), nil
+	}
+	defer func() { promptRootTransitionPassphrase = originalPrompt }()
+	var stdout, stderr bytes.Buffer
+	err = runKnowledgeSignRootTransition([]string{
+		"--trusted-root", trustedPath,
+		"--trusted-root-digest", trusted.RootDigest,
+		"--successor-template", templatePath,
+		"--successor-template-digest", template.RootDigest,
+		"--unsigned", unsignedPath,
+		"--request", requestPath,
+		"--payload-digest", "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		"--authority", "trusted",
+		"--key", filepath.Join(trustedDir, "root.key.pem"),
+		"--output", output,
+	}, &stdout, &stderr)
+	if err == nil {
+		t.Fatal("tampered transition binding accepted")
+	}
+	if prompted {
+		t.Fatal("tampered transition binding prompted for a passphrase")
+	}
+	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+		t.Fatalf("binding failure wrote output: %v", statErr)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("binding failure wrote command output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
 func TestMaintainerCLIKnowledgeSignHelpDoesNotPromptOrWrite(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{"knowledge-sign", "init", "--help"}, &stdout, &stderr); err != nil {
@@ -363,5 +527,28 @@ func TestMaintainerCLIKnowledgeSignHelpDoesNotPromptOrWrite(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "knowledge-sign verify-key") || stderr.Len() != 0 {
 		t.Fatalf("unexpected help stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestMaintainerCLI_RootTransitionCommandsRouteAndRedact(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"knowledge-publish", "prepare-root-transition", "--help"}, &out, &errOut); err != nil || !strings.Contains(out.String(), "prepare-root-transition") || errOut.Len() != 0 {
+		t.Fatalf("publisher help out=%q err=%q stderr=%q", out.String(), err, errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if err := run([]string{"knowledge-publish", "finalize-root-transition", "--help"}, &out, &errOut); err != nil || !strings.Contains(out.String(), "finalize-root-transition") || !strings.Contains(out.String(), "--signatures") || errOut.Len() != 0 {
+		t.Fatalf("publisher finalizer help out=%q err=%q stderr=%q", out.String(), err, errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	if err := run([]string{"knowledge-sign", "sign-root-transition", "--help"}, &out, &errOut); err != nil || !strings.Contains(out.String(), "sign-root-transition") || errOut.Len() != 0 {
+		t.Fatalf("sign help out=%q err=%q stderr=%q", out.String(), err, errOut.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	err := run([]string{"knowledge-publish", "prepare-root-transition", "--trusted-root", "PRIVATE_ROOT_CANARY"}, &out, &errOut)
+	if err == nil || strings.Contains(err.Error(), "PRIVATE_ROOT_CANARY") || strings.Contains(errOut.String(), "PRIVATE_ROOT_CANARY") {
+		t.Fatalf("publisher rejection leaked: err=%q stderr=%q", err, errOut.String())
 	}
 }

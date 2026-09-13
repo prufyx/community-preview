@@ -159,3 +159,40 @@ created and synchronized first, then the plan. The command reports success only
 after both exist durably. If plan creation fails, the already durable package and
 any pre-existing plan file remain untouched and the command fails without a
 finalization receipt on stdout. Retry with new output paths.
+
+## Root-transition preparation
+
+A root transition is a separate, offline producer step. It does not publish a
+package, activate trust, replace an initialized store, or create a release plan.
+The trusted root and the self-signed successor template are supplied at every
+preparation and finalization boundary with independently checked digests. The
+template is only a proposed next policy until the old and successor root
+thresholds sign the same canonical successor payload.
+
+```sh
+prufyx-maintainer knowledge-publish prepare-root-transition \
+  --trusted-root /absolute/current-root.json --trusted-root-digest sha256:<current> \
+  --successor-template /absolute/proposed-root.json --successor-template-digest sha256:<template> \
+  --output /absolute/publisher/root-transition-step
+```
+
+Use `knowledge-sign sign-root-transition` once per root-key contribution, with
+both root files, the prepared unsigned metadata and request, its payload digest,
+and `--authority trusted|successor`. Then finalize with repeated `--signatures`
+paths. A key present in both root policies supplies one unique signature that may
+satisfy each threshold once. Duplicate key IDs, a contribution for another
+payload, a template/request mismatch, or either unsatisfied threshold is
+rejected. The JSON receipt proves only the returned successor-root bytes and
+threshold identities; it is not a trust bootstrap, custody proof, or publication.
+
+```sh
+prufyx-maintainer knowledge-publish finalize-root-transition \
+  --trusted-root /absolute/current-root.json --trusted-root-digest sha256:<current> \
+  --successor-template /absolute/proposed-root.json --successor-template-digest sha256:<template> \
+  --unsigned /absolute/publisher/root-transition-step/root.unsigned.json \
+  --request /absolute/publisher/root-transition-step/root.request.json \
+  --signatures /absolute/publisher/root-old-signature.json \
+  --signatures /absolute/publisher/root-successor-signature.json \
+  --output /absolute/publisher/2.root.json \
+  > /absolute/publisher/root-transition-receipt.json
+```

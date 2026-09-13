@@ -56,7 +56,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		return usageError()
 	}
-	if duplicateLongFlag(args[1:]) {
+	repeatable := ""
+	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-root-transition" {
+		repeatable = "--signatures"
+	}
+	if duplicateLongFlag(args[1:], repeatable) {
 		return &commandError{code: 2, message: "prufyx-maintainer: duplicate option rejected"}
 	}
 	switch args[0] {
@@ -145,14 +149,14 @@ func runLocalKind(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func duplicateLongFlag(args []string) bool {
+func duplicateLongFlag(args []string, repeatable string) bool {
 	seen := map[string]bool{}
 	for _, arg := range args {
 		if !strings.HasPrefix(arg, "--") || arg == "--" {
 			continue
 		}
 		name := strings.SplitN(arg, "=", 2)[0]
-		if seen[name] {
+		if seen[name] && name != repeatable {
 			return true
 		}
 		seen[name] = true

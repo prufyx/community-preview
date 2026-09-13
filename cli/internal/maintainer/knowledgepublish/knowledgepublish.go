@@ -383,30 +383,12 @@ func admitRoot(raw []byte, expected string) (*metadata.Metadata[metadata.RootTyp
 		return nil, "", fmt.Errorf("root identity: %w", ErrRejected)
 	}
 	root, err := metadata.Root().FromBytes(raw)
-	if err != nil || root == nil || len(root.UnrecognizedFields) != 0 || len(root.Signed.UnrecognizedFields) != 0 || root.Signed.Type != metadata.ROOT || !validVersion(root.Signed.Version) || !root.Signed.ConsistentSnapshot || !strings.HasPrefix(root.Signed.SpecVersion, "1.0.") || len(root.Signed.Roles) != 4 {
-		return nil, "", fmt.Errorf("root shape: %w", ErrRejected)
+	if err != nil || !validVersion(root.Signed.Version) || rootPolicy(root, true) != nil {
+		return nil, "", fmt.Errorf("root policy: %w", ErrRejected)
 	}
 	canonical, err := root.ToBytes(false)
-	if err != nil || !bytes.Equal(raw, canonical) || root.VerifyDelegate(metadata.ROOT, root) != nil {
-		return nil, "", fmt.Errorf("root signature: %w", ErrRejected)
-	}
-	for _, roleName := range []string{metadata.ROOT, metadata.TARGETS, metadata.SNAPSHOT, metadata.TIMESTAMP} {
-		role := root.Signed.Roles[roleName]
-		if role == nil || role.Threshold < 1 || role.Threshold > len(role.KeyIDs) || len(role.UnrecognizedFields) != 0 {
-			return nil, "", fmt.Errorf("root role policy: %w", ErrRejected)
-		}
-		seen := map[string]bool{}
-		for _, id := range role.KeyIDs {
-			key := root.Signed.Keys[id]
-			if seen[id] || !keyIDRE.MatchString(id) || key == nil || key.Type != metadata.KeyTypeEd25519 || key.Scheme != metadata.KeySchemeEd25519 || len(key.UnrecognizedFields) != 0 || len(key.Value.UnrecognizedFields) != 0 {
-				return nil, "", fmt.Errorf("root key policy: %w", ErrRejected)
-			}
-			computed, computeErr := key.ID()
-			if computeErr != nil || computed != id {
-				return nil, "", fmt.Errorf("root key identity: %w", ErrRejected)
-			}
-			seen[id] = true
-		}
+	if err != nil || !bytes.Equal(raw, canonical) {
+		return nil, "", fmt.Errorf("root canonical: %w", ErrRejected)
 	}
 	return root, expected, nil
 }

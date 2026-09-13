@@ -22,13 +22,94 @@ func runKnowledgePublish(args []string, stdout io.Writer) error {
 		return runPrepareSnapshot(args[1:])
 	case "prepare-timestamp":
 		return runPrepareTimestamp(args[1:])
+	case "prepare-root-transition":
+		return runPrepareRootTransition(args[1:], stdout)
 	case "finalize-role":
 		return runFinalizeRole(args[1:])
+	case "finalize-root-transition":
+		return runFinalizeRootTransition(args[1:], stdout)
 	case "finalize-package":
 		return runFinalizeKnowledgePackage(args[1:], stdout)
 	default:
 		return knowledgePublishError()
 	}
+}
+
+func runPrepareRootTransition(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("knowledge-publish prepare-root-transition", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var trusted, trustedDigest, template, templateDigest, output string
+	flags.StringVar(&trusted, "trusted-root", "", "currently trusted signed public root")
+	flags.StringVar(&trustedDigest, "trusted-root-digest", "", "independently verified trusted root SHA-256")
+	flags.StringVar(&template, "successor-template", "", "self-signed public successor root template")
+	flags.StringVar(&templateDigest, "successor-template-digest", "", "exact successor template SHA-256")
+	flags.StringVar(&output, "output", "", "new private transition step directory")
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			_, e := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-publish prepare-root-transition --trusted-root ABS --trusted-root-digest sha256:... --successor-template ABS --successor-template-digest sha256:... --output ABS")
+			return e
+		}
+		return knowledgePublishError()
+	}
+	if flags.NArg() != 0 || trusted == "" || trustedDigest == "" || template == "" || templateDigest == "" || output == "" || !filepath.IsAbs(output) {
+		return knowledgePublishError()
+	}
+	trustedRaw, e1 := readPublishInput(trusted, knowledgepublish.MaxRootBytes)
+	templateRaw, e2 := readPublishInput(template, knowledgepublish.MaxRootBytes)
+	p, err := knowledgepublish.PrepareRootTransition(knowledgepublish.RootTransitionOptions{TrustedRoot: trustedRaw, TrustedRootDigest: trustedDigest, SuccessorTemplate: templateRaw, SuccessorTemplateDigest: templateDigest})
+	if e1 != nil || e2 != nil || err != nil || knowledgepublish.WritePreparation(output, knowledgepublish.Preparation{Role: "root", UnsignedMetadata: p.UnsignedMetadata, Payload: p.Payload, Request: p.Request}) != nil {
+		return knowledgePublishError()
+	}
+	return nil
+}
+
+func runFinalizeRootTransition(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("knowledge-publish finalize-root-transition", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var trusted, trustedDigest, template, templateDigest, unsigned, request, output string
+	var signatures []string
+	flags.StringVar(&trusted, "trusted-root", "", "currently trusted signed public root")
+	flags.StringVar(&trustedDigest, "trusted-root-digest", "", "independently verified trusted root SHA-256")
+	flags.StringVar(&template, "successor-template", "", "self-signed public successor root template")
+	flags.StringVar(&templateDigest, "successor-template-digest", "", "exact successor template SHA-256")
+	flags.StringVar(&unsigned, "unsigned", "", "exact prepared unsigned successor root")
+	flags.StringVar(&request, "request", "", "exact prepared root-transition request")
+	flags.StringVar(&output, "output", "", "new finalized successor root")
+	flags.Func("signatures", "absolute root signature contribution; repeat for each contribution", func(v string) error { signatures = append(signatures, v); return nil })
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			_, e := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-publish finalize-root-transition --trusted-root ABS --trusted-root-digest sha256:... --successor-template ABS --successor-template-digest sha256:... --unsigned ABS --request ABS --signatures ABS [--signatures ABS ...] --output ABS")
+			return e
+		}
+		return knowledgePublishError()
+	}
+	if flags.NArg() != 0 || trusted == "" || trustedDigest == "" || template == "" || templateDigest == "" || unsigned == "" || request == "" || output == "" || len(signatures) == 0 || len(signatures) > 32 || !filepath.IsAbs(output) {
+		return knowledgePublishError()
+	}
+	tr, e1 := readPublishInput(trusted, knowledgepublish.MaxRootBytes)
+	tp, e2 := readPublishInput(template, knowledgepublish.MaxRootBytes)
+	un, e3 := readPublishInput(unsigned, knowledgepublish.MaxRootBytes)
+	rq, e4 := readPublishInput(request, knowledgepublish.MaxEnvelopeBytes)
+	all := make([][]byte, 0, len(signatures))
+	for _, path := range signatures {
+		raw, e := readPublishInput(path, knowledgepublish.MaxEnvelopeBytes)
+		if e != nil {
+			return knowledgePublishError()
+		}
+		all = append(all, raw)
+	}
+	finalized, receipt, err := knowledgepublish.FinalizeRootTransition(knowledgepublish.RootTransitionFinalizeOptions{RootTransitionOptions: knowledgepublish.RootTransitionOptions{TrustedRoot: tr, TrustedRootDigest: trustedDigest, SuccessorTemplate: tp, SuccessorTemplateDigest: templateDigest}, UnsignedMetadata: un, Request: rq, Signatures: all})
+	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || err != nil || knowledgepublish.WriteExclusive(output, finalized) != nil {
+		return knowledgePublishError()
+	}
+	raw, err := json.Marshal(receipt)
+	if err != nil {
+		return knowledgePublishError()
+	}
+	if _, err = fmt.Fprintln(stdout, string(raw)); err != nil {
+		return &commandError{code: 2, message: "knowledge-publish: receipt output failed"}
+	}
+	return nil
 }
 
 type publishCommon struct {
