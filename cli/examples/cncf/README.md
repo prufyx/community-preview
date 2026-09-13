@@ -1,5 +1,16 @@
 # CNCF source-constraint examples
 
+## Check the Prometheus remote-write HTTP/2 default
+
+The [`native-resources/prometheus`](native-resources/prometheus) directory has
+`remote-write-http2-blocked.yml`, `remote-write-http2-fixed.yml`, and
+`remote-write-http2-unknown.yml` for the exact Prometheus `2.55.1` to `3.14.0`
+rule. The blocked input omits the direct inline `enable_http2` key while the
+caller declares HTTP/2 required; the fixed input sets it to `true`; the unknown
+input puts a lookalike under `http_config`, which is not the source-backed
+field. See the [bounded command guide](../../docs/prometheus-remote-write-http2.md)
+for private-copy, digest, interpretation, and non-claim details.
+
 ## Check one Argo CD 3.5.2 Helm repository Secret
 
 [`argocd-35-plain-http-repository-secret.json`](argocd-35-plain-http-repository-secret.json)

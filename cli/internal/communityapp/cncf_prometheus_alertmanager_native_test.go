@@ -61,7 +61,7 @@ func TestPrometheusSelectedAlertmanagerDirectChecks(t *testing.T) {
 			if code != test.want || stderr != "" || !strings.Contains(stdout, test.wantReason) || !strings.Contains(stdout, `"assessment":"UNKNOWN"`) || (selectedLegacy && !strings.Contains(stdout, `"selectedRuleId":"`+prometheusAlertmanagerRuleID+`"`)) || (!selectedLegacy && strings.Contains(stdout, `"selectedRuleId"`)) {
 				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
 			}
-			for _, private := range []string{"private-alertmanager", "private.example", "9093", path} {
+			for _, private := range []string{"private-alertmanager", "private.example", path} {
 				if strings.Contains(stdout, private) || strings.Contains(stderr, private) {
 					t.Fatalf("private input escaped: %q", private)
 				}

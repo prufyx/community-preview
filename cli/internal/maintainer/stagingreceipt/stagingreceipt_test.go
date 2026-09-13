@@ -1,6 +1,7 @@
 package stagingreceipt
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -63,6 +64,105 @@ func TestExactDirectoryRejectsSymlinkAndExtra(t *testing.T) {
 		t.Fatal("extra entry accepted")
 	}
 }
+
+func TestExactDirectoryRejectsOversizedMetadataBeforeDigestingAssets(t *testing.T) {
+	b := t.TempDir()
+	for _, name := range requiredAssets() {
+		if err := os.WriteFile(filepath.Join(b, name), []byte("x"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(b, ChecksumsName), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(b, ChecksumsName), make([]byte, MaxMetadataBytes+1), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := exactDir(b, false); err == nil {
+		t.Fatal("oversized metadata accepted")
+	}
+}
+
+func TestExactDirectoryAcceptsLargeSourceManifestAndRejectsOversizedReceipt(t *testing.T) {
+	b := t.TempDir()
+	for _, name := range append(append([]string{}, requiredAssets()...), ChecksumsName, ReceiptName) {
+		if err := os.WriteFile(filepath.Join(b, name), []byte("x"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(b, "SOURCE-MANIFEST.json"), make([]byte, MaxMetadataBytes+1), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := exactDir(b, true); err != nil {
+		t.Fatalf("large source manifest rejected: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(b, ReceiptName), make([]byte, MaxMetadataBytes+1), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := exactDir(b, true); err == nil {
+		t.Fatal("oversized receipt accepted")
+	}
+}
+
+func TestExactDirectoryRejectsSparseAssetsOverAggregateBeforeHashing(t *testing.T) {
+	b := t.TempDir()
+	for _, name := range requiredAssets() {
+		if err := os.WriteFile(filepath.Join(b, name), []byte("x"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(b, ChecksumsName), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range requiredAssets()[len(requiredAssets())-3:] {
+		if err := os.Truncate(filepath.Join(b, name), 200<<20); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := exactDir(b, false); err == nil {
+		t.Fatal("aggregate oversized sparse assets accepted")
+	}
+}
+
+func TestExtractPublisherZipExtractsExactEntrySet(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "publisher.zip")
+	f, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := zip.NewWriter(f)
+	names := append(append([]string{}, requiredAssets()...), ChecksumsName, ReceiptName)
+	for _, name := range names {
+		entry, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte(name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := regularDigestLimit(zipPath, "publisher artifact ZIP", MaxArchiveBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "extracted")
+	if err := ExtractPublisherZip(zipPath, digest, target); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range names {
+		raw, err := os.ReadFile(filepath.Join(target, name))
+		if err != nil || string(raw) != name {
+			t.Fatalf("extracted %s = %q, %v", name, raw, err)
+		}
+	}
+}
 func TestArtifactBinding(t *testing.T) {
 	b := t.TempDir()
 	p := filepath.Join(b, "metadata.json")
@@ -74,6 +174,58 @@ func TestArtifactBinding(t *testing.T) {
 	}
 	if v["artifactId"] != int64(77) {
 		t.Fatalf("unexpected binding: %#v", v)
+	}
+}
+
+func TestArtifactBindingRejectsNonCanonicalDigestAndMissingWorkflowObject(t *testing.T) {
+	b := t.TempDir()
+	p := filepath.Join(b, "metadata.json")
+	base := map[string]any{"artifacts": []any{map[string]any{"id": int64(77), "name": ArtifactName, "digest": "sha256:" + repeat("d", 63) + "D", "expired": false, "workflow_run": map[string]any{"id": int64(1234)}}}}
+	writeJSON(t, p, base)
+	options := ArtifactBindingOptions{Metadata: p, Repository: Repository, RunID: "1234", ArtifactName: ArtifactName}
+	if _, err := ArtifactBinding(options); err == nil {
+		t.Fatal("uppercase artifact digest accepted")
+	}
+	base["artifacts"].([]any)[0].(map[string]any)["digest"] = "sha256:" + repeat("d", 64)
+	base["artifacts"].([]any)[0].(map[string]any)["workflow_run"] = []any{}
+	writeJSON(t, p, base)
+	if _, err := ArtifactBinding(options); err == nil {
+		t.Fatal("missing workflow run object accepted")
+	}
+}
+
+func TestPublisherHandoffBindsOneVerifiedBundleSnapshot(t *testing.T) {
+	id := newVerifiedBundle(t)
+	_, _, _, capturedReceipt, err := parseChecksumsSnapshot(id.BundleDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onDiskReceipt, err := os.ReadFile(filepath.Join(id.BundleDir, ReceiptName))
+	if err != nil || !bytes.Equal(capturedReceipt, onDiskReceipt) {
+		t.Fatalf("checksum snapshot did not retain receipt bytes: %v", err)
+	}
+	o := PublisherOptions{Identity: id, PublisherWorkflowSHA: "c" + repeat("0", 39), PublisherRunID: "5678", PublisherRunAttempt: "1", ArtifactID: "77", ArtifactDigest: repeat("d", 64), ArtifactSize: "17"}
+	handoff, err := PublisherHandoff(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := os.ReadFile(filepath.Join(id.BundleDir, ReceiptName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if handoff["stagingReceiptDigest"] != shaDigest(receipt) || len(handoff["assets"].([]map[string]any)) != len(requiredAssets()) {
+		t.Fatalf("handoff did not bind the verified bundle snapshot: %#v", handoff)
+	}
+}
+
+func TestPublisherHandoffRejectsReceiptWithChangedAsset(t *testing.T) {
+	id := newVerifiedBundle(t)
+	if err := os.WriteFile(filepath.Join(id.BundleDir, "LICENSE"), []byte("changed\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	o := PublisherOptions{Identity: id, PublisherWorkflowSHA: "c" + repeat("0", 39), PublisherRunID: "5678", PublisherRunAttempt: "1", ArtifactID: "77", ArtifactDigest: repeat("d", 64), ArtifactSize: "17"}
+	if _, err := PublisherHandoff(o); err == nil {
+		t.Fatal("publisher handoff accepted a receipt with changed asset bytes")
 	}
 }
 
@@ -188,4 +340,36 @@ func repeat(s string, n int) string {
 		out += s
 	}
 	return out
+}
+
+func newVerifiedBundle(t *testing.T) Identity {
+	t.Helper()
+	b := t.TempDir()
+	sourceSHA := "b" + repeat("0", 39)
+	for _, name := range requiredAssets() {
+		content := []byte(name + "\n")
+		if name == "SOURCE-REVISION" {
+			content = []byte(sourceSHA + "\n")
+		}
+		if err := os.WriteFile(filepath.Join(b, name), content, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sums bytes.Buffer
+	for _, name := range requiredAssets() {
+		raw, err := os.ReadFile(filepath.Join(b, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := sha256.Sum256(raw)
+		sums.WriteString(hex.EncodeToString(h[:]) + "  " + name + "\n")
+	}
+	if err := os.WriteFile(filepath.Join(b, ChecksumsName), sums.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	id := Identity{BundleDir: b, Repository: Repository, WorkflowPath: WorkflowPath, WorkflowSHA: "a" + repeat("0", 39), Event: Event, RunID: "1234", RunAttempt: "1", Ref: Ref, SourceSHA: sourceSHA, Version: Version}
+	if _, err := Generate(Options{Identity: id}); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

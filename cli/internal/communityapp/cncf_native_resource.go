@@ -52,9 +52,10 @@ func prometheusNativeRuleID(from, to string, alertmanager bool) string {
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
-func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, kubernetesDistribution string, targetAPIApplyRequired bool, ciliumDistribution string, args []string) int {
+func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, kubernetesDistribution string, targetAPIApplyRequired bool, ciliumDistribution, requestedRuleID, otelGate, otelRemote string, args []string, prometheusHTTP2Required *bool) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
 	prometheusAlertmanagerMode := project == "prometheus" && anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
+	prometheusRemoteWriteMode := project == "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required")
 	if project == "cloudnativepg" {
 		allowed = []string{"current-resource", "current-resource-digest", "resource", "resource-digest"}
 	} else if project == "nats" {
@@ -65,14 +66,20 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete", "distribution", "target-api-apply-required"}
 	} else if project == "cilium" {
 		allowed = []string{"cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution"}
+	} else if project == "coredns" {
+		allowed = []string{"coredns-corefile", "coredns-corefile-digest", "coredns-corefile-complete", "coredns-distribution"}
+	} else if project == "envoy" {
+		allowed = []string{"envoy-bootstrap", "envoy-bootstrap-digest", "envoy-bootstrap-selected"}
 	} else if project == "prometheus" {
-		if prometheusAlertmanagerMode {
+		if prometheusRemoteWriteMode {
+			allowed = []string{"prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required"}
+		} else if prometheusAlertmanagerMode {
 			allowed = []string{"alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved"}
 		} else {
 			allowed = []string{"scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved"}
 		}
 	} else if project == "opentelemetry" {
-		allowed = []string{"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved"}
+		allowed = []string{"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved", "otel-rule", "otel-metrics-localhost-default", "otel-metrics-remote-scrape-required"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -80,14 +87,14 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	var prepared cncfprepare.Prepared
 	var rawDigests []string
 	var expectedSourceDigest string
-	var selectedRuleID string
+	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "nats", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
-		if project == "prometheus" && !prometheusAlertmanagerMode && selectedJob == "" {
+		if project == "prometheus" && !prometheusAlertmanagerMode && !prometheusRemoteWriteMode && selectedJob == "" {
 			return r.usage("invalid Prometheus selected scrape configuration arguments; use --help")
 		}
 		raw, readErr := readCNCFPrivate(nativePath, 1<<20)
@@ -107,8 +114,12 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		} else if project == "nats" {
 			prepared, err = cncfprepare.PrepareNATS(raw, from, to)
 		} else if project == "opentelemetry" {
-			prepared, err = cncfprepare.PrepareOpenTelemetryCollector(raw, from, to, selectedJob, complete, precedenceResolved)
-			selectedRuleID = opentelemetryLoggingRuleID
+			if selectedRuleID == cncfprepare.OpenTelemetryInternalMetricsRuleID {
+				prepared, err = cncfprepare.PrepareOpenTelemetryInternalMetrics(raw, from, to, selectedJob, otelGate, otelRemote, complete, precedenceResolved)
+			} else {
+				prepared, err = cncfprepare.PrepareOpenTelemetryCollector(raw, from, to, selectedJob, complete, precedenceResolved)
+				selectedRuleID = opentelemetryLoggingRuleID
+			}
 		} else if project == "flux" {
 			prepared, err = cncfprepare.PrepareFlux(raw, from, to, resourceScopeComplete)
 		} else if project == "kubernetes" {
@@ -121,6 +132,13 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 				return r.usage("invalid Cilium distribution; use --help")
 			}
 			prepared, err = cncfprepare.PrepareCiliumClusterName(raw, from, to, ciliumDistribution, complete, precedenceResolved)
+		} else if project == "coredns" {
+			prepared, err = cncfprepare.PrepareCoreDNSCorefile(raw, from, to, selectedJob, complete)
+		} else if project == "envoy" {
+			prepared, err = cncfprepare.PrepareEnvoyBootstrap(raw, from, to, complete)
+		} else if prometheusRemoteWriteMode {
+			prepared, err = cncfprepare.PreparePrometheusRemoteWriteConfig(raw, selectedJob, from, to, complete, precedenceResolved, prometheusHTTP2Required)
+			selectedRuleID = cncfprepare.PrometheusRemoteWriteHTTP2RuleID
 		} else if prometheusAlertmanagerMode {
 			prepared, err = cncfprepare.PreparePrometheusAlertmanagerConfig(raw, from, to, complete, precedenceResolved)
 			selectedRuleID = prometheusNativeRuleID(from, to, true)
@@ -198,7 +216,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		if _, err := fmt.Fprintf(r.stdout, "%s native input review\nraw input digests: %s\nprepared input digest: %s\naggregate: UNKNOWN\nnetwork used: false\nwhole-upgrade compatibility: UNKNOWN\n", project, joinNativeDigests(rawDigests), prepared.InputDigest); err != nil {
 			return ExitIntegrity
 		}
-		if prometheusAlertmanagerMode {
+		if prometheusRemoteWriteMode {
+			if _, err := fmt.Fprintln(r.stdout, "selected input: one literal-name remote_write entry from the caller-supplied full configuration\nscope: direct enable_http2 and declared endpoint requirement only; negotiation, delivery, runtime flags, includes, and whole-config validity remain unverified"); err != nil {
+				return ExitIntegrity
+			}
+		} else if prometheusAlertmanagerMode {
 			selection := "literal api_version from the caller-selected mapping"
 			if prepared.Reason == cncfprepare.ReasonPrometheusAlertmanagerAPIDefaultV2 {
 				selection = "api_version omitted; exact target source-derived default v2"

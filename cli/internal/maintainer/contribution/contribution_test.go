@@ -3,6 +3,8 @@ package contribution
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -193,6 +195,16 @@ func TestCanonicalEscapesNonASCIILikeLegacyPackets(t *testing.T) {
 	}
 	if string(raw) != `{"name":"caf\u00e9 \ud83d\ude00"}` {
 		t.Fatalf("unexpected canonical JSON: %s", raw)
+	}
+}
+
+func TestCanonicalRejectsEncoderFailuresWithoutOutput(t *testing.T) {
+	raw, err := canonical(map[string]any{"not-a-json-number": math.Inf(1)}, true)
+	if !errors.Is(err, ErrRejected) {
+		t.Fatalf("expected rejected error, got %v", err)
+	}
+	if len(raw) != 0 {
+		t.Fatalf("returned canonical output after encoder failure: %q", raw)
 	}
 }
 

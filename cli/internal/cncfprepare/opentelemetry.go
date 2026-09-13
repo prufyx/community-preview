@@ -14,14 +14,22 @@ import (
 // under top-level exporters. Pipeline references are checked for dangling or
 // connector-only names, but cannot create that fact by themselves.
 const (
-	OpenTelemetryComponent            = "pkg:github/open-telemetry/opentelemetry-collector"
-	OpenTelemetryDistributionFact     = "component.opentelemetry.distribution"
-	OpenTelemetryLoggingExporterFact  = "component.opentelemetry.logging_exporter_present"
-	OpenTelemetryOfficialDistribution = "official"
-	OpenTelemetryCustomDistribution   = "custom"
-	OpenTelemetryFrom                 = "0.110.0"
-	OpenTelemetryTo                   = "0.111.0"
+	OpenTelemetryComponent                 = "pkg:github/open-telemetry/opentelemetry-collector"
+	OpenTelemetryDistributionFact          = "component.opentelemetry.distribution"
+	OpenTelemetryLoggingExporterFact       = "component.opentelemetry.logging_exporter_present"
+	OpenTelemetryMetricsOverrideAbsentFact = "component.opentelemetry.internal_metrics_override_absent"
+	OpenTelemetryMetricsGateFact           = "component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective"
+	OpenTelemetryMetricsRemoteRequiredFact = "component.opentelemetry.internal_metrics_remote_scrape_required"
+	OpenTelemetryMetricsConflictFact       = "component.opentelemetry.internal_metrics_localhost_remote_conflict"
+	OpenTelemetryConfigCompleteFact        = "component.opentelemetry.config_complete"
+	OpenTelemetryConfigPrecedenceFact      = "component.opentelemetry.config_precedence_resolved"
+	OpenTelemetryOfficialDistribution      = "official"
+	OpenTelemetryCustomDistribution        = "custom"
+	OpenTelemetryFrom                      = "0.110.0"
+	OpenTelemetryTo                        = "0.111.0"
 )
+
+const OpenTelemetryInternalMetricsRuleID = "opentelemetry.internal-telemetry-default-bind.0-110-to-0-111"
 
 const (
 	ReasonOpenTelemetryPresent     Reason = "OPENTELEMETRY_LOGGING_EXPORTER_CONFIGURED"
@@ -83,6 +91,132 @@ func PrepareOpenTelemetryCollector(raw []byte, from, to, distribution string, co
 			"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
 		},
 	}, nil
+}
+
+// PrepareOpenTelemetryInternalMetrics derives the narrow internal-metrics
+// default predicate. The feature-gate and remote-scrape values are explicit
+// caller declarations; the local YAML only establishes that it has no
+// service.telemetry.metrics override.
+func PrepareOpenTelemetryInternalMetrics(raw []byte, from, to, distribution, gateEffective, remoteScrapeRequired string, complete, precedenceResolved bool) (Prepared, error) {
+	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
+		return Prepared{}, ErrInvalid
+	}
+	if distribution != "" && distribution != OpenTelemetryOfficialDistribution && distribution != OpenTelemetryCustomDistribution {
+		return Prepared{}, ErrInvalid
+	}
+	gate, gateKnown := parseOpenTelemetryAuthority(gateEffective)
+	remote, remoteKnown := parseOpenTelemetryAuthority(remoteScrapeRequired)
+	overrideAbsent, supported := parseOpenTelemetryMetricsDefaultConfig(raw)
+	exactPair := from == OpenTelemetryFrom && to == OpenTelemetryTo
+	facts := []inputFact{
+		{ID: OpenTelemetryConfigCompleteFact, State: "unsupported"},
+		{ID: OpenTelemetryConfigPrecedenceFact, State: "unsupported"},
+		{ID: OpenTelemetryDistributionFact, State: "unsupported"},
+		{ID: OpenTelemetryMetricsConflictFact, State: "unsupported"},
+		{ID: OpenTelemetryMetricsOverrideAbsentFact, State: "unsupported"},
+		{ID: OpenTelemetryMetricsRemoteRequiredFact, State: "unsupported"},
+		{ID: OpenTelemetryMetricsGateFact, State: "unsupported"},
+	}
+	state, reason := StateUnknown, ReasonOpenTelemetryUnsupported
+	if distribution != "" {
+		facts[2] = inputFact{ID: OpenTelemetryDistributionFact, State: "declared", EnumValue: distribution}
+	}
+	if exactPair && distribution == OpenTelemetryOfficialDistribution && supported {
+		facts[0] = otelBoolFact(OpenTelemetryConfigCompleteFact, complete)
+		facts[1] = otelBoolFact(OpenTelemetryConfigPrecedenceFact, precedenceResolved)
+		facts[4] = otelBoolFact(OpenTelemetryMetricsOverrideAbsentFact, overrideAbsent)
+		if gateKnown {
+			facts[6] = otelBoolFact(OpenTelemetryMetricsGateFact, gate)
+		}
+		if remoteKnown {
+			facts[5] = otelBoolFact(OpenTelemetryMetricsRemoteRequiredFact, remote)
+		}
+		if gateKnown && remoteKnown {
+			facts[3] = otelBoolFact(OpenTelemetryMetricsConflictFact, gate && remote)
+		}
+		switch {
+		case !gateKnown || !remoteKnown:
+			reason = ReasonOpenTelemetryMetricsAuthorityMissing
+		case !complete || !precedenceResolved:
+			reason = ReasonOpenTelemetryIncomplete
+		case !overrideAbsent:
+			reason = ReasonOpenTelemetryMetricsOverride
+		default:
+			state, reason = StatePrepared, ReasonOpenTelemetryMetricsPrepared
+		}
+	} else if distribution == OpenTelemetryCustomDistribution {
+		reason = ReasonOpenTelemetryCustomDistribution
+	} else if !exactPair {
+		reason = ReasonOpenTelemetryUnsupported
+	} else if !supported {
+		reason = ReasonOpenTelemetryUnsupported
+	}
+	canonical, err := marshalComponentInput(OpenTelemetryComponent, from, to, facts)
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	return Prepared{CanonicalInputJSON: canonical, SourceDigest: digestBytes(raw), InputDigest: digestBytes(canonical), State: state, Reason: reason, Omissions: []string{
+		"CALLER_SUPPLIED_COLLECTOR_CONFIG_NOT_LIVE_OBSERVATION",
+		"FEATURE_GATE_AND_REMOTE_SCRAPE_REQUIREMENT_ARE_CALLER_DECLARATIONS",
+		"SERVICE_TELEMETRY_METRICS_OVERRIDE_IS_OUT_OF_SCOPE",
+		"NO_LISTENER_SERVICE_DNS_NETWORK_POLICY_OR_SCRAPE_BEHAVIOR_EVALUATED",
+		"WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED",
+	}}, nil
+}
+
+const (
+	ReasonOpenTelemetryMetricsPrepared         Reason = "OPENTELEMETRY_INTERNAL_METRICS_DEFAULT_SCOPE_PREPARED"
+	ReasonOpenTelemetryMetricsAuthorityMissing Reason = "OPENTELEMETRY_INTERNAL_METRICS_AUTHORITY_MISSING_OR_INVALID"
+	ReasonOpenTelemetryMetricsOverride         Reason = "OPENTELEMETRY_INTERNAL_METRICS_OVERRIDE_OUT_OF_SCOPE"
+	ReasonOpenTelemetryCustomDistribution      Reason = "OPENTELEMETRY_CUSTOM_DISTRIBUTION_DECLARED"
+)
+
+func parseOpenTelemetryAuthority(value string) (bool, bool) {
+	switch value {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func parseOpenTelemetryMetricsDefaultConfig(raw []byte) (bool, bool) {
+	_, supported := parseOpenTelemetryConfig(raw)
+	if !supported {
+		return false, false
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(raw))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil || len(document.Content) != 1 {
+		return false, false
+	}
+	root := document.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "service" {
+			continue
+		}
+		service := root.Content[i+1]
+		if service.Kind != yaml.MappingNode || service.ShortTag() != "!!map" {
+			return false, false
+		}
+		for j := 0; j+1 < len(service.Content); j += 2 {
+			if service.Content[j].Value != "telemetry" {
+				continue
+			}
+			telemetry := service.Content[j+1]
+			if telemetry.Kind != yaml.MappingNode || telemetry.ShortTag() != "!!map" {
+				return false, false
+			}
+			for k := 0; k+1 < len(telemetry.Content); k += 2 {
+				if telemetry.Content[k].Value == "metrics" {
+					return false, true
+				}
+			}
+		}
+	}
+	return true, true
 }
 
 func otelBoolFact(id string, value bool) inputFact {

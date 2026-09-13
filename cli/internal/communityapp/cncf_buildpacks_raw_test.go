@@ -62,7 +62,7 @@ func TestBuildpacksRawLifecycleUnknownAndModeGuards(t *testing.T) {
 	dir := t.TempDir()
 	current := filepath.Join(dir, "current.json")
 	proposed := filepath.Join(dir, "proposed.json")
-	currentRaw := writeLifecycleConfig(t, current, "0.16.5", []string{"0.11"}, "CURRENT_PRIVATE")
+	writeLifecycleConfig(t, current, "0.16.5", []string{"0.11"}, "CURRENT_PRIVATE")
 	writeLifecycleConfig(t, proposed, "0.17.6", []string{"0.12"}, "TARGET_PRIVATE")
 	code, output, stderr := runCNCFCLI(t, buildpacksRawArgs(current, proposed, "0.13", "human")...)
 	if code != ExitUnknown || stderr != "" || !strings.Contains(output, "RULE_FACT_UNAVAILABLE") {
@@ -85,7 +85,7 @@ func TestBuildpacksRawLifecycleUnknownAndModeGuards(t *testing.T) {
 	if code != ExitUnknown || stderr != "" || !strings.Contains(output, "current 0.11 (not declared supported)") || !strings.Contains(output, "RULE_APPLICABILITY_NOT_MATCHED") {
 		t.Fatalf("known unsupported current code=%d stderr=%q output=%s", code, stderr, output)
 	}
-	currentRaw = writeLifecycleConfig(t, current, "0.16.5", []string{"0.11"}, "CURRENT_PRIVATE")
+	writeLifecycleConfig(t, current, "0.16.5", []string{"0.11"}, "CURRENT_PRIVATE")
 	base := buildpacksRawArgs(current, proposed, "0.13", "json")
 	for _, extra := range [][]string{{"--input", current}, {"--service", current}, {"--config-map", current}, {"--knowledge-db", dir}, {"--replay-report", current}} {
 		code, stdout, stderr := runCNCFCLI(t, append(append([]string{}, base...), extra...)...)
@@ -110,7 +110,6 @@ func TestBuildpacksRawLifecycleUnknownAndModeGuards(t *testing.T) {
 	if code != ExitUsage || stdout != "" || !strings.Contains(stderr, "BUILDPACKS_LIFECYCLE_PREPARATION_INPUT_INVALID") || strings.Contains(stderr, "KNATIVE") || strings.Contains(stderr, malformed) {
 		t.Fatalf("malformed code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
-	_ = currentRaw
 }
 
 func assertBuildpacksRedacted(t *testing.T, output string, paths ...string) {

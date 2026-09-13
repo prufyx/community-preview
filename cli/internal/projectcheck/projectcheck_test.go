@@ -13,7 +13,7 @@ import (
 
 func TestClosedRegistryAndScopedResults(t *testing.T) {
 	projects, err := Projects()
-	if err != nil || len(projects) != 7 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" || projects[5] != "loki" || projects[6] != "mariadb" {
+	if err != nil || len(projects) != 8 || projects[0] != "argo-workflows" || projects[1] != "ceph" || projects[2] != "fluent-bit" || projects[3] != "grafana" || projects[4] != "kibana" || projects[5] != "loki" || projects[6] != "mariadb" || projects[7] != "mariadb-operator" {
 		t.Fatalf("projects=%v err=%v", projects, err)
 	}
 	now := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)

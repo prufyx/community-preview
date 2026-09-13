@@ -63,7 +63,7 @@ this example as proof that a cluster was converted or that traffic is safe.
 
 ## What is covered
 
-The current generated inventory reports **65 executable projects**, **110
+The current generated inventory reports **66 executable projects**, **110
 selected source references**, and **58 projects with retained source records**.
 The [full generated inventory](cli/docs/generated/community-support-inventory.json)
 contains the exact capabilities and source bindings.
@@ -88,12 +88,13 @@ and `UNKNOWN` boundary for every project. Notation remains an explicit
 qualification gap. Jaeger's retained `1.76.0` to `2.20.0` route is additional
 to the selected-pair count, and one selected Cortex pair was already present.
 Prometheus also has an additional canonical `2.55.1` to `3.14.0` depth
-route over existing declared facts; it does not change the 23-project,
+route over existing declared facts and a scoped native `remote_write`
+HTTP/2-default check; these do not change the 23-project,
 115-selected-pair matrix.
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The twenty-eight documented scenario examples are:
+The thirty-three documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -107,6 +108,10 @@ The twenty-eight documented scenario examples are:
 | Contour | 1.19.0 → 1.20.0 selected `networking.x-k8s.io/v1alpha1` resources need explicit migration | Kubernetes resource JSON |
 | CNI | spec 0.4.0 → 1.0.0 removes non-List configuration | plugin configuration JSON |
 | Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON |
+| CoreDNS | 1.13.2 → 1.14.7 rejects the removed `federation` directive | complete Corefile with declared official distribution |
+| Envoy | 1.38.4 → 1.39.1 blocks direct V2 xDS transport API versions at the selected ADS, LDS, or CDS paths | directly loaded JSON bootstrap selected by the caller; this route has no native PASS |
+| Prometheus | 2.55.1 → 3.14.0 checks one selected `remote_write` entry's direct `enable_http2` setting or reviewed omitted default against an explicit endpoint requirement | complete, precedence-resolved native Prometheus YAML with a unique literal entry name |
+| MariaDB Operator | 26.3.0 → 26.6.0 requires `autoUpdateDataPlane` for one complete Galera resource before the operator update | complete native `k8s.mariadb.com/v1alpha1` MariaDB JSON with Galera-only and pre-update declarations |
 | containerd | 1.7.28 → 2.0.0 removes two selected official bundled v1 runtime shims; upstream migration preserves the selected runtime type | complete, precedence-resolved native config.toml with an explicit handler and upstream/bundled-runtime declarations |
 | Distribution | 2.8.3 → 3.0.0 removes schema 1 manifests | manifest JSON |
 | Emissary-Ingress | 3.10.0 → 4.0.1 removes `diagd --metrics-endpoint` | caller-selected argv JSON |
@@ -123,13 +128,14 @@ The twenty-eight documented scenario examples are:
 | OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 removes the selected `logging` exporter | complete, precedence-resolved native Collector YAML with declared official distribution |
+| OpenTelemetry Collector | 0.110.0 → 0.111.0 checks the target internal-metrics localhost default against an explicit non-loopback scrape requirement when no metrics override is configured | complete, precedence-resolved native Collector YAML plus declared official distribution, effective feature gate, and scrape requirement |
 | Prometheus | 2.55.1 → 3.1.0 renames selected `scrape_classic_histograms` | complete, precedence-resolved scrape-config YAML |
 | Prometheus | 2.55.1 → 3.1.0 removes selected Alertmanager `api_version: v1` | complete, precedence-resolved `alerting.alertmanagers` entry YAML |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
 Custodian and Prometheus, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
-(Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, and MariaDB), with the input contract
+(Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
 an exact reviewed source contract. They do not identify a running installation.
 CNI numbers are specification editions, not a library release claim. OpenFGA's

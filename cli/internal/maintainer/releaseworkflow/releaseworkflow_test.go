@@ -45,6 +45,59 @@ func TestSourceTreeChecksumUsesCanonicalTarLabel(t *testing.T) {
 	}
 }
 
+func TestVerifySumsRequiresExactCanonicalReleaseAssets(t *testing.T) {
+	dir := t.TempDir()
+	assets := releaseAssets("v1.2.3")
+	lines := make([]string, 0, len(assets))
+	for _, name := range assets {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		digest, err := digest(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines = append(lines, strings.TrimPrefix(digest, "sha256:")+"  "+name)
+	}
+	write := func(rows []string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, "SHA256SUMS"), []byte(strings.Join(rows, "\n")+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(lines)
+	if err := verifySums(dir, assets); err != nil {
+		t.Fatalf("valid SHA256SUMS rejected: %v", err)
+	}
+	for name, mutate := range map[string]func([]string) []string{
+		"incomplete": func(rows []string) []string { return rows[:len(rows)-1] },
+		"duplicate": func(rows []string) []string {
+			rows[1] = rows[1][:66] + assets[0]
+			return rows
+		},
+		"traversal": func(rows []string) []string {
+			rows[0] = rows[0][:66] + "../" + assets[0]
+			return rows
+		},
+		"uppercase hash": func(rows []string) []string {
+			rows[0] = strings.ToUpper(rows[0][:64]) + rows[0][64:]
+			return rows
+		},
+		"unsorted": func(rows []string) []string {
+			rows[0], rows[1] = rows[1], rows[0]
+			return rows
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rows := append([]string(nil), lines...)
+			write(mutate(rows))
+			if err := verifySums(dir, assets); err == nil {
+				t.Fatal("invalid SHA256SUMS accepted")
+			}
+		})
+	}
+}
+
 func TestSmokeLayoutRejectsExtraAndSourceMembers(t *testing.T) {
 	makeLayout := func(t *testing.T) (string, string) {
 		t.Helper()

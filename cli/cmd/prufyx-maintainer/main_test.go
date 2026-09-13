@@ -22,8 +22,33 @@ func TestMaintainerCLI_Help(t *testing.T) {
 	}
 }
 
+func TestMaintainerCLI_ReviewRecordHelpAndOptionErrorsAreSanitized(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"review-record", "verify", "--help"}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "usage: prufyx-maintainer review-record verify") || !strings.Contains(out.String(), "--source-manifest") || errOut.Len() != 0 {
+		t.Fatalf("out=%q err=%q", out.String(), errOut.String())
+	}
+
+	tests := [][]string{
+		{"review-record", "verify", "--record", "PRIVATE_PATH_CANARY"},
+		{"review-record", "verify", "--record", "PRIVATE_PATH_CANARY", "--record", "second"},
+		{"review-record", "verify", "--unknown", "PRIVATE_PATH_CANARY"},
+		{"review-record", "verify", "PRIVATE_PATH_CANARY"},
+	}
+	for _, args := range tests {
+		out.Reset()
+		errOut.Reset()
+		err := run(args, &out, &errOut)
+		if err == nil || out.Len() != 0 || errOut.Len() != 0 || strings.Contains(err.Error(), "PRIVATE_PATH_CANARY") {
+			t.Fatalf("unsafe option failure: args=%v stdout=%q stderr=%q err=%q", args, out.String(), errOut.String(), err)
+		}
+	}
+}
+
 func TestMaintainerCLI_FlagErrorsAreSanitized(t *testing.T) {
-	tests := [][]string{{"export-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"package-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-publish", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-sign", "--PRIVATE_ARGUMENT_CANARY"}, {"support-inventory", "--PRIVATE_ARGUMENT_CANARY"}, {"contribution", "validate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-gate", "generate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-metadata", "--PRIVATE_ARGUMENT_CANARY"}, {"staging-receipt", "create", "--PRIVATE_ARGUMENT_CANARY"}}
+	tests := [][]string{{"export-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"package-knowledge", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-publish", "--PRIVATE_ARGUMENT_CANARY"}, {"knowledge-sign", "--PRIVATE_ARGUMENT_CANARY"}, {"support-inventory", "--PRIVATE_ARGUMENT_CANARY"}, {"contribution", "validate", "--PRIVATE_ARGUMENT_CANARY"}, {"review-record", "verify", "--record", "PRIVATE_ARGUMENT_CANARY"}, {"release-gate", "generate", "--PRIVATE_ARGUMENT_CANARY"}, {"release-metadata", "--PRIVATE_ARGUMENT_CANARY"}, {"staging-receipt", "create", "--PRIVATE_ARGUMENT_CANARY"}}
 	for _, args := range tests {
 		var out, errOut bytes.Buffer
 		err := run(args, &out, &errOut)
@@ -87,6 +112,28 @@ func TestMaintainerCLI_OutputPairRejectsUnsafeTargets(t *testing.T) {
 	}
 	if err := writeOutputPair(first, []byte("json"), second, []byte("markdown")); err == nil {
 		t.Fatal("expected directory rejection")
+	}
+}
+
+func TestMaintainerCLIKnowledgeReleasePlanSecondOutputFailureRetainsPackageAndExistingPlan(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	packagePath := filepath.Join(dir, "package.tar")
+	planPath := filepath.Join(dir, "plan.json")
+	oldPlan := []byte("existing-plan")
+	if err := os.WriteFile(planPath, oldPlan, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	packageRaw := []byte("verified-package")
+	if err := writePackageAndPlan(packagePath, packageRaw, planPath, []byte("new-plan")); err == nil {
+		t.Fatal("pre-existing plan did not fail ordered publication")
+	}
+	gotPackage, packageErr := os.ReadFile(packagePath)
+	gotPlan, planErr := os.ReadFile(planPath)
+	if packageErr != nil || planErr != nil || !bytes.Equal(gotPackage, packageRaw) || !bytes.Equal(gotPlan, oldPlan) {
+		t.Fatalf("ordered failure package=%q packageErr=%v plan=%q planErr=%v", gotPackage, packageErr, gotPlan, planErr)
 	}
 }
 

@@ -331,8 +331,10 @@ func acceptedCacheBytes(metaDir string, root []byte, profile profileSpec) (map[s
 				return nil, ErrIntegrity
 			}
 			result[name] = raw
-		} else if name != "root" && !os.IsNotExist(err) { /* updater may not have reached this role */
 		}
+		// Cached roles are optional: an interrupted updater can leave any role
+		// absent or unreadable. Only accepted, independently validated bytes are
+		// returned; the caller will verify required metadata before use.
 	}
 	return result, nil
 }

@@ -61,7 +61,8 @@ type PublisherOptions struct {
 // PublisherHandoff returns the read-only handoff evidence for a separately
 // authorized publisher. It does not contact a provider or grant write access.
 func PublisherHandoff(o PublisherOptions) (map[string]any, error) {
-	if _, err := Verify(Options{Identity: o.Identity}); err != nil {
+	verified, err := verifiedBundle(o.Identity)
+	if err != nil {
 		return nil, err
 	}
 	if _, err := exactHex(o.PublisherWorkflowSHA, 40); err != nil {
@@ -77,30 +78,22 @@ func PublisherHandoff(o PublisherOptions) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	assets, checksum, err := parseChecksums(o.BundleDir)
-	if err != nil {
-		return nil, err
-	}
 	runID, _ := parseInt(o.RunID)
 	publisherRun, _ := parseInt(o.PublisherRunID)
 	artifactID, _ := parseInt(o.ArtifactID)
 	artifactSize, _ := parseInt(o.ArtifactSize)
-	evidence := make([]map[string]any, 0, len(assets))
-	attestations := make([]map[string]any, 0, len(assets))
-	for _, asset := range assets {
+	evidence := make([]map[string]any, 0, len(verified.assets))
+	attestations := make([]map[string]any, 0, len(verified.assets))
+	for _, asset := range verified.assets {
 		name := asset["name"].(string)
-		st, e := os.Stat(filepath.Join(o.BundleDir, name))
-		if e != nil {
-			return nil, e
+		snapshot, ok := verified.snapshots[name]
+		if !ok {
+			return nil, reject("staged asset snapshot is incomplete")
 		}
-		evidence = append(evidence, map[string]any{"name": name, "sha256": asset["sha256"], "size": st.Size()})
+		evidence = append(evidence, map[string]any{"name": name, "sha256": "sha256:" + snapshot.digest, "size": snapshot.size})
 		attestations = append(attestations, map[string]any{"name": name, "status": "VERIFIED", "repository": Repository, "signerWorkflow": Repository + "/" + WorkflowPath, "signerDigest": o.WorkflowSHA, "sourceRef": o.Ref, "sourceDigest": o.SourceSHA, "denySelfHostedRunners": true})
 	}
-	receiptDigest, err := regularDigest(filepath.Join(o.BundleDir, ReceiptName), ReceiptName)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"schemaVersion": "prufyx.io/community-publisher-handoff/v1", "status": "PUBLISHER_HANDOFF_VERIFIED", "repository": Repository, "repositoryId": RepositoryID, "stagingWorkflowPath": WorkflowPath, "stagingWorkflowSha": o.WorkflowSHA, "stagingEvent": Event, "stagingRunId": runID, "stagingRunAttempt": int64(1), "stagingRef": Ref, "sourceSha": o.SourceSHA, "version": Version, "stagingArtifactName": ArtifactName, "publisherWorkflowPath": PublisherWorkflowPath, "publisherWorkflowRef": PublisherRef, "publisherWorkflowSha": o.PublisherWorkflowSHA, "publisherRunId": publisherRun, "publisherRunAttempt": int64(1), "stagingArtifactId": artifactID, "stagingArtifactDigest": "sha256:" + digest, "stagingArtifactSize": artifactSize, "checksumSetDigest": checksum, "stagingReceiptDigest": "sha256:" + receiptDigest, "assets": evidence, "attestations": attestations}, nil
+	return map[string]any{"schemaVersion": "prufyx.io/community-publisher-handoff/v1", "status": "PUBLISHER_HANDOFF_VERIFIED", "repository": Repository, "repositoryId": RepositoryID, "stagingWorkflowPath": WorkflowPath, "stagingWorkflowSha": o.WorkflowSHA, "stagingEvent": Event, "stagingRunId": runID, "stagingRunAttempt": int64(1), "stagingRef": Ref, "sourceSha": o.SourceSHA, "version": Version, "stagingArtifactName": ArtifactName, "publisherWorkflowPath": PublisherWorkflowPath, "publisherWorkflowRef": PublisherRef, "publisherWorkflowSha": o.PublisherWorkflowSHA, "publisherRunId": publisherRun, "publisherRunAttempt": int64(1), "stagingArtifactId": artifactID, "stagingArtifactDigest": "sha256:" + digest, "stagingArtifactSize": artifactSize, "checksumSetDigest": verified.checksum, "stagingReceiptDigest": shaDigest(verified.receipt), "assets": evidence, "attestations": attestations}, nil
 }
 func CreatePublisherHandoff(o PublisherOptions) error {
 	v, e := PublisherHandoff(o)
@@ -285,8 +278,8 @@ func regularRead(path, label string, max int64) ([]byte, error) {
 		return nil, reject("%s changed before being read", label)
 	}
 	b, e := io.ReadAll(io.LimitReader(f, max+1))
-	after, _ := f.Stat()
-	if e != nil || int64(len(b)) != before.Size() || int64(len(b)) > max || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
+	after, statErr := f.Stat()
+	if e != nil || statErr != nil || int64(len(b)) != before.Size() || int64(len(b)) > max || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
 		return nil, reject("%s changed while being read or exceeds its bound", label)
 	}
 	return b, nil
@@ -295,30 +288,37 @@ func regularDigest(path, label string) (string, error) {
 	return regularDigestLimit(path, label, MaxAssetBytes)
 }
 func regularDigestLimit(path, label string, max int64) (string, error) {
+	digest, _, err := regularDigestSizeLimit(path, label, max)
+	return digest, err
+}
+func regularDigestSizeLimit(path, label string, max int64) (string, int64, error) {
 	i, e := os.Lstat(path)
 	if e != nil || !i.Mode().IsRegular() || i.Mode()&os.ModeSymlink != 0 || links(i) != 1 || i.Size() > max {
-		return "", reject("%s must be a bounded regular single-link file", label)
+		return "", 0, reject("%s must be a bounded regular single-link file", label)
 	}
 	fd, e := syscall.Open(path, syscall.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC|syscall.O_NOFOLLOW, 0)
 	if e != nil {
-		return "", reject("cannot safely read %s", label)
+		return "", 0, reject("cannot safely read %s", label)
 	}
 	f := os.NewFile(uintptr(fd), path)
 	if f == nil {
-		return "", reject("cannot safely read %s", label)
+		return "", 0, reject("cannot safely read %s", label)
 	}
 	defer f.Close()
-	before, _ := f.Stat()
+	before, e := f.Stat()
+	if e != nil || !before.Mode().IsRegular() || links(before) != 1 || before.Size() != i.Size() {
+		return "", 0, reject("%s changed before being read", label)
+	}
 	h := sha256.New()
 	n, e := io.CopyN(h, f, max+1)
 	if e != nil && e != io.EOF {
-		return "", reject("cannot hash %s", label)
+		return "", 0, reject("cannot hash %s", label)
 	}
-	after, _ := f.Stat()
-	if n != before.Size() || n > max || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
-		return "", reject("%s changed while being read", label)
+	after, statErr := f.Stat()
+	if statErr != nil || n != before.Size() || n > max || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
+		return "", 0, reject("%s changed while being read", label)
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), before.Size(), nil
 }
 func requiredAssets() []string {
 	return []string{"Go-BSD-3-Clause.txt", "LICENSE", "NOTICE", "SBOM.spdx.json", "SOURCE-MANIFEST.json", "SOURCE-REVISION", "SOURCE-TREE.sha256", "THIRD-PARTY.md", "prufyx-cli_0.1.0-alpha.5_linux_amd64.tar.gz", "prufyx-cli_0.1.0-alpha.5_linux_arm64.tar.gz", "prufyx-cli_0.1.0-alpha.5_source.tar.gz"}
@@ -360,17 +360,60 @@ func exactDir(bundle string, receipt bool) error {
 			return reject("staging bundle has missing or unexpected entries")
 		}
 	}
+	var total int64
 	for n := range want {
-		if _, e := regularDigest(filepath.Join(bundle, n), "staging bundle entry "+n); e != nil {
+		limit := exactDirLimit(n)
+		i, e := os.Lstat(filepath.Join(bundle, n))
+		if e != nil || !i.Mode().IsRegular() || i.Mode()&os.ModeSymlink != 0 || links(i) != 1 || i.Size() > limit || i.Size() > MaxAssetBytes-total {
+			return reject("staging bundle entry %s exceeds its bound", n)
+		}
+		total += i.Size()
+	}
+	var actualTotal int64
+	for n := range want {
+		limit := exactDirLimit(n)
+		if remaining := MaxAssetBytes - actualTotal; limit > remaining {
+			limit = remaining
+		}
+		_, size, e := regularDigestSizeLimit(filepath.Join(bundle, n), "staging bundle entry "+n, limit)
+		if e != nil {
 			return e
 		}
+		actualTotal += size
 	}
 	return nil
 }
+func exactDirLimit(name string) int64 {
+	if name == ChecksumsName || name == ReceiptName {
+		return MaxMetadataBytes
+	}
+	return MaxAssetBytes
+}
 func parseChecksums(bundle string) ([]map[string]any, string, error) {
+	rows, _, digest, _, err := parseChecksumsSnapshot(bundle)
+	return rows, digest, err
+}
+
+type assetSnapshot struct {
+	digest string
+	size   int64
+}
+
+func parseChecksumsSnapshot(bundle string) ([]map[string]any, map[string]assetSnapshot, string, []byte, error) {
 	raw, e := regularRead(filepath.Join(bundle, ChecksumsName), ChecksumsName, MaxMetadataBytes)
 	if e != nil {
-		return nil, "", e
+		return nil, nil, "", nil, e
+	}
+	total := int64(len(raw))
+	var receipt []byte
+	if _, e := os.Lstat(filepath.Join(bundle, ReceiptName)); e == nil {
+		receipt, e = regularRead(filepath.Join(bundle, ReceiptName), ReceiptName, MaxMetadataBytes)
+		if e != nil || int64(len(receipt)) > MaxAssetBytes-total {
+			return nil, nil, "", nil, reject("staging receipt exceeds its bound")
+		}
+		total += int64(len(receipt))
+	} else if !os.IsNotExist(e) {
+		return nil, nil, "", nil, reject("cannot safely stat staging receipt")
 	}
 	parts := bytes.SplitAfter(raw, []byte{'\n'})
 	names := []string{}
@@ -380,16 +423,16 @@ func parseChecksums(bundle string) ([]map[string]any, string, error) {
 			continue
 		}
 		if len(line) < 68 || line[64] != ' ' || line[65] != ' ' || line[len(line)-1] != '\n' {
-			return nil, "", reject("SHA256SUMS has a non-canonical line")
+			return nil, nil, "", nil, reject("SHA256SUMS has a non-canonical line")
 		}
 		d := string(line[:64])
 		name := string(line[66 : len(line)-1])
 		if _, e := exactHex(d, 64); e != nil || name == "" || name != filepath.Base(name) || strings.ContainsAny(name, "/\\\x00\r\n") {
-			return nil, "", reject("SHA256SUMS has a non-canonical line")
+			return nil, nil, "", nil, reject("SHA256SUMS has a non-canonical line")
 		}
 		for _, n := range names {
 			if n == name {
-				return nil, "", reject("SHA256SUMS contains a duplicate asset")
+				return nil, nil, "", nil, reject("SHA256SUMS contains a duplicate asset")
 			}
 		}
 		names = append(names, name)
@@ -397,36 +440,46 @@ func parseChecksums(bundle string) ([]map[string]any, string, error) {
 	}
 	want := requiredAssets()
 	if len(names) != len(want) {
-		return nil, "", reject("SHA256SUMS asset set is not the fixed staging set")
+		return nil, nil, "", nil, reject("SHA256SUMS asset set is not the fixed staging set")
 	}
+	snapshots := make(map[string]assetSnapshot, len(names))
 	for i, n := range names {
 		if n != want[i] {
-			return nil, "", reject("SHA256SUMS asset set is not the fixed staging set")
+			return nil, nil, "", nil, reject("SHA256SUMS asset set is not the fixed staging set")
 		}
-		got, e := regularDigest(filepath.Join(bundle, n), "staged asset "+n)
+		remaining := MaxAssetBytes - total
+		got, size, e := regularDigestSizeLimit(filepath.Join(bundle, n), "staged asset "+n, remaining)
 		if e != nil || got != rows[i]["sha256"].(string)[7:] {
-			return nil, "", reject("staged asset digest mismatch for %s", n)
+			return nil, nil, "", nil, reject("staged asset digest mismatch for %s", n)
 		}
+		total += size
+		snapshots[n] = assetSnapshot{digest: got, size: size}
 	}
-	return rows, shaDigest(raw), nil
+	return rows, snapshots, shaDigest(raw), receipt, nil
 }
 func expected(i Identity, bundle string) (map[string]any, error) {
 	if e := identityCheck(i); e != nil {
 		return nil, e
 	}
-	a, d, e := parseChecksums(bundle)
+	assets, checksum, e := parseChecksums(bundle)
 	if e != nil {
 		return nil, e
 	}
-	r, e := regularRead(filepath.Join(bundle, "SOURCE-REVISION"), "SOURCE-REVISION", MaxMetadataBytes)
-	if e != nil || string(r) != i.SourceSHA+"\n" {
+	sourceRevision, e := regularRead(filepath.Join(bundle, "SOURCE-REVISION"), "SOURCE-REVISION", MaxMetadataBytes)
+	if e != nil {
+		return nil, e
+	}
+	return expectedFromAssets(i, assets, checksum, sourceRevision)
+}
+func expectedFromAssets(i Identity, assets []map[string]any, checksum string, sourceRevision []byte) (map[string]any, error) {
+	if string(sourceRevision) != i.SourceSHA+"\n" {
 		return nil, reject("SOURCE-REVISION does not match staged source SHA")
 	}
 	run, e := parseInt(i.RunID)
 	if e != nil {
 		return nil, e
 	}
-	return map[string]any{"schemaVersion": "prufyx.io/community-staging-receipt/v1", "status": "STAGED_BUILD_VERIFIED", "repository": i.Repository, "workflowPath": i.WorkflowPath, "workflowSha": i.WorkflowSHA, "event": i.Event, "runId": run, "runAttempt": int64(1), "ref": i.Ref, "sourceSha": i.SourceSHA, "version": i.Version, "artifactName": ArtifactName, "assets": a, "checksumSetDigest": d, "receiptExcludedFromChecksumSet": true, "attestationSubjects": "assets_listed_in_SHA256SUMS"}, nil
+	return map[string]any{"schemaVersion": "prufyx.io/community-staging-receipt/v1", "status": "STAGED_BUILD_VERIFIED", "repository": i.Repository, "workflowPath": i.WorkflowPath, "workflowSha": i.WorkflowSHA, "event": i.Event, "runId": run, "runAttempt": int64(1), "ref": i.Ref, "sourceSha": i.SourceSHA, "version": i.Version, "artifactName": ArtifactName, "assets": assets, "checksumSetDigest": checksum, "receiptExcludedFromChecksumSet": true, "attestationSubjects": "assets_listed_in_SHA256SUMS"}, nil
 }
 func equal(a, b any) bool {
 	switch x := a.(type) {
@@ -485,27 +538,54 @@ func Generate(o Options) (map[string]any, error) {
 	return v, nil
 }
 func Verify(o Options) (map[string]any, error) {
-	if e := exactDir(o.BundleDir, true); e != nil {
-		return nil, e
-	}
-	want, e := expected(o.Identity, o.BundleDir)
+	verified, e := verifiedBundle(o.Identity)
 	if e != nil {
 		return nil, e
 	}
-	raw, e := regularRead(filepath.Join(o.BundleDir, ReceiptName), ReceiptName, MaxMetadataBytes)
-	if e != nil {
-		return nil, e
+	return verified.receiptValue, nil
+}
+
+type bundleSnapshot struct {
+	assets       []map[string]any
+	snapshots    map[string]assetSnapshot
+	checksum     string
+	receipt      []byte
+	receiptValue map[string]any
+}
+
+func verifiedBundle(i Identity) (bundleSnapshot, error) {
+	if e := identityCheck(i); e != nil {
+		return bundleSnapshot{}, e
 	}
-	actual, e := decodeStrict(raw)
+	if e := exactDir(i.BundleDir, true); e != nil {
+		return bundleSnapshot{}, e
+	}
+	assets, snapshots, checksum, receipt, e := parseChecksumsSnapshot(i.BundleDir)
 	if e != nil {
-		return nil, reject("staging receipt is not valid strict JSON")
+		return bundleSnapshot{}, e
+	}
+	sourceRevision, e := regularRead(filepath.Join(i.BundleDir, "SOURCE-REVISION"), "SOURCE-REVISION", MaxMetadataBytes)
+	if e != nil {
+		return bundleSnapshot{}, e
+	}
+	sourceSnapshot, ok := snapshots["SOURCE-REVISION"]
+	if !ok || sourceSnapshot.digest != strings.TrimPrefix(shaDigest(sourceRevision), "sha256:") || sourceSnapshot.size != int64(len(sourceRevision)) {
+		return bundleSnapshot{}, reject("SOURCE-REVISION changed after checksum verification")
+	}
+	want, e := expectedFromAssets(i, assets, checksum, sourceRevision)
+	if e != nil {
+		return bundleSnapshot{}, e
+	}
+	actual, e := decodeStrict(receipt)
+	if e != nil {
+		return bundleSnapshot{}, reject("staging receipt is not valid strict JSON")
 	}
 	can, _ := canonical(actual)
 	wantRaw, _ := canonical(want)
-	if !bytes.Equal(raw, can) || !bytes.Equal(raw, wantRaw) {
-		return nil, reject("staging receipt does not bind the exact verified bundle")
+	if !bytes.Equal(receipt, can) || !bytes.Equal(receipt, wantRaw) {
+		return bundleSnapshot{}, reject("staging receipt does not bind the exact verified bundle")
 	}
-	return want, nil
+	return bundleSnapshot{assets: assets, snapshots: snapshots, checksum: checksum, receipt: receipt, receiptValue: want}, nil
 }
 func ArtifactBinding(o ArtifactBindingOptions) (map[string]any, error) {
 	if o.Repository != Repository || o.ArtifactName != ArtifactName || !decimalPositive(o.RunID) {
@@ -549,7 +629,8 @@ func ArtifactBinding(o ArtifactBindingOptions) (map[string]any, error) {
 		return nil, reject("artifact metadata has an invalid artifact ID")
 	}
 	dg, ok := found["digest"].(string)
-	if !ok || len(dg) != 71 || !strings.HasPrefix(dg, "sha256:") {
+	digest, e := exactHex(dg, 64)
+	if !ok || e != nil || len(dg) != 71 || !strings.HasPrefix(dg, "sha256:") {
 		return nil, reject("artifact metadata has an invalid artifact digest")
 	}
 	expired, ok := found["expired"].(bool)
@@ -557,6 +638,9 @@ func ArtifactBinding(o ArtifactBindingOptions) (map[string]any, error) {
 		return nil, reject("artifact metadata does not bind current unexpired run")
 	}
 	wr, ok := found["workflow_run"].(map[string]any)
+	if !ok {
+		return nil, reject("artifact metadata does not bind current run")
+	}
 	rid, ok := wr["id"].(json.Number)
 	if !ok {
 		return nil, reject("artifact metadata does not bind current run")
@@ -569,7 +653,7 @@ func ArtifactBinding(o ArtifactBindingOptions) (map[string]any, error) {
 	if e != nil || rn != run {
 		return nil, reject("artifact metadata does not bind current run")
 	}
-	return map[string]any{"artifactDigest": dg, "artifactId": n, "artifactName": ArtifactName, "runId": run}, nil
+	return map[string]any{"artifactDigest": "sha256:" + digest, "artifactId": n, "artifactName": ArtifactName, "runId": run}, nil
 }
 
 func strictObject(path, label string) (map[string]any, error) {
@@ -792,6 +876,9 @@ func ExtractPublisherZip(zipPath, expectedSHA, target string) error {
 	}
 	parent := filepath.Dir(target)
 	name := filepath.Base(target)
+	if name == "." || name == string(filepath.Separator) || name == "" || filepath.Clean(target) != filepath.Join(parent, name) {
+		return reject("publisher extraction target is invalid")
+	}
 	parentRoot, e := os.OpenRoot(parent)
 	if e != nil {
 		return reject("publisher extraction parent is unavailable")
@@ -814,12 +901,22 @@ func ExtractPublisherZip(zipPath, expectedSHA, target string) error {
 	if e = parentRoot.Mkdir(name, 0700); e != nil {
 		return e
 	}
-	bundleRoot, e := os.OpenRoot(filepath.Join(parent, name))
+	created, e := parentRoot.Lstat(name)
+	if e != nil || !created.IsDir() || created.Mode()&os.ModeSymlink != 0 {
+		_ = parentRoot.RemoveAll(name)
+		return reject("cannot safely open publisher extraction target")
+	}
+	bundleRoot, e := parentRoot.OpenRoot(name)
 	if e != nil {
 		_ = parentRoot.RemoveAll(name)
 		return reject("cannot safely open publisher extraction target")
 	}
 	defer bundleRoot.Close()
+	opened, e := bundleRoot.Stat(".")
+	if e != nil || !opened.IsDir() || !os.SameFile(created, opened) {
+		_ = parentRoot.RemoveAll(name)
+		return reject("publisher extraction target changed before opening")
+	}
 	complete := false
 	defer func() {
 		if !complete {
@@ -844,11 +941,17 @@ func ExtractPublisherZip(zipPath, expectedSHA, target string) error {
 			in.Close()
 			return e
 		}
-		_, e = io.CopyN(out, in, int64(f.UncompressedSize64)+1)
-		in.Close()
-		out.Close()
-		if e != nil && e != io.EOF {
-			return e
+		written, copyErr := io.CopyN(out, in, int64(f.UncompressedSize64)+1)
+		inErr := in.Close()
+		outErr := out.Close()
+		if copyErr != nil && copyErr != io.EOF {
+			return copyErr
+		}
+		if written != int64(f.UncompressedSize64) {
+			return reject("publisher artifact ZIP entry size mismatch")
+		}
+		if inErr != nil || outErr != nil {
+			return reject("cannot safely finalize publisher artifact ZIP entry")
 		}
 	}
 	if len(seen) != len(allowed) {

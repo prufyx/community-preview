@@ -52,6 +52,37 @@ prufyx check cncf --project kyverno --input ./kyverno-input.json \
   --knowledge-db ./cncf-store --format json
 ```
 
+For the CNCF publisher path, a local canonical release plan can replace manual
+transcription of the URL, package digest, revision, target digest, capability,
+and verified TUF role identities:
+
+```sh
+prufyx db update --release-plan ./cncf-1.release-plan.json \
+  --package-out ./packages/cncf-1.tar --db-root ./cncf-store \
+  --bootstrap-root ./root.json \
+  --bootstrap-root-digest sha256:<independently-verified-root-digest> \
+  --format json
+```
+
+`prufyx.io/knowledge-release-plan/v1` is an unsigned, closed canonical JSON
+routing and assertion file. It supports only profile `cncf`, the fixed
+`knowledge/constraints.v1.json` target, and one unrotated publisher root. Its
+authority value is `UNSIGNED_ROUTING_AND_ASSERTIONS_NOT_TRUST`. The plan has no
+root bytes, credentials, local configuration, issuer, or signature and cannot
+authorize bootstrap. An empty store still requires the independently obtained
+root path and digest shown above. An initialized store uses its retained trust;
+omit bootstrap flags on later updates. Rotated root histories continue through
+the existing manual import/update path.
+
+Plan mode is mutually exclusive with `--source`, `--profile`,
+`--expected-revision`, and `--expected-bundle-digest`. The plan is read locally
+before an output is reserved or a fetch begins. Its package digest is checked
+before the store is opened. Its root history, role identities and expiries are
+compared with material actually authenticated by TUF, and its target purpose and
+capability are compared after semantic admission. A later assertion mismatch can
+advance authenticated trust, but cannot select the mismatched revision; the
+failure receipt reports trust and selection separately.
+
 Provide a private minimized input as described in the [CNCF guide](CNCF-SOURCE-PREVIEW.md).
 Select the updated store explicitly with `--knowledge-db`. Updating a store
 does not change the embedded rules or the default selection used without that flag.
@@ -121,6 +152,20 @@ release. For a newly reviewed exact pair, a data-only rule over existing canonic
 facts can use the current binary when those facts are declared manually. Optional
 `prepare cncf` adapters support only documented pairs, so extending raw-input
 preparation can require a CLI update even without a new fact type.
+
+Manual imports retain the existing v1 pending and trust-receipt bytes. A plan
+import opts into v2 records that bind a digest of its verified assertions. If a
+valid selection was originally imported manually, a plan for the same exact
+revision re-verifies it and creates an assertion-bound v2 receipt; it does not
+claim the old receipt checked the plan. Recovery requires the same plan
+assertions. Older binaries fail closed on these opt-in v2 records, so finish or
+recover a plan transaction with a plan-capable binary before rolling back, or
+restore a prior local store backup.
+
+`expectedVerificationAssertionsDigest` is the SHA-256 of the compact JSON
+encoding returned by the typed plan's `VerificationAssertions`; package,
+revision, and target digests remain separate pending-record fields. This digest
+is a recovery consistency identity and does not authenticate the plan.
 
 ## Prepare a signed package
 

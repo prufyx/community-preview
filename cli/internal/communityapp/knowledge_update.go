@@ -17,9 +17,10 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/knowledge"
 	"github.com/prufyx/prufyx-cli/internal/knowledgecheck"
 	"github.com/prufyx/prufyx-cli/internal/knowledgefetch"
+	"github.com/prufyx/prufyx-cli/internal/knowledgereleaseplan"
 )
 
-const updateUsage = "Usage: prufyx db update --source HTTPS_URL --package-out FILE --db-root DIR [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--bootstrap-root FILE --bootstrap-root-digest SHA256] [--expected-revision REVISION] [--expected-bundle-digest SHA256] [--format human|json]"
+const updateUsage = "Usage: prufyx db update (--source HTTPS_URL [--profile cert-manager|cncf|spiffe-x509-svid|cloudevents-structured-json|tikv-gcp-v2-wif-backup] [--expected-revision REVISION] [--expected-bundle-digest SHA256] | --release-plan LOCAL_FILE) --package-out FILE --db-root DIR [--bootstrap-root FILE --bootstrap-root-digest SHA256] [--format human|json]"
 
 type knowledgeUpdateOutput struct {
 	APIVersion             string                   `json:"apiVersion"`
@@ -44,12 +45,13 @@ func (r runtime) databaseUpdate(ctx context.Context, args []string) int {
 // private check inputs and environment-derived clients never enter this API.
 func (r runtime) databaseUpdateWithFetch(ctx context.Context, args []string, fetch func(context.Context, string) ([]byte, error)) int {
 	if hasHelp(args) {
-		fmt.Fprintln(r.stdout, updateUsage+"\n\nExplicitly fetch a complete package, retain it privately, then verify and import\nlocally. The output must be new, outside the store, in an existing 0700 directory.\nObtain the initial root and its identity independently. No official Prufyx feed\nor root is configured. Checks, replay, import and status remain offline.")
+		fmt.Fprintln(r.stdout, updateUsage+"\n\nExplicitly fetch a complete package, retain it privately, then verify and import\nlocally. A release plan supplies unsigned routing and exact verification assertions;\nit never supplies bootstrap trust. The output must be new, outside the store, in\nan existing 0700 directory. Obtain the initial root and its identity independently.\nNo official Prufyx feed or root is configured. Checks, replay, import and status\nremain offline.")
 		return ExitOK
 	}
 	fs := flag.NewFlagSet("db update", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	source := fs.String("source", "", "explicit HTTPS complete-package URL")
+	releasePlan := fs.String("release-plan", "", "local canonical unsigned routing and assertion plan")
 	packageOut := fs.String("package-out", "", "new retained package file in a private directory outside the store")
 	dbRoot := fs.String("db-root", "", "private knowledge store root")
 	profile := fs.String("profile", "cert-manager", "cert-manager, cncf, spiffe-x509-svid, cloudevents-structured-json, or tikv-gcp-v2-wif-backup in separate directories")
@@ -58,12 +60,28 @@ func (r runtime) databaseUpdateWithFetch(ctx context.Context, args []string, fet
 	expectedRevision := fs.String("expected-revision", "", "optional exact semantic revision assertion")
 	expectedBundle := fs.String("expected-bundle-digest", "", "optional exact target SHA-256 assertion")
 	format := fs.String("format", "human", "human or json")
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *packageOut == "" || *dbRoot == "" || !validKnowledgeProfile(*profile) || (*format != "human" && *format != "json") || (*bootstrapRoot == "") != (*bootstrapDigest == "") || knowledgefetch.ValidateSource(*source) != nil {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *packageOut == "" || *dbRoot == "" || (*format != "human" && *format != "json") || (*bootstrapRoot == "") != (*bootstrapDigest == "") {
+		return r.usage("invalid database update arguments; use --help")
+	}
+	planMode := *releasePlan != ""
+	if (planMode && anyFlagProvided(args, "source", "profile", "expected-revision", "expected-bundle-digest")) || (!planMode && (knowledgefetch.ValidateSource(*source) != nil || !validKnowledgeProfile(*profile))) {
 		return r.usage("invalid database update arguments; use --help")
 	}
 	req := knowledge.ImportRequest{
 		StoreRoot: *dbRoot, BootstrapRootPath: *bootstrapRoot, BootstrapRootDigest: *bootstrapDigest,
 		ExpectedRevision: *expectedRevision, ExpectedBundleDigest: *expectedBundle,
+	}
+	if planMode {
+		plan, err := knowledgereleaseplan.Read(*releasePlan)
+		if err != nil {
+			return r.usage("invalid database release plan; use --help")
+		}
+		assertions := plan.VerificationAssertions()
+		*source, *profile = plan.Package.URL, plan.Profile
+		req.ExpectedPackageDigest = plan.Package.Digest
+		req.ExpectedRevision = plan.Target.Revision
+		req.ExpectedBundleDigest = plan.Target.Digest
+		req.ExpectedVerification = &assertions
 	}
 	if err := knowledge.ValidateImportAssertions(req); err != nil {
 		return r.knowledgeError("invalid local database update assertions", err)
@@ -171,7 +189,9 @@ func (r runtime) databaseUpdateWithFetch(ctx context.Context, args []string, fet
 		return finish(ExitIntegrity)
 	}
 	req.PackagePath = packagePath
-	req.ExpectedPackageDigest = output.PackageDigest
+	if req.ExpectedPackageDigest == "" {
+		req.ExpectedPackageDigest = output.PackageDigest
+	}
 	var receipt knowledge.ImportReceipt
 	if *profile == "cncf" {
 		receipt, err = knowledge.ImportConstraints(req)

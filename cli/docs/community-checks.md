@@ -61,6 +61,85 @@ or prove configuration startup, container creation, or whole-upgrade behavior.
 See the private-copy walkthrough and BLOCKED, PASS, and UNKNOWN examples in
 [`examples/cncf/containerd-runtime-shim`](../examples/cncf/containerd-runtime-shim/README.md).
 
+## CoreDNS direct federation directive
+
+The native Corefile route evaluates the presence of a direct, literal
+`federation` directive for only the reviewed `1.6.9` to `1.7.0` transition and
+the `1.9.4`, `1.10.1`, `1.11.4`, `1.12.4`, or `1.13.2` to `1.14.7`
+transitions. It is a local usability route for the existing CoreDNS federation
+rule; it does not add a project, rule, or upgrade-pair claim.
+
+Copy a synthetic Corefile to a private local path before use:
+
+```sh
+umask 077
+cp examples/cncf/coredns-corefile/blocked.Corefile Corefile
+chmod 600 Corefile
+./prufyx check cncf --project coredns \
+  --coredns-corefile Corefile --coredns-corefile-complete \
+  --coredns-distribution official --from 1.13.2 --to 1.14.7 \
+  --now 2026-09-13T00:00:00Z
+```
+
+The caller declares that the selected local Corefile is complete and belongs to
+the official distribution. The parser detects only a literal `federation`
+token in a direct directive position inside a simple server block. A direct
+directive is `BLOCKED`; a safely admitted absence is a scoped `PASS` for this
+one federation-removal constraint. Distribution identity, completeness, other
+plugin validity, referenced files, DNS behavior, runtime state, and whole
+upgrade safety are outside the result.
+
+Balanced brace-delimited plugin bodies are admitted structurally up to 32
+levels, but their properties are opaque and a `federation` token inside one is
+not a direct directive. `import`, snippets, substitutions, quoted or escaped
+text, malformed Corefile structure, and deeper nesting return `UNKNOWN` rather
+than a negative-presence PASS. The parser does not read referenced files or
+execute CoreDNS. Pinned
+CoreDNS `1.14.7` documentation supports server blocks, comments, imports, and
+substitutions (`corefile.5.md` lines 5-11 and 28-37) and ordinary plugin bodies
+(`plugin/health/README.md` lines 19-25; `plugin/forward/README.md` lines
+34-56). Pinned source evidence for the existing rule is the CoreDNS `1.7.0`
+release note at commit `f59c03d09c3a3a12f571ad1087b979325f3dae30` and the
+`1.14.7` `plugin.cfg` at commit
+`427fc80ed9ca47f354585eb30a3f1332950856c4`. See the complete synthetic
+BLOCKED, PASS, and UNKNOWN walkthrough in
+[`examples/cncf/coredns-corefile`](../examples/cncf/coredns-corefile/README.md).
+
+## Envoy direct V2 transport blocker
+
+The Envoy native route is a blocker-only usability route for the existing
+`component.envoy.xds_api_major` rule. It accepts a private, regular JSON
+bootstrap no larger than 1 MiB and the caller's `--envoy-bootstrap-selected`
+declaration. It emits `v2` only when a direct, uppercase `V2` witness occurs
+at `dynamic_resources.ads_config.transport_api_version` (with `api_type:
+GRPC`), `dynamic_resources.lds_config.api_config_source.transport_api_version`,
+or `dynamic_resources.cds_config.api_config_source.transport_api_version` (the
+latter two require an admitted explicit `api_type`). It supports only the
+existing `1.34.14`, `1.35.13`, `1.36.10`, `1.37.6`, and `1.38.4` to `1.39.1`
+pairs.
+
+```sh
+umask 077
+cp bootstrap.json private-bootstrap.json
+chmod 600 private-bootstrap.json
+./prufyx check cncf --project envoy \
+  --envoy-bootstrap private-bootstrap.json --envoy-bootstrap-selected \
+  --from 1.38.4 --to 1.39.1 --now 2026-09-13T00:00:00Z
+```
+
+Absent, `AUTO`, `V3`, numeric, lowercase, lower-camel aliases, malformed
+selected ConfigSource oneofs, and valid but unsupported JSON shapes remain
+`UNKNOWN`; malformed JSON containers (objects or arrays), unreadable files,
+invalid encoding, and oversized input are rejected. YAML and other non-JSON
+text are safely bounded but not parsed, so they remain `UNKNOWN`. It does not
+derive a native PASS. Static resources,
+`resource_api_version`, `self`, `hds_config`, `config_sources`,
+`default_config_source`, `typed_config`/Any, extensions, fetched discovery
+resources, network behavior, server behavior, runtime state, and distribution
+identity are outside this route. The `1.39.1` target evidence is Envoy commit
+`b579d07d3ad7ee11d32b105e91a5a39ad24718d7`: bootstrap proto lines 61-90,
+ConfigSource proto lines 25-75 and 182-227, and `utility.h` lines 138-155.
+
 ## cert-manager removed monitor values
 
 ```sh

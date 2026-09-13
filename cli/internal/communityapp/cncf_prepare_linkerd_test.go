@@ -1,6 +1,7 @@
 package communityapp
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -145,7 +146,7 @@ func TestLinkerdPreparationHumanOmissionAndIntegrityCode(t *testing.T) {
 	}
 	for _, format := range []string{"human", "json", "input"} {
 		var errOut strings.Builder
-		code := Run(nil, append(linkerdPreparationArgs(path), "--format", format), failedPreparationWriter{}, &errOut, "test")
+		code := Run(context.TODO(), append(linkerdPreparationArgs(path), "--format", format), failedPreparationWriter{}, &errOut, "test")
 		if code != ExitIntegrity || errOut.String() != "prufyx: CNCF_PREPARATION_INTEGRITY_FAILURE\n" {
 			t.Fatalf("%s output failure code=%d stderr=%q", format, code, errOut.String())
 		}

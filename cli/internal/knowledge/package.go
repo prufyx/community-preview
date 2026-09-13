@@ -56,7 +56,9 @@ func readImportPackageForProfile(filePath string, profile profileSpec) (importPa
 		if err != nil {
 			return importPackage{}, fmt.Errorf("read package: %w", ErrInvalid)
 		}
-		if len(files) >= maxPackageFiles || header.Typeflag != tar.TypeReg || header.Size < 1 || header.Size > maxPackageEntry || header.Mode != 0o644 || header.Uid != 0 || header.Gid != 0 || header.Uname != "" || header.Gname != "" || header.Linkname != "" || !header.ModTime.Equal(time.Unix(0, 0)) || !header.AccessTime.IsZero() || !header.ChangeTime.IsZero() || header.Devmajor != 0 || header.Devminor != 0 || header.PAXRecords != nil || header.Xattrs != nil {
+		//lint:ignore SA1019 Xattrs is deprecated for writing, but this parser must reject legacy extended attributes.
+		legacyXattrs := header.Xattrs != nil
+		if len(files) >= maxPackageFiles || header.Typeflag != tar.TypeReg || header.Size < 1 || header.Size > maxPackageEntry || header.Mode != 0o644 || header.Uid != 0 || header.Gid != 0 || header.Uname != "" || header.Gname != "" || header.Linkname != "" || !header.ModTime.Equal(time.Unix(0, 0)) || !header.AccessTime.IsZero() || !header.ChangeTime.IsZero() || header.Devmajor != 0 || header.Devminor != 0 || header.PAXRecords != nil || legacyXattrs {
 			return importPackage{}, fmt.Errorf("package header: %w", ErrInvalid)
 		}
 		name := header.Name

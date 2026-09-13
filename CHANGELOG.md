@@ -9,6 +9,26 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Added
 
+- A local, machine-verifiable declared-review consistency record that binds one
+  selected rule to exact packet, source-corpus, target, and executed-vector
+  evidence. It does not authenticate the declared reviewer, admit a full target,
+  sign metadata, or select a client store.
+- An additive unsigned knowledge release plan for binding publisher assertions
+  to client import, including compatible v1 receipt reuse and v2 assertion
+  verification. The workflow has no official signing root, feed, or publication.
+- Bounded 4 MiB release-list intake, preserving the existing closed schema and
+  rejecting oversized, malformed, or inconsistent input before use.
+- Native CoreDNS Corefile and Envoy JSON-bootstrap routes, a Prometheus
+  `remote_write` HTTP/2-default route, and a MariaDB Operator Galera
+  `autoUpdateDataPlane` prerequisite check. Each remains limited to its exact
+  reviewed versions, input authority, and documented `UNKNOWN` boundary.
+- An OpenTelemetry Collector native internal-metrics check for the exact
+  0.110.0 to 0.111.0 localhost-default change, requiring complete resolved
+  configuration and explicit feature-gate and non-loopback scrape declarations.
+- Release-audit corrections for bounded support-inventory source reads,
+  canonical JSON error propagation, Go 1.26.8 enforcement, DCO range checking,
+  shipping allowlists, complete entrypoint verification, staged receipt bounds,
+  and release-workflow state checks.
 - Local batch checks for up to 64 prepared canonical inputs, with descriptor-relative
   file admission, deterministic scoped reports, embedded or explicitly selected
   signed local CNCF knowledge, and no cluster, network, subprocess, or database

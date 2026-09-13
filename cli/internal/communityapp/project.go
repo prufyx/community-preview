@@ -15,8 +15,8 @@ import (
 var projectDigestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 type projectArguments struct {
-	project, config, schemaConfig, workload, osdMetadata, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, now, format, requireInnoDBDefragmentation                                                                                                string
-	complete, precedenceResolved, upstreamDistribution, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, currentDefaultWasUsed, preserveHTTP2Enabled, requireHTTP2, fullStatusWithoutMonitor, fullStatusWithoutMonitorDeclared, requireInnoDBDefragmentationDeclared bool
+	project, config, schemaConfig, workload, osdMetadata, mariadbResource, selectedOSDID, from, to, configPin, schemaConfigPin, workloadPin, osdMetadataPin, mariadbResourcePin, now, format, requireInnoDBDefragmentation                                                                                                                                                                                 string
+	complete, precedenceResolved, upstreamDistribution, useReviewedTargetDefault, workloadComplete, osdMetadataComplete, mariadbResourceComplete, mariadbPreOperatorUpdate, currentDefaultWasUsed, preserveHTTP2Enabled, requireHTTP2, fullStatusWithoutMonitor, fullStatusWithoutMonitorDeclared, requireInnoDBDefragmentationDeclared, mariadbResourceCompleteDeclared, mariadbPreOperatorUpdateDeclared bool
 }
 
 func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
@@ -28,6 +28,7 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.StringVar(&result.schemaConfig, "loki-schema-config", "", "native Loki schema configuration")
 	fs.StringVar(&result.workload, "workload", "", "native Kubernetes workload JSON")
 	fs.StringVar(&result.osdMetadata, "selected-osd-metadata", "", "caller-selected current OSD metadata JSON object")
+	fs.StringVar(&result.mariadbResource, "mariadb-resource", "", "caller-selected MariaDB Operator resource JSON")
 	fs.StringVar(&result.selectedOSDID, "selected-osd-id", "", "explicit selected current OSD id")
 	fs.StringVar(&result.from, "from", "", "current version")
 	fs.StringVar(&result.to, "to", "", "target version")
@@ -35,6 +36,7 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.StringVar(&result.schemaConfigPin, "loki-schema-config-digest", "", "optional exact Loki schema configuration SHA-256")
 	fs.StringVar(&result.workloadPin, "workload-digest", "", "optional exact workload SHA-256")
 	fs.StringVar(&result.osdMetadataPin, "selected-osd-metadata-digest", "", "optional exact selected metadata SHA-256")
+	fs.StringVar(&result.mariadbResourcePin, "mariadb-resource-digest", "", "optional exact MariaDB resource SHA-256")
 	fs.StringVar(&result.now, "now", "", "explicit UTC evaluation time")
 	fs.StringVar(&result.format, "format", "human", "human, json, or input")
 	fs.BoolVar(&result.complete, "effective-config-complete", false, "declare complete effective configuration")
@@ -48,24 +50,32 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 	fs.BoolVar(&result.requireHTTP2, "require-http2", false, "declare that the selected Fluent Bit OpenTelemetry output requires HTTP/2")
 	fs.BoolVar(&result.workloadComplete, "workload-complete", false, "declare complete selected workload argv")
 	fs.BoolVar(&result.osdMetadataComplete, "selected-osd-metadata-complete", false, "declare complete selected current OSD metadata object")
+	fs.BoolVar(&result.mariadbResourceComplete, "resource-complete", false, "declare complete selected MariaDB resource")
+	fs.BoolVar(&result.mariadbPreOperatorUpdate, "pre-operator-update", false, "declare the pre-operator-update phase")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
 		return projectArguments{}, false
 	}
 	result.fullStatusWithoutMonitorDeclared = flagProvided(args, "full-status-without-monitor-required")
 	result.requireInnoDBDefragmentationDeclared = flagProvided(args, "require-innodb-defragmentation")
+	result.mariadbResourceCompleteDeclared = flagProvided(args, "resource-complete")
+	result.mariadbPreOperatorUpdateDeclared = flagProvided(args, "pre-operator-update")
 	if result.requireInnoDBDefragmentationDeclared && result.requireInnoDBDefragmentation != "true" && result.requireInnoDBDefragmentation != "false" {
 		return projectArguments{}, false
 	}
 	modes := 0
-	for _, path := range []string{result.config, result.schemaConfig, result.workload, result.osdMetadata} {
+	for _, path := range []string{result.config, result.schemaConfig, result.workload, result.osdMetadata, result.mariadbResource} {
 		if path != "" {
 			modes++
 		}
 	}
-	if fs.NArg() != 0 || result.project == "" || result.from == "" || result.to == "" || modes != 1 || (flagProvided(args, "effective-config-digest") && !projectDigestRE.MatchString(result.configPin)) || (flagProvided(args, "loki-schema-config-digest") && !projectDigestRE.MatchString(result.schemaConfigPin)) || (flagProvided(args, "workload-digest") && !projectDigestRE.MatchString(result.workloadPin)) || (flagProvided(args, "selected-osd-metadata-digest") && !projectDigestRE.MatchString(result.osdMetadataPin)) {
+	if fs.NArg() != 0 || result.project == "" || result.from == "" || result.to == "" || modes != 1 || (flagProvided(args, "effective-config-digest") && !projectDigestRE.MatchString(result.configPin)) || (flagProvided(args, "loki-schema-config-digest") && !projectDigestRE.MatchString(result.schemaConfigPin)) || (flagProvided(args, "workload-digest") && !projectDigestRE.MatchString(result.workloadPin)) || (flagProvided(args, "selected-osd-metadata-digest") && !projectDigestRE.MatchString(result.osdMetadataPin)) || (flagProvided(args, "mariadb-resource-digest") && !projectDigestRE.MatchString(result.mariadbResourcePin)) {
 		return projectArguments{}, false
 	}
-	if result.schemaConfig != "" {
+	if result.mariadbResource != "" {
+		if result.project != projectprepare.MariaDBOperatorProject || anyFlagProvided(args, "effective-config", "effective-config-digest", "effective-config-complete", "precedence-resolved", "loki-schema-config", "loki-schema-config-digest", "workload", "workload-digest", "workload-complete", "selected-osd-metadata", "selected-osd-metadata-digest", "selected-osd-id", "selected-osd-metadata-complete", "upstream-distribution", "require-innodb-defragmentation", "use-reviewed-target-default", "current-default-was-used", "preserve-http2-enabled", "require-http2") {
+			return projectArguments{}, false
+		}
+	} else if result.schemaConfig != "" {
 		if result.project != projectprepare.LokiProject || anyFlagProvided(args, "effective-config", "effective-config-digest", "workload", "workload-digest", "workload-complete", "selected-osd-metadata", "selected-osd-metadata-digest", "selected-osd-id", "selected-osd-metadata-complete", "current-default-was-used", "preserve-http2-enabled", "require-http2") {
 			return projectArguments{}, false
 		}
@@ -86,6 +96,12 @@ func parseProjectArguments(args []string, check bool) (projectArguments, bool) {
 		return projectArguments{}, false
 	}
 	if result.project != projectprepare.MariaDBProject && anyFlagProvided(args, "upstream-distribution", "require-innodb-defragmentation") {
+		return projectArguments{}, false
+	}
+	if result.project != projectprepare.MariaDBOperatorProject && anyFlagProvided(args, "mariadb-resource", "mariadb-resource-digest", "resource-complete", "pre-operator-update") {
+		return projectArguments{}, false
+	}
+	if result.project == projectprepare.MariaDBOperatorProject && result.mariadbResource == "" {
 		return projectArguments{}, false
 	}
 	if result.project == projectprepare.KibanaProject && anyFlagProvided(args, "full-status-without-monitor-required") && (result.to != "9.5.3" || !projectprepare.KibanaLatestOrigin(result.from)) {
@@ -121,6 +137,7 @@ func (r runtime) prepareProject(args []string) int {
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete [--workload-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete [--selected-osd-metadata-digest SHA256] [--format human|json|input]")
 		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false [--effective-config-digest SHA256] [--format human|json|input]")
+		fmt.Fprintln(r.stdout, "   or: prufyx prepare project --project mariadb-operator --mariadb-resource FILE --from 26.3.0 --to 26.6.0 --resource-complete --pre-operator-update [--mariadb-resource-digest SHA256] [--format human|json|input]")
 		return ExitOK
 	}
 	request, ok := parseProjectArguments(args, false)
@@ -181,6 +198,7 @@ func (r runtime) project(args []string) int {
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project argo-workflows --workload FILE --from 3.4.18|3.5.15|3.6.19|3.7.18|4.0.11 --to 4.1.3 --workload-complete --now RFC3339 [--workload-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project ceph --selected-osd-metadata FILE --selected-osd-id ID --from VERSION --to VERSION --selected-osd-metadata-complete --now RFC3339 [--selected-osd-metadata-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "   or: prufyx check project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false --now RFC3339 [--effective-config-digest SHA256] [--format human|json]")
+		fmt.Fprintln(r.stdout, "   or: prufyx check project --project mariadb-operator --mariadb-resource FILE --from 26.3.0 --to 26.6.0 --resource-complete --pre-operator-update --now RFC3339 [--mariadb-resource-digest SHA256] [--format human|json]")
 		fmt.Fprintln(r.stdout, "This preview is embedded-only. --knowledge-db, --profile, and replay flags are not supported for community projects.")
 		return ExitOK
 	}
@@ -201,6 +219,8 @@ func (r runtime) project(args []string) int {
 		ruleID = projectprepare.LokiStructuredMetadataRuleID
 	} else if request.config != "" && request.project == projectprepare.LokiProject {
 		ruleID = projectprepare.LokiCompactorRuleID
+	} else if request.project == projectprepare.MariaDBOperatorProject {
+		ruleID = "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite"
 	}
 	var report projectcheck.Report
 	if ruleID != "" {
@@ -255,13 +275,17 @@ func (r runtime) prepareProjectInput(request projectArguments) (projectprepare.P
 		path, pin = request.workload, request.workloadPin
 	} else if request.osdMetadata != "" {
 		path, pin = request.osdMetadata, request.osdMetadataPin
+	} else if request.mariadbResource != "" {
+		path, pin = request.mariadbResource, request.mariadbResourcePin
 	}
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
 		return projectprepare.Prepared{}, r.fail("community project input failed private-file admission", ExitUsage)
 	}
 	var prepared projectprepare.Prepared
-	if request.schemaConfig != "" {
+	if request.mariadbResource != "" {
+		prepared, err = projectprepare.PrepareMariaDBOperatorResource(raw, request.from, request.to, request.mariadbResourceComplete, request.mariadbPreOperatorUpdate)
+	} else if request.schemaConfig != "" {
 		prepared, err = projectprepare.PrepareLokiStructuredMetadata(raw, request.from, request.to, request.complete, request.precedenceResolved, request.useReviewedTargetDefault)
 	} else if request.workload != "" {
 		prepared, err = projectprepare.PrepareWorkload(request.project, raw, request.from, request.to, request.workloadComplete)

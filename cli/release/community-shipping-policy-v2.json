@@ -422,7 +422,19 @@
       "role": "documentation"
     },
     {
+      "path": "cli/docs/adr/ADR-0002-add-declared-review-consistency-gate.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/adr/ADR-0003-unsigned-knowledge-release-plan.md",
+      "role": "documentation"
+    },
+    {
       "path": "cli/docs/prometheus-mode.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/prometheus-remote-write-http2.md",
       "role": "documentation"
     },
     {
@@ -445,6 +457,10 @@
     {
       "path": "cli/scripts/component-configuration-adapters-v3.json",
       "role": "operator-data"
+    },
+    {
+      "path": "cli/scripts/check-dco-range.sh",
+      "role": "operator-test"
     },
     {
       "path": "cli/scripts/component-configuration-adapters.json",
@@ -573,6 +589,10 @@
     },
     {
       "path": "cli/docs/upstream-review-record-template.md",
+      "role": "documentation"
+    },
+    {
+      "path": "cli/docs/declared-review-record.md",
       "role": "documentation"
     },
     {

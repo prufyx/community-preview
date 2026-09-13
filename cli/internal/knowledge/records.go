@@ -16,16 +16,17 @@ type clockFloor struct {
 	CheckedAt  string `json:"checkedAt"`
 }
 type importPending struct {
-	APIVersion                string `json:"apiVersion"`
-	PriorTrustStateDigest     string `json:"priorTrustStateDigest,omitempty"`
-	PriorSelectionDigest      string `json:"priorSelectionDigest,omitempty"`
-	InitialRootDigest         string `json:"initialRootDigest,omitempty"`
-	PackageDigest             string `json:"packageDigest"`
-	ExpectedRevision          string `json:"expectedRevision,omitempty"`
-	ExpectedBundleDigest      string `json:"expectedBundleDigest,omitempty"`
-	PublishedTrustStateDigest string `json:"publishedTrustStateDigest,omitempty"`
-	AcceptedTrustStateDigest  string `json:"acceptedTrustStateDigest,omitempty"`
-	StartedAt                 string `json:"startedAt"`
+	APIVersion                           string `json:"apiVersion"`
+	PriorTrustStateDigest                string `json:"priorTrustStateDigest,omitempty"`
+	PriorSelectionDigest                 string `json:"priorSelectionDigest,omitempty"`
+	InitialRootDigest                    string `json:"initialRootDigest,omitempty"`
+	PackageDigest                        string `json:"packageDigest"`
+	ExpectedRevision                     string `json:"expectedRevision,omitempty"`
+	ExpectedBundleDigest                 string `json:"expectedBundleDigest,omitempty"`
+	ExpectedVerificationAssertionsDigest string `json:"expectedVerificationAssertionsDigest,omitempty"`
+	PublishedTrustStateDigest            string `json:"publishedTrustStateDigest,omitempty"`
+	AcceptedTrustStateDigest             string `json:"acceptedTrustStateDigest,omitempty"`
+	StartedAt                            string `json:"startedAt"`
 }
 
 func loadImportPending(store *storeFS) (*importPending, error) {
@@ -37,13 +38,13 @@ func loadImportPending(store *storeFS) (*importPending, error) {
 		return nil, ErrIntegrity
 	}
 	var p importPending
-	if decodeCanonicalStrict(raw, &p) != nil || p.APIVersion != "prufyx.io/knowledge-import-pending/v1" {
+	if decodeCanonicalStrict(raw, &p) != nil || !pendingAssertionVersion(p) {
 		return nil, ErrIntegrity
 	}
 	if p.PackageDigest == "" || p.InitialRootDigest == "" {
 		return nil, ErrIntegrity
 	}
-	for _, d := range []string{p.PriorTrustStateDigest, p.PriorSelectionDigest, p.InitialRootDigest, p.PackageDigest, p.ExpectedBundleDigest, p.PublishedTrustStateDigest, p.AcceptedTrustStateDigest} {
+	for _, d := range []string{p.PriorTrustStateDigest, p.PriorSelectionDigest, p.InitialRootDigest, p.PackageDigest, p.ExpectedBundleDigest, p.ExpectedVerificationAssertionsDigest, p.PublishedTrustStateDigest, p.AcceptedTrustStateDigest} {
 		if d != "" {
 			if n, x := normalizeDigest(d); x != nil || n != d {
 				return nil, ErrIntegrity
@@ -61,14 +62,18 @@ func loadImportPending(store *storeFS) (*importPending, error) {
 	return &p, nil
 }
 func beginImportTransaction(store *storeFS, p importPending) (*importPending, error) {
-	p.APIVersion = "prufyx.io/knowledge-import-pending/v1"
+	if p.ExpectedVerificationAssertionsDigest == "" {
+		p.APIVersion = pendingV1
+	} else {
+		p.APIVersion = pendingV2
+	}
 	old, e := loadImportPending(store)
 	if e != nil {
 		return nil, e
 	}
 	if old != nil {
 		currentMatches := old.PriorTrustStateDigest == p.PriorTrustStateDigest || old.PublishedTrustStateDigest == p.PriorTrustStateDigest || old.AcceptedTrustStateDigest == p.PriorTrustStateDigest
-		same := old.PackageDigest == p.PackageDigest && old.InitialRootDigest == p.InitialRootDigest && old.ExpectedRevision == p.ExpectedRevision && old.ExpectedBundleDigest == p.ExpectedBundleDigest && old.PriorSelectionDigest == p.PriorSelectionDigest && currentMatches
+		same := old.PackageDigest == p.PackageDigest && old.InitialRootDigest == p.InitialRootDigest && old.ExpectedRevision == p.ExpectedRevision && old.ExpectedBundleDigest == p.ExpectedBundleDigest && old.ExpectedVerificationAssertionsDigest == p.ExpectedVerificationAssertionsDigest && old.PriorSelectionDigest == p.PriorSelectionDigest && currentMatches
 		if !same {
 			return nil, fmt.Errorf("a different interrupted import must be resumed: %w", ErrRecoveryRequired)
 		}
@@ -82,6 +87,17 @@ func beginImportTransaction(store *storeFS, p importPending) (*importPending, er
 		return nil, e
 	}
 	return &p, nil
+}
+
+func pendingAssertionVersion(p importPending) bool {
+	switch p.APIVersion {
+	case pendingV1:
+		return p.ExpectedVerificationAssertionsDigest == ""
+	case pendingV2:
+		return p.ExpectedVerificationAssertionsDigest != ""
+	default:
+		return false
+	}
 }
 func updatePendingAccepted(store *storeFS, digest string) error {
 	p, e := loadImportPending(store)

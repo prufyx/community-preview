@@ -98,7 +98,7 @@ func TestCollectWithFakeKubectl(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	dir, code := (Collector{Runner: fake}).Collect(context.Background(), Options{
 		OutputRoot: output, Kubeconfig: kubeconfig, Contexts: []string{fake.private},
-		AcknowledgeExecRisk: true, AllowPartial: false, Kubectl: "/not-executed",
+		AcknowledgeExecRisk: true, AllowPartial: false, Kubectl: os.Args[0],
 		IncludeComponentConfiguration: true, ComponentConfigurationProfile: "v3",
 		ExecEnv: proxyEnvironmentNames, Now: func() time.Time { return time.Date(2026, 9, 11, 7, 0, 0, 0, time.UTC) },
 		Random: strings.NewReader(strings.Repeat("r", 32)),
@@ -206,7 +206,7 @@ func TestCollectPartialIsBoundedAndRedacted(t *testing.T) {
 	}
 	fake := &oneFailureRunner{fakeRunner: fakeRunner{t: t, private: "private-context"}}
 	var stdout, stderr bytes.Buffer
-	dir, code := (Collector{Runner: fake}).Collect(context.Background(), Options{OutputRoot: filepath.Join(tmp, "out"), Kubeconfig: config, Contexts: []string{"private-context"}, AcknowledgeExecRisk: true, Kubectl: "/not-executed", ExecEnv: proxyEnvironmentNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("x", 32))}, &stdout, &stderr)
+	dir, code := (Collector{Runner: fake}).Collect(context.Background(), Options{OutputRoot: filepath.Join(tmp, "out"), Kubeconfig: config, Contexts: []string{"private-context"}, AcknowledgeExecRisk: true, Kubectl: os.Args[0], ExecEnv: proxyEnvironmentNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("x", 32))}, &stdout, &stderr)
 	if code != 6 {
 		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
 	}

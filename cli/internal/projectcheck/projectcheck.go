@@ -130,6 +130,11 @@ func definitions() []constraintengine.FactDefinition {
 		{ID: "component.loki.structured_metadata_requires_tsdb_v13", Component: "pkg:github/grafana/loki", Type: constraintengine.FactBool},
 		{ID: "component.mariadb.innodb_defragmentation_required", Component: "pkg:github/mariadb/server", Type: constraintengine.FactBool},
 		{ID: "component.mariadb.upstream_distribution", Component: "pkg:github/mariadb/server", Type: constraintengine.FactBool},
+		{ID: "component.mariadb_operator.auto_update_data_plane", Component: "pkg:github/mariadb-operator/mariadb-operator", Type: constraintengine.FactBool},
+		{ID: "component.mariadb_operator.galera_enabled", Component: "pkg:github/mariadb-operator/mariadb-operator", Type: constraintengine.FactBool},
+		{ID: "component.mariadb_operator.pre_operator_update", Component: "pkg:github/mariadb-operator/mariadb-operator", Type: constraintengine.FactBool},
+		{ID: "component.mariadb_operator.replication_enabled", Component: "pkg:github/mariadb-operator/mariadb-operator", Type: constraintengine.FactBool},
+		{ID: "component.mariadb_operator.resource_complete", Component: "pkg:github/mariadb-operator/mariadb-operator", Type: constraintengine.FactBool},
 	}
 }
 
@@ -156,7 +161,7 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 		return bundle{}, ErrIntegrity
 	}
 	b.registryDigest, b.packDigest = digest(registryRaw), digest(packRaw)
-	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 7 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
+	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 8 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
 		return bundle{}, ErrIntegrity
 	}
 	b.identities = map[string]identity{}
@@ -306,7 +311,7 @@ func ValidateCanonicalInput(project string, inputRaw []byte) error {
 // cannot supply a rule through the CLI; routes bind this ID in code before
 // evaluation. Check remains the generic all-rules evaluator.
 func CheckRule(project string, inputRaw []byte, now time.Time, requestedRuleID string) (Report, error) {
-	if project != "loki" || requestedRuleID != lokiCompactorRuleID && requestedRuleID != lokiStructuredMetadataRuleID {
+	if (project != "loki" && project != "mariadb-operator") || (project == "loki" && requestedRuleID != lokiCompactorRuleID && requestedRuleID != lokiStructuredMetadataRuleID) || (project == "mariadb-operator" && requestedRuleID != "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite") {
 		return Report{}, ErrInvalid
 	}
 	b, err := load()

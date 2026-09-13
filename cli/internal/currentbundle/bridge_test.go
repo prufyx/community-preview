@@ -164,7 +164,7 @@ func TestBuildFromActualOfflineCollectorOutputs(t *testing.T) {
 			var collectorOut, collectorErr bytes.Buffer
 			observationPath, code := (localcollector.Collector{Runner: collectorBridgeRunner{mode: mode}}).Collect(context.Background(), localcollector.Options{
 				OutputRoot: output, Kubeconfig: kubeconfig, Contexts: []string{"synthetic-context"}, AcknowledgeExecRisk: true,
-				IncludeComponentConfiguration: true, ComponentConfigurationProfile: "v2", AllowPartial: true, Kubectl: "/not-executed",
+				IncludeComponentConfiguration: true, ComponentConfigurationProfile: "v2", AllowPartial: true, Kubectl: os.Args[0],
 				ExecEnv: testProxyNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("k", 32)),
 			}, &collectorOut, &collectorErr)
 			if code != 0 {

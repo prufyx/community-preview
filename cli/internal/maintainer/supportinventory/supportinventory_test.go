@@ -104,6 +104,51 @@ func TestSupportInventory_FluentBitUsesDeclaredClassicConfigurationMetadata(t *t
 	t.Fatal("Fluent Bit inventory entry missing")
 }
 
+func TestSupportInventory_MariaDBOperatorUsesResourcePreparerMetadata(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				Rules []struct {
+					Limit string `json:"limit"`
+				} `json:"rules"`
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "mariadb-operator" {
+			continue
+		}
+		if len(project.Capabilities) != 1 || len(project.Capabilities[0].Rules) != 1 {
+			t.Fatalf("incorrect MariaDB Operator capability shape: %#v", project.Capabilities)
+		}
+		preparer := project.Capabilities[0].LocalPreparer
+		for _, flag := range []string{"--mariadb-resource", "--resource-complete", "--pre-operator-update", "--from", "26.3.0", "--to", "26.6.0"} {
+			if !slices.Contains(preparer.Command, flag) {
+				t.Fatalf("MariaDB Operator declaration flag missing from discovery command %q: %#v", flag, preparer.Command)
+			}
+		}
+		if preparer.MetadataState != "implemented_native_mariadb_operator_resource_minimizer" || strings.Contains(preparer.Limit, "effective-configuration") || !strings.Contains(preparer.Limit, "data-plane completion") || !strings.Contains(project.Capabilities[0].Rules[0].Limit, "Galera-only") {
+			t.Fatalf("incorrect MariaDB Operator inventory metadata: %#v", project.Capabilities)
+		}
+		return
+	}
+	t.Fatal("MariaDB Operator inventory entry missing")
+}
+
 func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 	cfg, _ := repositoryConfig(t)
 	raw, _, err := Generate(cfg)
@@ -135,6 +180,8 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 		"flux":       {"--native-resource", "implemented_native_rendered_resource_minimizer"},
 		"kubernetes": {"--target-api-apply-required", "implemented_native_rendered_resource_minimizer"},
 		"cilium":     {"--cilium-config-map", "implemented_native_selected_configmap_minimizer"},
+		"coredns":    {"--coredns-corefile", "implemented_native_selected_coredns_corefile_minimizer"},
+		"envoy":      {"--envoy-bootstrap", "implemented_native_selected_envoy_bootstrap_minimizer"},
 		"prometheus": {"--scrape-config", "implemented_native_selected_scrape_config_minimizer"},
 	}
 	for _, project := range document.Projects {
@@ -155,6 +202,73 @@ func TestSupportInventory_NativeCNCFRoutesDescribeDirectInputs(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing native route metadata: %#v", want)
+	}
+}
+
+func TestSupportInventory_CoreDNSAndEnvoyNativeRouteScope(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				LocalPreparer struct {
+					Command       []string `json:"command"`
+					MetadataState string   `json:"metadataState"`
+					Limit         string   `json:"limit"`
+				} `json:"localPreparer"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]bool{}
+	for _, project := range document.Projects {
+		if project.ProjectID != "coredns" && project.ProjectID != "envoy" {
+			continue
+		}
+		if len(project.Capabilities) != 1 {
+			t.Fatalf("%s capability shape = %#v", project.ProjectID, project.Capabilities)
+		}
+		preparer := project.Capabilities[0].LocalPreparer
+		switch project.ProjectID {
+		case "coredns":
+			for _, value := range []string{"--coredns-corefile", "--coredns-corefile-complete", "--coredns-distribution", "official", "1.13.2", "1.14.7"} {
+				if !slices.Contains(preparer.Command, value) {
+					t.Fatalf("CoreDNS route command missing %q: %#v", value, preparer)
+				}
+			}
+			for _, text := range []string{"1.6.9 to 1.7.0", "1.9.4", "1.10.1", "1.11.4", "1.12.4", "1.13.2", "Imports", "custom distributions", "DNS behavior"} {
+				if !strings.Contains(preparer.Limit, text) {
+					t.Fatalf("CoreDNS route limit missing %q: %#v", text, preparer)
+				}
+			}
+			if preparer.MetadataState != "implemented_native_selected_coredns_corefile_minimizer" {
+				t.Fatalf("CoreDNS metadata state = %#v", preparer)
+			}
+		case "envoy":
+			for _, value := range []string{"--envoy-bootstrap", "--envoy-bootstrap-selected", "1.38.4", "1.39.1"} {
+				if !slices.Contains(preparer.Command, value) {
+					t.Fatalf("Envoy route command missing %q: %#v", value, preparer)
+				}
+			}
+			for _, text := range []string{"Blocker-only", "ADS, LDS, or CDS", "1.34.14", "1.35.13", "1.36.10", "1.37.6", "1.38.4", "V3", "AUTO", "no native PASS", "1.18 native route"} {
+				if !strings.Contains(preparer.Limit, text) {
+					t.Fatalf("Envoy route limit missing %q: %#v", text, preparer)
+				}
+			}
+			if preparer.MetadataState != "implemented_native_selected_envoy_bootstrap_minimizer" {
+				t.Fatalf("Envoy metadata state = %#v", preparer)
+			}
+		}
+		found[project.ProjectID] = true
+	}
+	if !found["coredns"] || !found["envoy"] {
+		t.Fatalf("missing CoreDNS or Envoy route: %#v", found)
 	}
 }
 
@@ -188,7 +302,7 @@ func TestSupportInventory_PrometheusListsIndependentNativeRoutes(t *testing.T) {
 		if project.ProjectID != "prometheus" {
 			continue
 		}
-		if len(project.Capabilities) != 2 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_selected_scrape_config_minimizer" || len(project.Capabilities[0].LocalPreparers) != 2 {
+		if len(project.Capabilities) != 2 || project.Capabilities[0].LocalPreparer.MetadataState != "implemented_native_selected_scrape_config_minimizer" || len(project.Capabilities[0].LocalPreparers) != 3 {
 			t.Fatalf("Prometheus native route inventory = %#v", project.Capabilities)
 		}
 		routes := map[string]struct {
@@ -209,6 +323,10 @@ func TestSupportInventory_PrometheusListsIndependentNativeRoutes(t *testing.T) {
 		legacy := project.Capabilities[0].LocalPreparer
 		if !ok || !slices.Contains(scrape.command, "--scrape-config") || !slices.Contains(scrape.command, "--scrape-job") || !slices.Contains(scrape.command, "--scrape-config-complete") || !slices.Contains(scrape.command, "--scrape-config-precedence-resolved") || strings.Contains(strings.Join(scrape.command, " "), "--alertmanager-config") || !strings.Contains(scrape.limit, "scrape_config") || !slices.Equal(scrape.command, legacy.Command) || scrape.limit != legacy.Limit {
 			t.Fatalf("scrape native route missing or overclaimed: %#v", scrape)
+		}
+		remoteWrite, ok := routes["implemented_native_selected_remote_write_http2_minimizer"]
+		if !ok || !slices.Contains(remoteWrite.command, "--prometheus-config") || !slices.Contains(remoteWrite.command, "--prometheus-rule") || !slices.Contains(remoteWrite.command, "remote-write-http2-default") || !slices.Contains(remoteWrite.command, "--prometheus-remote-write-name") || !slices.Contains(remoteWrite.command, "--prometheus-remote-write-http2-required=true|false") || !strings.Contains(remoteWrite.limit, "direct inline enable_http2") || !strings.Contains(remoteWrite.limit, "protocol negotiation") {
+			t.Fatalf("remote-write native route missing or overclaimed: %#v", remoteWrite)
 		}
 		return
 	}
@@ -498,12 +616,52 @@ func TestSupportInventory_PreparerProjects_ReadsCallableDispatchOnly(t *testing.
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	projects, err := preparerProjects(path)
+	projects, err := preparerProjects([]byte(raw))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(projects) != 2 || !projects["callable"] || !projects["grouped"] {
 		t.Fatalf("unexpected projects: %#v", projects)
+	}
+}
+
+func TestSupportInventory_Generate_BindsPreparerSourceDigest(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var baseline struct {
+		InputDigests map[string]string `json:"inputDigests"`
+	}
+	if err := json.Unmarshal(raw, &baseline); err != nil {
+		t.Fatal(err)
+	}
+	if baseline.InputDigests["cncfPreparerDispatchSource"] == "" {
+		t.Fatal("preparer source digest missing")
+	}
+
+	source, err := os.ReadFile(cfg.CNCFPrepareSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copyPath := filepath.Join(t.TempDir(), "cncf_prepare.go")
+	if err := os.WriteFile(copyPath, append(source, []byte("\n// digest regression fixture\n")...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg.CNCFPrepareSource = copyPath
+	changed, _, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modified struct {
+		InputDigests map[string]string `json:"inputDigests"`
+	}
+	if err := json.Unmarshal(changed, &modified); err != nil {
+		t.Fatal(err)
+	}
+	if modified.InputDigests["cncfPreparerDispatchSource"] == baseline.InputDigests["cncfPreparerDispatchSource"] {
+		t.Fatal("preparer source change did not change provenance digest")
 	}
 }
 

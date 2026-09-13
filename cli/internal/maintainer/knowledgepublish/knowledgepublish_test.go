@@ -16,6 +16,7 @@ import (
 
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/knowledge"
+	"github.com/prufyx/prufyx-cli/internal/knowledgereleaseplan"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/theupdateframework/go-tuf/v2/metadata"
@@ -54,7 +55,55 @@ func TestExternallySignedExportedFullCNCFPackFinalizesThroughConsumerVerifier(t 
 	}
 }
 
+func TestSuccessfulFinalizationGeneratesDeterministicReleasePlan(t *testing.T) {
+	target := emptyReplacementTarget(t, "52")
+	opts := signedPackageOptions(t, target)
+	const packageURL = "https://metadata.example.test/cncf-52.tar"
+	firstPackage, firstPlan, _, err := FinalizePackageWithReleasePlan(opts, packageURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPackage, secondPlan, _, err := FinalizePackageWithReleasePlan(opts, packageURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(firstPackage, secondPackage) || !bytes.Equal(firstPlan, secondPlan) {
+		t.Fatal("identical verified publisher inputs did not produce identical package and plan")
+	}
+	plan, err := knowledgereleaseplan.Parse(firstPlan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Package.URL != packageURL || plan.Package.Digest != digest(firstPackage) ||
+		plan.Target.Revision != "52" || plan.Target.Digest != digest(target) ||
+		plan.PublisherVerification.PublisherInitialRootDigest != opts.RootDigest ||
+		len(plan.PublisherVerification.RootHistory) != 1 || plan.PublisherVerification.RootHistory[0].Digest != opts.RootDigest {
+		t.Fatalf("release plan lost verified identities: %+v", plan)
+	}
+	badPackage, badPlan, _, err := FinalizePackageWithReleasePlan(opts, packageURL+"?credential=canary")
+	if !errors.Is(err, ErrRejected) || len(badPackage) != 0 || len(badPlan) != 0 {
+		t.Fatalf("invalid plan routing escaped finalization: package=%d plan=%d err=%v", len(badPackage), len(badPlan), err)
+	}
+}
+
 func exerciseSignedPackage(t *testing.T, target []byte, revision string) ([]byte, FinalizationReceipt) {
+	t.Helper()
+	opts := signedPackageOptions(t, target)
+	packageRaw, receipt, err := FinalizePackage(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipt.Status != "VERIFIED_FOR_PACKAGING" || receipt.Profile != "cncf" || receipt.NetworkUsed || receipt.KeysHandled || receipt.KnowledgeRevision != revision || receipt.TargetDigest != digest(target) || receipt.PackageDigest != digest(packageRaw) || receipt.Verification.Status != "VERIFIED" || receipt.Verification.NetworkUsed || receipt.Verification.StoreUsed {
+		t.Fatalf("unexpected receipt: %+v", receipt)
+	}
+	second, _, err := FinalizePackage(opts)
+	if err != nil || !bytes.Equal(packageRaw, second) {
+		t.Fatalf("canonical package changed: equal=%t err=%v", bytes.Equal(packageRaw, second), err)
+	}
+	return packageRaw, receipt
+}
+
+func signedPackageOptions(t *testing.T, target []byte) FinalizePackageOptions {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Second)
 	rootRaw, rootDigest, keys := testRoot(t, now)
@@ -80,18 +129,7 @@ func exerciseSignedPackage(t *testing.T, target []byte, revision string) ([]byte
 	assertPreparation(t, timestampPreparation, metadata.TIMESTAMP, rootDigest, digest(target), 9)
 	timestamp := finalizeTestRole(t, rootRaw, rootDigest, timestampPreparation, keys[metadata.TIMESTAMP])
 
-	packageRaw, receipt, err := FinalizePackage(FinalizePackageOptions{Root: rootRaw, Target: target, Targets: targets, Snapshot: snapshot, Timestamp: timestamp, RootDigest: rootDigest})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt.Status != "VERIFIED_FOR_PACKAGING" || receipt.Profile != "cncf" || receipt.NetworkUsed || receipt.KeysHandled || receipt.KnowledgeRevision != revision || receipt.TargetDigest != digest(target) || receipt.PackageDigest != digest(packageRaw) || receipt.Verification.Status != "VERIFIED" || receipt.Verification.NetworkUsed || receipt.Verification.StoreUsed {
-		t.Fatalf("unexpected receipt: %+v", receipt)
-	}
-	second, _, err := FinalizePackage(FinalizePackageOptions{Root: rootRaw, Target: target, Targets: targets, Snapshot: snapshot, Timestamp: timestamp, RootDigest: rootDigest})
-	if err != nil || !bytes.Equal(packageRaw, second) {
-		t.Fatalf("canonical package changed: equal=%t err=%v", bytes.Equal(packageRaw, second), err)
-	}
-	return packageRaw, receipt
+	return FinalizePackageOptions{Root: rootRaw, Target: target, Targets: targets, Snapshot: snapshot, Timestamp: timestamp, RootDigest: rootDigest}
 }
 
 func TestFinalizationRejectsWrongPayloadSignatureAndExpiredMetadata(t *testing.T) {

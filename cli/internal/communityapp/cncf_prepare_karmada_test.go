@@ -2,6 +2,7 @@ package communityapp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -94,7 +95,7 @@ func TestKarmadaPreparationJSONHumanAndWriteFailures(t *testing.T) {
 	}
 	for _, format := range []string{"human", "json", "input"} {
 		var stderr bytes.Buffer
-		code := Run(nil, append(karmadaPreparationArgs(path), "--format", format), failedPreparationWriter{}, &stderr, "test")
+		code := Run(context.TODO(), append(karmadaPreparationArgs(path), "--format", format), failedPreparationWriter{}, &stderr, "test")
 		if code != ExitIntegrity || stderr.String() != "prufyx: CNCF_PREPARATION_INTEGRITY_FAILURE\n" {
 			t.Fatalf("format=%s code=%d stderr=%q", format, code, stderr.String())
 		}

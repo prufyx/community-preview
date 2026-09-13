@@ -53,6 +53,26 @@ type ImportRequest struct {
 	// PackagePath before any store is opened or mutated. It is a local
 	// transport assertion, not a trust or source-authority claim.
 	ExpectedPackageDigest string
+	// ExpectedVerification is an opt-in release-plan assertion. It is checked
+	// against material produced by TUF verification and semantic admission; it
+	// never supplies bootstrap trust.
+	ExpectedVerification *VerificationAssertions
+}
+
+// VerificationAssertions binds the exact publisher-verified trust and target
+// identity expected by one plan-driven import. PublisherInitialRootDigest is
+// descriptive of the publisher's stateless verification input, not a client
+// bootstrap root selection.
+type VerificationAssertions struct {
+	PublisherInitialRootDigest string             `json:"publisherInitialRootDigest"`
+	RootHistory                []RootHistoryEntry `json:"rootHistory"`
+	Root                       RoleReceipt        `json:"root"`
+	Timestamp                  RoleReceipt        `json:"timestamp"`
+	Snapshot                   RoleReceipt        `json:"snapshot"`
+	Targets                    RoleReceipt        `json:"targets"`
+	TargetPath                 string             `json:"targetPath"`
+	Purpose                    string             `json:"purpose"`
+	EngineCapabilityDigest     string             `json:"engineCapabilityDigest"`
 }
 
 // VerifyRequest describes a package-only verification against an explicit,
@@ -122,26 +142,27 @@ type RootHistoryEntry struct {
 // TrustReceipt binds the exact TUF state and target admitted by one import.
 // TrustSource is intentionally operator-provisioned in this slice.
 type TrustReceipt struct {
-	APIVersion             string             `json:"apiVersion"`
-	TrustSource            string             `json:"trustSource"`
-	VerifiedAt             string             `json:"verifiedAt"`
-	InitialRootDigest      string             `json:"initialRootDigest"`
-	RootHistory            []RootHistoryEntry `json:"rootHistory"`
-	Root                   RoleReceipt        `json:"root"`
-	Timestamp              RoleReceipt        `json:"timestamp"`
-	Snapshot               RoleReceipt        `json:"snapshot"`
-	Targets                RoleReceipt        `json:"targets"`
-	TargetPath             string             `json:"targetPath"`
-	TargetLength           int64              `json:"targetLength"`
-	TargetDigest           string             `json:"targetDigest"`
-	KnowledgeRevision      string             `json:"knowledgeRevision"`
-	Purpose                string             `json:"purpose"`
-	EngineCapabilityDigest string             `json:"engineCapabilityDigest"`
-	HasRule                bool               `json:"hasRule"`
-	RuleDigest             string             `json:"ruleDigest"`
-	EvidenceExpiresAt      string             `json:"evidenceExpiresAt"`
-	ExpectedRevision       string             `json:"expectedRevision,omitempty"`
-	ExpectedBundleDigest   string             `json:"expectedBundleDigest,omitempty"`
+	APIVersion                           string             `json:"apiVersion"`
+	TrustSource                          string             `json:"trustSource"`
+	VerifiedAt                           string             `json:"verifiedAt"`
+	InitialRootDigest                    string             `json:"initialRootDigest"`
+	RootHistory                          []RootHistoryEntry `json:"rootHistory"`
+	Root                                 RoleReceipt        `json:"root"`
+	Timestamp                            RoleReceipt        `json:"timestamp"`
+	Snapshot                             RoleReceipt        `json:"snapshot"`
+	Targets                              RoleReceipt        `json:"targets"`
+	TargetPath                           string             `json:"targetPath"`
+	TargetLength                         int64              `json:"targetLength"`
+	TargetDigest                         string             `json:"targetDigest"`
+	KnowledgeRevision                    string             `json:"knowledgeRevision"`
+	Purpose                              string             `json:"purpose"`
+	EngineCapabilityDigest               string             `json:"engineCapabilityDigest"`
+	HasRule                              bool               `json:"hasRule"`
+	RuleDigest                           string             `json:"ruleDigest"`
+	EvidenceExpiresAt                    string             `json:"evidenceExpiresAt"`
+	ExpectedRevision                     string             `json:"expectedRevision,omitempty"`
+	ExpectedBundleDigest                 string             `json:"expectedBundleDigest,omitempty"`
+	ExpectedVerificationAssertionsDigest string             `json:"expectedVerificationAssertionsDigest,omitempty"`
 }
 
 type ImportReceipt struct {

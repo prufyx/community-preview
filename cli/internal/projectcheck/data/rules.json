@@ -2519,6 +2519,166 @@
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Choose and verify an alternative to removed InnoDB defragmentation, or explicitly waive that behavior requirement. Deleting the ignored option alone does not restore the feature."
       }
+    },
+    {
+      "project": "mariadb-operator",
+      "description": "MariaDB Operator 26.6.0 requires a Galera data-plane update before the operator update; this checks one complete caller-selected MariaDB resource and does not evaluate cluster state or controller completion.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.mariadb_operator.auto_update_data_plane",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected MariaDB resource explicitly declares spec.updateStrategy.autoUpdateDataPlane true."
+        },
+        {
+          "side": "proposed",
+          "id": "component.mariadb_operator.galera_enabled",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected MariaDB resource explicitly declares spec.galera.enabled true."
+        },
+        {
+          "side": "proposed",
+          "id": "component.mariadb_operator.pre_operator_update",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly declares the check is before the operator update."
+        },
+        {
+          "side": "proposed",
+          "id": "component.mariadb_operator.replication_enabled",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected MariaDB resource declares the separate spec.replication.enabled mode; true means Galera-only scope does not apply."
+        },
+        {
+          "side": "proposed",
+          "id": "component.mariadb_operator.resource_complete",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller explicitly declares the selected MariaDB resource complete."
+        }
+      ],
+      "rule": {
+        "id": "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "from": "26.3.0",
+          "to": "26.6.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/mariadb-operator/mariadb-operator",
+          "factId": "component.mariadb_operator.auto_update_data_plane",
+          "boolValue": false
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/mariadb-operator/mariadb-operator",
+            "factId": "component.mariadb_operator.galera_enabled",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/mariadb-operator/mariadb-operator",
+            "factId": "component.mariadb_operator.replication_enabled",
+            "boolValue": false
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/mariadb-operator/mariadb-operator",
+            "factId": "component.mariadb_operator.pre_operator_update",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/mariadb-operator/mariadb-operator",
+            "factId": "component.mariadb_operator.resource_complete",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-13T08:16:03Z",
+          "validUntil": "2026-12-12T08:16:03Z",
+          "sources": [
+            {
+              "id": "mariadb-operator-v26-3-api-type",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/ac223c4c562533bcf64ca620072e7c1564017d4d/api/v1alpha1/mariadb_types.go",
+              "revision": "ac223c4c562533bcf64ca620072e7c1564017d4d",
+              "contentDigest": "sha256:4a17f16414e711fd7828e79825683fcf905f25850b1ce3933ba6800a301d244f",
+              "startLine": 980,
+              "endLine": 993
+            },
+            {
+              "id": "mariadb-operator-v26-3-crd",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/ac223c4c562533bcf64ca620072e7c1564017d4d/config/crd/bases/k8s.mariadb.com_mariadbs.yaml",
+              "revision": "ac223c4c562533bcf64ca620072e7c1564017d4d",
+              "contentDigest": "sha256:2e9eedf1db34a02c621ddd47bcbcacded35ff5a9084a619f9e3ce388d0ebf313",
+              "startLine": 5774,
+              "endLine": 5781
+            },
+            {
+              "id": "mariadb-operator-v26-3-pod-builder",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/ac223c4c562533bcf64ca620072e7c1564017d4d/pkg/builder/pod_builder.go",
+              "revision": "ac223c4c562533bcf64ca620072e7c1564017d4d",
+              "contentDigest": "sha256:2aff20dd300948700640cf2f2ec72edb42c0369fd1d5e75c11a696d46402fc16",
+              "startLine": 358,
+              "endLine": 374
+            },
+            {
+              "id": "mariadb-operator-v26-6-api-type",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/58a3f520eeb92060473848d529fba8fcd9a157a6/api/v1alpha1/mariadb_types.go",
+              "revision": "58a3f520eeb92060473848d529fba8fcd9a157a6",
+              "contentDigest": "sha256:2f2e3e0b02d6235fc932fbd7c21ae0765affd6750b915922b5c589d174c4525a",
+              "startLine": 1021,
+              "endLine": 1034
+            },
+            {
+              "id": "mariadb-operator-v26-6-controller-path",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/58a3f520eeb92060473848d529fba8fcd9a157a6/internal/controller/mariadb_controller.go",
+              "revision": "58a3f520eeb92060473848d529fba8fcd9a157a6",
+              "contentDigest": "sha256:97223804aef96ff476aa0810fda3f823b20cbc3562ae1df3b66d640d47804397",
+              "startLine": 304,
+              "endLine": 313
+            },
+            {
+              "id": "mariadb-operator-v26-6-crd",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/58a3f520eeb92060473848d529fba8fcd9a157a6/config/crd/bases/k8s.mariadb.com_mariadbs.yaml",
+              "revision": "58a3f520eeb92060473848d529fba8fcd9a157a6",
+              "contentDigest": "sha256:e353944e2df97251b3684b41f20a48f6c14d52b6b1781b4e1ad9fb2e7423c125",
+              "startLine": 6301,
+              "endLine": 6308
+            },
+            {
+              "id": "mariadb-operator-v26-6-pod-builder",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/58a3f520eeb92060473848d529fba8fcd9a157a6/pkg/builder/pod_builder.go",
+              "revision": "58a3f520eeb92060473848d529fba8fcd9a157a6",
+              "contentDigest": "sha256:28610341ae1f0a05427b43b70610ffc7422d32a1c4d869018971a4a14b080b10",
+              "startLine": 371,
+              "endLine": 386
+            },
+            {
+              "id": "mariadb-operator-v26-6-upgrade-guide",
+              "url": "https://github.com/mariadb-operator/mariadb-operator/blob/58a3f520eeb92060473848d529fba8fcd9a157a6/docs/releases/UPGRADE_26.6.0.md",
+              "revision": "58a3f520eeb92060473848d529fba8fcd9a157a6",
+              "contentDigest": "sha256:54bd83e984a8008e70f5820dba566133e0c235f48421b97b56b7ea29203d7893",
+              "startLine": 8,
+              "endLine": 20
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For a selected Galera-only MariaDB resource, set spec.updateStrategy.autoUpdateDataPlane: true before updating the operator; review standalone, replication, admission, runtime readiness, and data-plane completion separately."
+      }
     }
   ]
 }

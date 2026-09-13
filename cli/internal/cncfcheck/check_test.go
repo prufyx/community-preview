@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 161 || len(vectors) != 161 {
+	if len(b.pack.Entries) != 163 || len(vectors) != 163 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 855 {
+	if caseCount != 863 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -80,6 +80,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				}
 				if vector.Project == "opentelemetry" {
 					clock = time.Date(2026, 9, 12, 2, 35, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "opentelemetry.internal-telemetry-default-bind.0-110-to-0-111" {
+					clock = time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC)
 				}
 				if vector.RuleID == "containerd.selected-official-runtime-shim-removed.1-7-28-to-2-0-0" {
 					clock = time.Date(2026, 9, 12, 12, 30, 0, 0, time.UTC)
@@ -129,6 +132,9 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				}
 				if strings.HasSuffix(vector.RuleID, ".2-55-1-to-3-14-0") {
 					clock = time.Date(2026, 9, 12, 17, 29, 0, 0, time.UTC)
+				}
+				if vector.RuleID == "prometheus.remote-write-http2-default.2-55-1-to-3-14-0" {
+					clock = time.Date(2026, 9, 13, 9, 0, 0, 0, time.UTC)
 				}
 				report, err := Check(vector.Project, scenario.Input, clock)
 				if err != nil {
@@ -517,7 +523,7 @@ func TestCatalogueDoesNotInventCoverage(t *testing.T) {
 		t.Fatal("cert-manager existing check lost or double counted")
 	}
 	prometheus, err := Catalog(false, "prometheus")
-	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 14 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
+	if err != nil || len(prometheus.Projects[0].ExistingChecks) != 1 || prometheus.Projects[0].SourceRuleCount != 15 || prometheus.Projects[0].GenericCoverage != "source_rule_preview" {
 		t.Fatal("Prometheus existing check or source rule lost or double counted")
 	}
 	fluentd, err := Catalog(false, "fluentd")

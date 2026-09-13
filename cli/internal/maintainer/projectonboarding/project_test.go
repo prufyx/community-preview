@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -141,6 +142,76 @@ func TestProject_SyncVerifyInspect_CommitPinnedCorpus(t *testing.T) {
 	}
 	if code := Run(context.Background(), []string{"inspect", "--snapshot", filepath.Join(parent, dir), "--tag", "missing"}, &out, &errOut, Options{}); code == 0 {
 		t.Fatal("unknown tag accepted")
+	}
+}
+
+func TestDecodeReleaseListEndpointBound(t *testing.T) {
+	body := strings.Repeat("x", 100000)
+	items := make([]string, 0, 30)
+	for i := 0; i < 30; i++ {
+		id, tag, draft := i+100, "v9.9."+strconv.Itoa(i), "true"
+		if i == 0 {
+			id, tag, draft = 9, "v1.2.3", "false"
+		}
+		items = append(items, `{"id":`+strconv.Itoa(id)+`,"tag_name":"`+tag+`","published_at":"2026-09-12T10:00:00Z","body":"`+body+`","draft":`+draft+`,"prerelease":false}`)
+	}
+	valid := []byte("[" + strings.Join(items, ",") + "]")
+	if len(valid) <= maxAPI || len(valid) > maxReleaseListAPI {
+		t.Fatalf("fixture bounds: %d", len(valid))
+	}
+	if _, err := decodeReleaseList(valid); err != nil {
+		t.Fatalf("release list within endpoint bound: %v", err)
+	}
+	tooLarge := append(append([]byte(nil), valid...), bytes.Repeat([]byte(" "), maxReleaseListAPI-len(valid)+1)...)
+	if _, err := decodeReleaseList(tooLarge); err == nil {
+		t.Fatal("release list over endpoint bound accepted")
+	}
+	var repository map[string]any
+	if err := decodeAPI(valid, &repository); err == nil {
+		t.Fatal("non-release API accepted within release-only 2MiB range")
+	}
+}
+
+func TestProjectRunSyncRetainsAndVerifiesLargeReleaseList(t *testing.T) {
+	body := strings.Repeat("x", 100000)
+	items := make([]string, 0, 30)
+	for i := 0; i < 30; i++ {
+		id, tag, draft := i+100, "v9.9."+strconv.Itoa(i), "true"
+		if i == 0 {
+			id, tag, draft = 9, "v1.2.3", "false"
+		}
+		items = append(items, `{"id":`+strconv.Itoa(id)+`,"tag_name":"`+tag+`","published_at":"2026-09-12T10:00:00Z","body":"`+body+`","draft":`+draft+`,"prerelease":false}`)
+	}
+	list := []byte("[" + strings.Join(items, ",") + "]")
+	if len(list) <= maxAPI || len(list) > maxReleaseListAPI {
+		t.Fatalf("fixture bounds: %d", len(list))
+	}
+	fetch := FetchFunc(func(ctx context.Context, host, path string) ([]byte, int, error) {
+		if host == "api.github.com" && path == "/repos/acme/sample/releases?per_page=30&page=1" {
+			return list, 200, nil
+		}
+		return testFetcher(t).Fetch(ctx, host, path)
+	})
+	request := filepath.Join(t.TempDir(), "request.json")
+	raw, _ := sourcecorpus.Canonical(testRequest(t).document)
+	if err := os.WriteFile(request, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Join(t.TempDir(), "snapshots")
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run(context.Background(), []string{"sync", "--manifest", request, "--output-parent", parent}, &stdout, &stderr, Options{Fetcher: fetch, Now: func() time.Time { return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC) }})
+	if code != 0 {
+		t.Fatalf("sync code=%d stderr=%q", code, stderr.String())
+	}
+	var receipt map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &receipt); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := VerifySnapshot(filepath.Join(parent, receipt["outputName"].(string))); err != nil {
+		t.Fatalf("offline verify: %v", err)
 	}
 }
 

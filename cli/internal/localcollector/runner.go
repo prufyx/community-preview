@@ -75,7 +75,7 @@ func (r ExecRunner) Run(parent context.Context, argv, env []string, timeout time
 		grace := time.NewTimer(250 * time.Millisecond)
 		waited := false
 		select {
-		case err = <-done:
+		case <-done:
 			waited = true
 		case <-grace.C:
 		}
@@ -90,9 +90,8 @@ func (r ExecRunner) Run(parent context.Context, argv, env []string, timeout time
 		killProcessGroup(cmd)
 		if !waited {
 			select {
-			case err = <-done:
+			case <-done:
 			case <-time.After(cmd.WaitDelay + 250*time.Millisecond):
-				err = ctx.Err()
 			}
 		}
 		return CommandResult{Class: "transport_timeout_unreachable", Exit: 124}, ctx.Err()

@@ -136,3 +136,55 @@ func TestPrepareOpenTelemetryCollectorUnknownBoundaries(t *testing.T) {
 		}
 	}
 }
+
+func TestPrepareOpenTelemetryInternalMetricsTruthTableAndPrivacy(t *testing.T) {
+	raw := []byte("exporters:\n  debug: {}\nservice:\n  telemetry:\n    # PRIVATE_OTEL must never enter the canonical projection.\n    logs:\n      level: info\n")
+	tests := []struct {
+		name, gate, remote   string
+		complete, precedence bool
+		wantState            State
+		wantReason           Reason
+	}{
+		{"wildcard default with remote intent", "false", "true", true, true, StatePrepared, ReasonOpenTelemetryMetricsPrepared},
+		{"localhost default with remote intent", "true", "true", true, true, StatePrepared, ReasonOpenTelemetryMetricsPrepared},
+		{"local scrape does not require migration", "true", "false", true, true, StatePrepared, ReasonOpenTelemetryMetricsPrepared},
+		{"wildcard default without remote intent", "false", "false", true, true, StatePrepared, ReasonOpenTelemetryMetricsPrepared},
+		{"missing gate authority", "", "true", true, true, StateUnknown, ReasonOpenTelemetryMetricsAuthorityMissing},
+		{"invalid remote authority", "false", "yes", true, true, StateUnknown, ReasonOpenTelemetryMetricsAuthorityMissing},
+		{"incomplete config declaration", "false", "true", false, true, StateUnknown, ReasonOpenTelemetryIncomplete},
+		{"unresolved precedence declaration", "false", "true", true, false, StateUnknown, ReasonOpenTelemetryIncomplete},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			prepared, err := PrepareOpenTelemetryInternalMetrics(raw, OpenTelemetryFrom, OpenTelemetryTo, OpenTelemetryOfficialDistribution, test.gate, test.remote, test.complete, test.precedence)
+			if err != nil || prepared.State != test.wantState || prepared.Reason != test.wantReason {
+				t.Fatalf("prepared=%+v err=%v", prepared, err)
+			}
+			if bytes.Contains(prepared.CanonicalInputJSON, []byte("PRIVATE_OTEL")) || bytes.Contains(prepared.CanonicalInputJSON, []byte("debug")) {
+				t.Fatalf("private/native value leaked: %s", prepared.CanonicalInputJSON)
+			}
+			for _, fact := range []string{OpenTelemetryMetricsOverrideAbsentFact, OpenTelemetryMetricsGateFact, OpenTelemetryMetricsRemoteRequiredFact, OpenTelemetryMetricsConflictFact, OpenTelemetryConfigCompleteFact, OpenTelemetryConfigPrecedenceFact} {
+				if !bytes.Contains(prepared.CanonicalInputJSON, []byte(`"id":"`+fact+`"`)) {
+					t.Fatalf("canonical input omitted %s: %s", fact, prepared.CanonicalInputJSON)
+				}
+			}
+		})
+	}
+}
+
+func TestPrepareOpenTelemetryInternalMetricsRejectsOverrideAndScopeAmbiguity(t *testing.T) {
+	for _, raw := range []string{
+		"exporters:\n  debug: {}\nservice:\n  telemetry:\n    metrics:\n      address: 0.0.0.0:8888\n",
+		"exporters:\n  debug: {}\nservice:\n  telemetry: !custom {}\n",
+		"exporters: &shared\n  debug: {}\nservice:\n  telemetry:\n    metrics: {}\n",
+	} {
+		prepared, err := PrepareOpenTelemetryInternalMetrics([]byte(raw), OpenTelemetryFrom, OpenTelemetryTo, OpenTelemetryOfficialDistribution, "false", "true", true, true)
+		if err != nil || prepared.State != StateUnknown {
+			t.Fatalf("raw=%q prepared=%+v err=%v", raw, prepared, err)
+		}
+	}
+	prepared, err := PrepareOpenTelemetryInternalMetrics([]byte("exporters:\n  debug: {}\n"), OpenTelemetryFrom, OpenTelemetryTo, OpenTelemetryCustomDistribution, "false", "true", true, true)
+	if err != nil || prepared.State != StateUnknown || prepared.Reason != ReasonOpenTelemetryCustomDistribution {
+		t.Fatalf("custom distribution prepared=%+v err=%v", prepared, err)
+	}
+}

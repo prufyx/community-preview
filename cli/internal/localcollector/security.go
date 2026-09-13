@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -23,6 +24,11 @@ func validateLocalPathsAndTools(o *Options) error {
 	if !ok || int(st.Uid) != os.Getuid() || st.Nlink != 1 || info.Mode().Perm()&0o077 != 0 {
 		return errors.New("The kubeconfig must be owned by the invoking user, single-linked, with no group/other permission bits; use mode 0600.")
 	}
+	kubectl, err := resolveKubectl(o.Kubectl)
+	if err != nil {
+		return err
+	}
+	o.Kubectl = kubectl
 	if info, err := os.Lstat(o.OutputRoot); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return errors.New("The output directory must not be a symbolic link.")
 	}
@@ -32,14 +38,34 @@ func validateLocalPathsAndTools(o *Options) error {
 	if err := os.Chmod(o.OutputRoot, 0o700); err != nil {
 		return errors.New("Cannot make output directory private.")
 	}
-	if o.Kubectl == "" {
-		path, err := exec.LookPath("kubectl")
-		if err != nil {
-			return errors.New("Missing required command: kubectl")
-		}
-		o.Kubectl = path
-	}
 	return nil
+}
+
+// resolveKubectl resolves both an explicit path and the default PATH lookup
+// before execution. Symlinks are intentionally supported for package-manager
+// installations, but the final target must be a regular executable file.
+func resolveKubectl(configured string) (string, error) {
+	lookup := configured
+	if lookup == "" {
+		lookup = "kubectl"
+	}
+	path, err := exec.LookPath(lookup)
+	if err != nil {
+		return "", errors.New("A usable kubectl executable is required.")
+	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", errors.New("A usable kubectl executable is required.")
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
+		return "", errors.New("A usable kubectl executable is required.")
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+		return "", errors.New("A usable kubectl executable is required.")
+	}
+	return path, nil
 }
 
 func collectorEnvironment(kubeconfig string, selected []string) ([]string, error) {

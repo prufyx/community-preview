@@ -69,3 +69,59 @@ func TestCNCFOpenTelemetryNativeRouteRejectsBadPinAndMode(t *testing.T) {
 		t.Fatalf("permissive mode code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+func TestCNCFOpenTelemetryInternalMetricsSelectorTruthTable(t *testing.T) {
+	raw := []byte("exporters:\n  debug: {}\n")
+	path := writeCNCFFile(t, "collector-metrics.yaml", raw, 0o600)
+	base := []string{"check", "cncf", "--project", "opentelemetry", "--otel-collector-config", path, "--otel-collector-config-digest", cncfDigest(raw), "--otel-distribution", "official", "--otel-config-complete", "--otel-config-precedence-resolved", "--otel-rule", "internal-telemetry-default-bind", "--from", "0.110.0", "--to", "0.111.0", "--now", "2026-09-13T10:00:00Z", "--format", "json"}
+	withAuthorities := func(gate, remote string) []string {
+		args := append([]string(nil), base...)
+		return append(args, "--otel-metrics-localhost-default", gate, "--otel-metrics-remote-scrape-required", remote)
+	}
+	for _, test := range []struct {
+		name, gate, remote, status string
+		wantCode                   int
+	}{
+		{"localhost default blocks remote scrape", "true", "true", "BLOCKED", ExitBlocked},
+		{"wildcard default passes remote scrape", "false", "true", "PASS", ExitOK},
+		{"remote scrape not required passes", "true", "false", "PASS", ExitOK},
+		{"wildcard default without remote scrape passes", "false", "false", "PASS", ExitOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			code, stdout, stderr := runCNCFCLI(t, withAuthorities(test.gate, test.remote)...)
+			if code != test.wantCode || stderr != "" || !strings.Contains(stdout, `"status":"`+test.status+`"`) || !strings.Contains(stdout, `"selectedRuleId":"opentelemetry.internal-telemetry-default-bind.0-110-to-0-111"`) || strings.Contains(stdout, path) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+	for _, test := range []struct {
+		name string
+		args []string
+	}{
+		{"missing authority", base},
+		{"invalid gate authority", append(append([]string(nil), base...), "--otel-metrics-localhost-default", "yes", "--otel-metrics-remote-scrape-required", "true")},
+		{"metrics override", append(append([]string(nil), base[:0]...), base...)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := test.args
+			if test.name == "metrics override" {
+				override := []byte("exporters:\n  debug: {}\nservice:\n  telemetry:\n    metrics:\n      address: 0.0.0.0:8888\n")
+				overridePath := writeCNCFFile(t, "collector-metrics-override.yaml", override, 0o600)
+				args = append([]string(nil), base...)
+				for i := range args {
+					if args[i] == path {
+						args[i] = overridePath
+					}
+					if args[i] == cncfDigest(raw) {
+						args[i] = cncfDigest(override)
+					}
+				}
+				args = append(args, "--otel-metrics-localhost-default", "false", "--otel-metrics-remote-scrape-required", "true")
+			}
+			code, stdout, stderr := runCNCFCLI(t, args...)
+			if code != ExitUnknown || stderr != "" || !strings.Contains(stdout, `"status":"UNKNOWN"`) || strings.Contains(stdout, path) {
+				t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+			}
+		})
+	}
+}

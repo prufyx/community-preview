@@ -1575,22 +1575,124 @@
     "cases": [
       {
         "name": "valid-effective-name",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": false}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.16.19",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.17.18",
+                "facts": [
+                  {
+                    "id": "component.cilium.invalid_effective_cluster_name",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "PASS"
       },
       {
         "name": "invalid-effective-name",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": true}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.16.19",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.17.18",
+                "facts": [
+                  {
+                    "id": "component.cilium.invalid_effective_cluster_name",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "BLOCKED"
       },
       {
         "name": "missing-effective-name-fact",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.19", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": []}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.16.19",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.17.18",
+                "facts": []
+              }
+            ]
+          }
+        },
         "status": "UNKNOWN"
       },
       {
         "name": "outside-reviewed-endpoint",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.16.20", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/cilium/cilium", "version": "1.17.18", "facts": [{"id": "component.cilium.invalid_effective_cluster_name", "state": "declared", "boolValue": true}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.16.20",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/cilium/cilium",
+                "version": "1.17.18",
+                "facts": [
+                  {
+                    "id": "component.cilium.invalid_effective_cluster_name",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "UNKNOWN"
       }
     ]
@@ -17653,22 +17755,124 @@
     "cases": [
       {
         "name": "satisfied",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": false}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.32.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "PASS"
       },
       {
         "name": "blocked",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": true}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.32.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "BLOCKED"
       },
       {
         "name": "missing",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.32.0", "facts": []}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.32.0",
+                "facts": []
+              }
+            ]
+          }
+        },
         "status": "UNKNOWN"
       },
       {
         "name": "outside",
-        "input": {"schema": "prufyx.io/operator-declared-constraint-input/v1alpha1", "authority": "OPERATOR_DECLARED_MINIMIZED", "current": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.0", "facts": []}]}, "proposed": {"components": [{"component": "pkg:github/kubernetes/kubernetes", "version": "1.31.1", "facts": [{"id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present", "state": "declared", "boolValue": true}]}]}},
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.flowcontrol_v1beta3_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
         "status": "UNKNOWN"
       }
     ]
@@ -26993,6 +27197,250 @@
   },
   {
     "project": "opentelemetry",
+    "ruleId": "opentelemetry.internal-telemetry-default-bind.0-110-to-0-111",
+    "cases": [
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.110.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.111.0",
+                "facts": [
+                  {
+                    "id": "component.opentelemetry.config_complete",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.config_precedence_resolved",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.distribution",
+                    "state": "declared",
+                    "enumValue": "official"
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_localhost_remote_conflict",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_override_absent",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_remote_scrape_required",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "pass-wildcard-default",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.110.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.111.0",
+                "facts": [
+                  {
+                    "id": "component.opentelemetry.config_complete",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.config_precedence_resolved",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.distribution",
+                    "state": "declared",
+                    "enumValue": "official"
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_localhost_remote_conflict",
+                    "state": "declared",
+                    "boolValue": false
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_override_absent",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_remote_scrape_required",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "missing-remote-authority",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.110.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.111.0",
+                "facts": [
+                  {
+                    "id": "component.opentelemetry.config_complete",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.config_precedence_resolved",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.distribution",
+                    "state": "declared",
+                    "enumValue": "official"
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_override_absent",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "pass-wildcard-default-without-remote-requirement",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.110.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/open-telemetry/opentelemetry-collector",
+                "version": "0.111.0",
+                "facts": [
+                  {
+                    "id": "component.opentelemetry.config_complete",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.config_precedence_resolved",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.distribution",
+                    "state": "declared",
+                    "enumValue": "official"
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_localhost_remote_conflict",
+                    "state": "declared",
+                    "boolValue": false
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_override_absent",
+                    "state": "declared",
+                    "boolValue": true
+                  },
+                  {
+                    "id": "component.opentelemetry.internal_metrics_remote_scrape_required",
+                    "state": "declared",
+                    "boolValue": false
+                  },
+                  {
+                    "id": "component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      }
+    ]
+  },
+  {
+    "project": "opentelemetry",
     "ruleId": "opentelemetry.logging-exporter-removed.0-111",
     "cases": [
       {
@@ -28197,6 +28645,158 @@
     ],
     "project": "prometheus",
     "ruleId": "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"
+  },
+  {
+    "cases": [
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "omitted",
+                    "id": "component.prometheus.remote_write_enable_http2",
+                    "state": "declared"
+                  },
+                  {
+                    "boolValue": true,
+                    "id": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "required-omitted-blocked",
+        "status": "BLOCKED"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "true",
+                    "id": "component.prometheus.remote_write_enable_http2",
+                    "state": "declared"
+                  },
+                  {
+                    "boolValue": false,
+                    "id": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "required-explicit-true-pass",
+        "status": "PASS"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "id": "component.prometheus.remote_write_enable_http2",
+                    "state": "unsupported"
+                  },
+                  {
+                    "id": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+                    "state": "unsupported"
+                  }
+                ],
+                "version": "3.14.0"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "unresolved-authority",
+        "status": "UNKNOWN"
+      },
+      {
+        "input": {
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [],
+                "version": "2.55.1"
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/prometheus/prometheus",
+                "facts": [
+                  {
+                    "enumValue": "omitted",
+                    "id": "component.prometheus.remote_write_enable_http2",
+                    "state": "declared"
+                  },
+                  {
+                    "boolValue": true,
+                    "id": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+                    "state": "declared"
+                  }
+                ],
+                "version": "3.14.1"
+              }
+            ]
+          },
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1"
+        },
+        "name": "wrong-pair",
+        "status": "UNKNOWN"
+      }
+    ],
+    "project": "prometheus",
+    "ruleId": "prometheus.remote-write-http2-default.2-55-1-to-3-14-0"
   },
   {
     "cases": [

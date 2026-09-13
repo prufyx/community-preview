@@ -25,6 +25,8 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.6 --to 1.19.0 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --input FILE --from 1.18.13 --to 1.19.7 [--complete-cnp-ccnp-set true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project cilium --cilium-config-map FILE --from 1.16.19 --to 1.17.18 --cilium-distribution official_upstream|custom_build --cilium-config-complete --cilium-config-precedence-resolved [--cilium-config-map-digest SHA256] [--format human|json|input]
+	 or: prufyx prepare cncf --project coredns --coredns-corefile FILE --from 1.6.9 --to 1.7.0 or 1.9.4|1.10.1|1.11.4|1.12.4|1.13.2 --to 1.14.7 --coredns-distribution official --coredns-corefile-complete [--coredns-corefile-digest SHA256] [--format human|json|input]
+	 or: prufyx prepare cncf --project envoy --envoy-bootstrap FILE --envoy-bootstrap-selected --from 1.34.14|1.35.13|1.36.10|1.37.6|1.38.4 --to 1.39.1 [--envoy-bootstrap-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project kubernetes --input FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
@@ -42,6 +44,7 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project distribution --input FILE --from 2.8.3 --to 3.0.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project container-network-interface-cni --input FILE --from 0.4.0 --to 1.0.0 --operation configuration-spec-migration [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project containerd --input FILE --runtime-handler NAME --from 1.7.28 --to 2.0.0 --containerd-config-complete --containerd-config-precedence-resolved --containerd-official-upstream --containerd-official-bundled-runtimes-only [--input-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project prometheus --prometheus-config FILE --prometheus-config-complete --prometheus-config-precedence-resolved --prometheus-rule remote-write-http2-default --prometheus-remote-write-name NAME --prometheus-remote-write-http2-required=true|false --from 2.55.1 --to 3.14.0 [--prometheus-config-digest SHA256] [--format human|json|input]
 
 Prepare a minimized declaration from one private local supported resource JSON or declaration.
 Select the Kyverno container explicitly. A scoped result requires an explicit
@@ -146,6 +149,12 @@ one of the two removed official shims. Imports, custom runtime types, missing
 handlers, runtime_path overrides, custom distributions, and separately supplied
 shims remain UNKNOWN.
 
+Prometheus accepts one full private prometheus.yml and selects one unique
+remote_write entry by literal name. It retains only the direct inline
+enable_http2 class and whether that class conflicts with the caller's explicit
+endpoint requirement. Aliases, merges, substitutions, nested http_config
+lookalikes, unresolved source precedence, and other version pairs stay UNKNOWN.
+
 --format input writes only the canonical declaration for check cncf. Redirect
 with umask 077 to a new file so it remains private. --format json also includes
 the source digest, preparation reason and omissions, without raw workload data.
@@ -154,7 +163,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	fs := flag.NewFlagSet("prepare cncf", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	project := fs.String("project", "", "kyverno, linkerd, karmada, argo-cd, cilium, kubernetes, etcd, jaeger, metallb, contour, cloudnativepg, kubevirt, emissary-ingress, harbor, openfga, opencost, cloud-custodian, fluentd, distribution, container-network-interface-cni, or containerd")
+	project := fs.String("project", "", "supported CNCF project")
 	input := fs.String("input", "", "private proposed input JSON or supported native configuration")
 	container := fs.String("container", "", "explicit local Kyverno container selector")
 	from := fs.String("from", "", "actual declared current component version")
@@ -171,6 +180,13 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	ciliumConfigComplete := fs.Bool("cilium-config-complete", false, "caller declaration that selected Cilium ConfigMap is complete")
 	ciliumConfigPrecedenceResolved := fs.Bool("cilium-config-precedence-resolved", false, "caller declaration that Cilium ConfigMap precedence is resolved")
 	ciliumDistribution := fs.String("cilium-distribution", "", "Cilium distribution: official_upstream or custom_build")
+	corednsCorefile := fs.String("coredns-corefile", "", "private selected complete CoreDNS Corefile")
+	corednsCorefilePin := fs.String("coredns-corefile-digest", "", "optional exact Corefile SHA-256")
+	corednsCorefileComplete := fs.Bool("coredns-corefile-complete", false, "caller declaration that selected Corefile is complete")
+	corednsDistribution := fs.String("coredns-distribution", "", "CoreDNS distribution: official")
+	envoyBootstrap := fs.String("envoy-bootstrap", "", "private selected Envoy JSON bootstrap")
+	envoyBootstrapPin := fs.String("envoy-bootstrap-digest", "", "optional exact Envoy bootstrap SHA-256")
+	envoyBootstrapSelected := fs.Bool("envoy-bootstrap-selected", false, "caller declaration that this is the directly loaded Envoy bootstrap")
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that selected rendered resource set is complete")
 	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that selected resource set is required for target API apply")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
@@ -182,6 +198,13 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	containerdConfigPrecedenceResolved := fs.Bool("containerd-config-precedence-resolved", false, "caller declaration that containerd configuration precedence is resolved")
 	containerdOfficialUpstream := fs.Bool("containerd-official-upstream", false, "bind the target to the reviewed upstream containerd distribution")
 	containerdOfficialBundledRuntimesOnly := fs.Bool("containerd-official-bundled-runtimes-only", false, "declare that no separately installed custom shim supplies the selected runtime")
+	prometheusConfig := fs.String("prometheus-config", "", "private complete Prometheus YAML configuration")
+	prometheusConfigPin := fs.String("prometheus-config-digest", "", "optional exact Prometheus configuration SHA-256")
+	prometheusConfigComplete := fs.Bool("prometheus-config-complete", false, "caller declaration that the selected remote_write subtree is complete")
+	prometheusConfigPrecedenceResolved := fs.Bool("prometheus-config-precedence-resolved", false, "caller declaration that selected remote_write precedence is resolved")
+	prometheusRule := fs.String("prometheus-rule", "", "explicit Prometheus rule selector")
+	prometheusRemoteWriteName := fs.String("prometheus-remote-write-name", "", "literal name selecting one remote_write entry")
+	prometheusRemoteWriteHTTP2Required := fs.String("prometheus-remote-write-http2-required", "", "declared endpoint HTTP/2 requirement: true or false")
 	pin := fs.String("input-digest", "", "optional exact source file SHA-256")
 	format := fs.String("format", "human", "human, json or input")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
@@ -189,6 +212,15 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	if *project != "cilium" && anyFlagProvided(args, "cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution") {
 		return r.usage("Cilium ConfigMap flags require Cilium preparation")
+	}
+	if *project != "coredns" && anyFlagProvided(args, "coredns-corefile", "coredns-corefile-digest", "coredns-corefile-complete", "coredns-distribution") {
+		return r.usage("CoreDNS Corefile flags require CoreDNS preparation")
+	}
+	if *project != "envoy" && anyFlagProvided(args, "envoy-bootstrap", "envoy-bootstrap-digest", "envoy-bootstrap-selected") {
+		return r.usage("Envoy bootstrap flags require Envoy preparation")
+	}
+	if *project != "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required") {
+		return r.usage("Prometheus remote-write flags require Prometheus preparation")
 	}
 	if *project != "kubernetes" && flagProvided(args, "target-api-apply-required") {
 		return r.usage("--target-api-apply-required is only valid for Kubernetes preparation")
@@ -202,6 +234,24 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		*input, *pin = *ciliumConfigMap, *ciliumConfigMapPin
 	}
+	if *project == "coredns" && *corednsCorefile != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "coredns-corefile-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*corednsCorefilePin)) {
+			return r.fail("COREDNS_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *corednsCorefile, *corednsCorefilePin
+	}
+	if *project == "envoy" && *envoyBootstrap != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "envoy-bootstrap-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*envoyBootstrapPin)) {
+			return r.fail("ENVOY_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *envoyBootstrap, *envoyBootstrapPin
+	}
+	if *project == "prometheus" && *prometheusConfig != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "prometheus-config-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*prometheusConfigPin)) {
+			return r.fail("PROMETHEUS_REMOTE_WRITE_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *prometheusConfig, *prometheusConfigPin
+	}
 	if concreteCNCFPreparationProject(*project) && (fs.NArg() != 0 || *input == "" || *from == "" || *to == "" || (*format != "human" && *format != "json" && *format != "input") || (flagProvided(args, "input-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*pin))) {
 		if *project == "linkerd" {
 			return r.fail("LINKERD_PREPARATION_INPUT_INVALID", ExitUsage)
@@ -211,6 +261,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "cilium" {
 			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "coredns" {
+			return r.fail("COREDNS_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		if *project == "kubernetes" {
 			return r.fail("KUBERNETES_PREPARATION_INPUT_INVALID", ExitUsage)
@@ -223,6 +276,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "cloud-custodian" {
 			return r.fail("CLOUD_CUSTODIAN_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "prometheus" {
+			return r.fail("PROMETHEUS_REMOTE_WRITE_INPUT_INVALID", ExitUsage)
 		}
 		return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 	}
@@ -285,6 +341,14 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			(flagProvided(args, "complete-cnp-ccnp-set") && *completeCNPCCNPSet != "true" && *completeCNPCCNPSet != "false") {
 			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
+	case "coredns":
+		if *corednsCorefile == "" || (*corednsDistribution != "" && *corednsDistribution != "official" && *corednsDistribution != "custom") || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("COREDNS_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "envoy":
+		if *envoyBootstrap == "" || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("ENVOY_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
 	case "kubernetes":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "cilium-config-map") || flagProvided(args, "cilium-config-map-digest") || flagProvided(args, "cilium-config-complete") || flagProvided(args, "cilium-config-precedence-resolved") || flagProvided(args, "cilium-distribution") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || (*distribution != "official_upstream" && *distribution != "custom_build") {
 			return r.fail("KUBERNETES_PREPARATION_INPUT_INVALID", ExitUsage)
@@ -322,6 +386,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "containerd":
 		if *containerdRuntimeHandler == "" || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || flagProvided(args, "effective-config-complete") {
 			return r.fail("CONTAINERD_CONFIG_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "prometheus":
+		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || flagProvided(args, "effective-config-complete") || *prometheusConfig == "" || (*prometheusRemoteWriteHTTP2Required != "" && *prometheusRemoteWriteHTTP2Required != "true" && *prometheusRemoteWriteHTTP2Required != "false") {
+			return r.fail("PROMETHEUS_REMOTE_WRITE_INPUT_INVALID", ExitUsage)
 		}
 	case "openfga":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -396,6 +464,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			}
 			prepared, err = cncfprepare.PrepareCilium(raw, *from, *to, complete)
 		}
+	case "coredns":
+		prepared, err = cncfprepare.PrepareCoreDNSCorefile(raw, *from, *to, *corednsDistribution, *corednsCorefileComplete)
+	case "envoy":
+		prepared, err = cncfprepare.PrepareEnvoyBootstrap(raw, *from, *to, *envoyBootstrapSelected)
 	case "kubernetes":
 		prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, *from, *to, *distribution, *targetAPIApplyRequired, *resourceScopeComplete)
 	case "etcd":
@@ -423,6 +495,13 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareCNISpecConfiguration(raw, *from, *to, *operation)
 	case "containerd":
 		prepared, err = cncfprepare.PrepareContainerdConfig(raw, *containerdRuntimeHandler, *from, *to, *containerdConfigComplete, *containerdConfigPrecedenceResolved, *containerdOfficialUpstream, *containerdOfficialBundledRuntimesOnly)
+	case "prometheus":
+		var required *bool
+		if *prometheusRule == cncfprepare.PrometheusRemoteWriteHTTP2Rule && *prometheusRemoteWriteHTTP2Required != "" {
+			value := *prometheusRemoteWriteHTTP2Required == "true"
+			required = &value
+		}
+		prepared, err = cncfprepare.PreparePrometheusRemoteWriteConfig(raw, *prometheusRemoteWriteName, *from, *to, *prometheusConfigComplete, *prometheusConfigPrecedenceResolved, required)
 	case "emissary-ingress":
 		prepared, err = cncfprepare.PrepareEmissary(raw, *from, *to)
 	case "harbor":
@@ -545,6 +624,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Distribution"
 	} else if label == "container-network-interface-cni" {
 		label = "CNI specification"
+	} else if label == "prometheus" {
+		label = "Prometheus remote-write HTTP/2"
 	}
 	if _, err := fmt.Fprintf(r.stdout, "%s declaration preparation: %s\nreason: %s\nsource digest: %s\nprepared input digest: %s\nnetwork used: false\nupgrade check performed: false\n", label, prepared.State, prepared.Reason, prepared.SourceDigest, prepared.InputDigest); err != nil {
 		if concreteCNCFPreparationProject(*project) {
@@ -576,7 +657,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {
