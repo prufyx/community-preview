@@ -33,6 +33,7 @@ type Options struct {
 	Kubectl                       string
 	Now                           func() time.Time
 	Random                        io.Reader
+	kubeconfigSnapshot            []byte
 }
 
 type Collector struct{ Runner Runner }
@@ -81,11 +82,7 @@ func (c Collector) Collect(ctx context.Context, opts Options, stdout, stderr io.
 		fmt.Fprintln(stderr, err)
 		return "", 2
 	}
-	env, err := collectorEnvironment(opts.Kubeconfig, opts.ExecEnv)
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return "", 2
-	}
+	defer wipeKubeconfigBytes(opts.kubeconfigSnapshot)
 	if c.Runner == nil {
 		c.Runner = ExecRunner{Binary: opts.Kubectl}
 	}
@@ -111,6 +108,23 @@ func (c Collector) Collect(ctx context.Context, opts Options, stdout, stderr io.
 			_ = os.RemoveAll(runDir)
 		}
 	}()
+	snapshot, removeSnapshot, err := createKubeconfigSnapshot(opts.kubeconfigSnapshot)
+	if err != nil {
+		fmt.Fprintln(stderr, "Cannot create a private kubeconfig snapshot.")
+		return "", 2
+	}
+	snapshotRemoved := false
+	defer func() {
+		if !snapshotRemoved {
+			_ = removeSnapshot()
+		}
+	}()
+	opts.Kubeconfig = snapshot
+	env, err := collectorEnvironment(snapshot, opts.ExecEnv)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return "", 2
+	}
 
 	adapter, err := loadAdapterAssets(opts.ComponentConfigurationProfile)
 	if err != nil {
@@ -233,6 +247,11 @@ func (c Collector) Collect(ctx context.Context, opts Options, stdout, stderr io.
 		totalOmissions += len(omissions)
 	}
 
+	if err := removeSnapshot(); err != nil {
+		fmt.Fprintln(stderr, "Cannot remove the private kubeconfig snapshot.")
+		return "", 2
+	}
+	snapshotRemoved = true
 	if err := writeJSON(filepath.Join(runDir, "index.json"), map[string]any{
 		"schema": indexSchema, "generatedAt": now.Format(time.RFC3339), "contexts": indexes,
 	}); err != nil {

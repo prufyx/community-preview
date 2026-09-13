@@ -154,7 +154,7 @@ func TestBuildFromActualOfflineCollectorOutputs(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			kubeconfig := filepath.Join(root, "kubeconfig")
-			if err := os.WriteFile(kubeconfig, []byte("synthetic kubeconfig\n"), 0o600); err != nil {
+			if err := os.WriteFile(kubeconfig, []byte("apiVersion: v1\nkind: Config\nclusters: []\ncontexts: []\nusers: []\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			output := filepath.Join(root, "output")

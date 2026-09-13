@@ -169,8 +169,12 @@ func TestOutputDirRejectsCheckoutBeforeCreation(t *testing.T) {
 		t.Fatal("created rejected checkout-contained output")
 	}
 	outside := filepath.Join(t.TempDir(), "candidate")
-	if _, err := outputDir(repo, outside); err != nil {
+	directory, err := outputDir(repo, outside)
+	if err != nil {
 		t.Fatalf("rejected outside output: %v", err)
+	}
+	if err := directory.Close(); err != nil {
+		t.Fatal(err)
 	}
 	link := filepath.Join(t.TempDir(), "outside-looking-link")
 	if err := os.Symlink(repo, link); err != nil {

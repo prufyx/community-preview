@@ -102,7 +102,7 @@ func (r *countingRunner) Run(context.Context, []string, []string, time.Duration)
 func TestCollectRejectsInvalidKubectlBeforeExecutionOrOutput(t *testing.T) {
 	tmp := t.TempDir()
 	kubeconfig := filepath.Join(tmp, "config")
-	if err := os.WriteFile(kubeconfig, []byte("x"), 0o600); err != nil {
+	if err := os.WriteFile(kubeconfig, []byte(testKubeconfigYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	invalid := filepath.Join(tmp, "private-invalid-kubectl")
