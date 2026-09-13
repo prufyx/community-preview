@@ -12,9 +12,10 @@ source tree. Replacement means the selected feed target stands on its own and
 is never merged with an installed snapshot. Its reviewed rules may differ from
 the embedded set, including data-only additions, removals, or an empty snapshot
 that intentionally supplies no coverage. The separately reviewed CNCF exporter
-can produce the current complete 158-rule embedded snapshot. Supply a signed
-public TUF root and its SHA-256 through an independent trusted process. The root
-stays separate from the target and package.
+can produce the current complete embedded snapshot; use its export receipt and
+the generated support inventory for the exact rule count and digests. Supply a
+signed public TUF root and its SHA-256 through an independent trusted process.
+The root stays separate from the target and package.
 
 TUF signing is sequential. Snapshot metadata hashes the finalized targets
 metadata, including its signatures; timestamp metadata hashes the finalized
@@ -113,6 +114,29 @@ prufyx-maintainer knowledge-publish finalize-package \
   > /absolute/publisher/finalization-receipt.json
 ```
 
+The same successful in-memory finalization can also create an unsigned client
+release plan. The command does not read a saved receipt:
+
+```sh
+prufyx-maintainer knowledge-publish finalize-package \
+  --root /absolute/root.json --root-digest sha256:<root> \
+  --target /absolute/constraints.v1.json \
+  --targets /absolute/publisher/1.targets.json \
+  --snapshot /absolute/publisher/1.snapshot.json \
+  --timestamp /absolute/publisher/timestamp.json \
+  --output /absolute/publisher/cncf-1.tar \
+  --package-url https://metadata.example.org/cncf-1.tar \
+  --release-plan-output /absolute/publisher/cncf-1.release-plan.json \
+  > /absolute/publisher/finalization-receipt.json
+```
+
+The plan binds the exact package URL and digest, target revision/digest/purpose
+and capability, publisher initial-root identity, one-entry root history, and all
+verified role versions, digests, and expiries. It is routing plus assertions,
+not a trust root, signature, maintainer identity, or client bootstrap authority.
+This v1 plan shape rejects rotated root history; use the existing manual path for
+a rotated store.
+
 Finalization reconstructs the fixed content-addressed repository, packages it
 canonically, and invokes the same `knowledge.VerifyConstraints` path used by
 `prufyx db verify`. Verification uses the actual UTC clock and must authenticate
@@ -129,3 +153,9 @@ explicit operator inspection or cleanup and returns a generic failure. Retry
 with a different new path. A successful finalization does not publish the
 package. Hosting, root bootstrap, key custody, expiry policy, source review,
 and release authority remain separate gates.
+
+Paired output is ordered and durable rather than crash-atomic. The package is
+created and synchronized first, then the plan. The command reports success only
+after both exist durably. If plan creation fails, the already durable package and
+any pre-existing plan file remain untouched and the command fails without a
+finalization receipt on stdout. Retry with new output paths.

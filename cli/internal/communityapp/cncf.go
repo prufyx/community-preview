@@ -82,10 +82,14 @@ func (r runtime) cncf(args []string) int {
 	 or: prufyx check cncf --project flux --native-resource FILE --from VERSION --to VERSION [--resource-scope-complete] (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
 	 or: prufyx check cncf --project kubernetes --native-resource FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete (--now RFC3339 | --knowledge-db DIR) [--native-resource-digest SHA256] [--replay-report FILE] [--format human|json]
 	 or: prufyx check cncf --project cilium --cilium-config-map FILE --from 1.16.19 --to 1.17.18 --cilium-distribution official_upstream|custom_build --cilium-config-complete --cilium-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--cilium-config-map-digest SHA256] [--replay-report FILE] [--format human|json]
+	 or: prufyx check cncf --project coredns --coredns-corefile FILE --from 1.6.9 --to 1.7.0 or 1.9.4|1.10.1|1.11.4|1.12.4|1.13.2 --to 1.14.7 --coredns-distribution official --coredns-corefile-complete (--now RFC3339 | --knowledge-db DIR) [--coredns-corefile-digest SHA256] [--replay-report FILE] [--format human|json]
+	 or: prufyx check cncf --project envoy --envoy-bootstrap FILE --envoy-bootstrap-selected --from 1.34.14|1.35.13|1.36.10|1.37.6|1.38.4 --to 1.39.1 (--now RFC3339 | --knowledge-db DIR) [--envoy-bootstrap-digest SHA256] [--replay-report FILE] [--format human|json]
 	 or: prufyx check cncf --project nats --nats-config FILE --from VERSION --to VERSION (--now RFC3339 | --knowledge-db DIR) [--nats-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project opentelemetry --otel-collector-config FILE --otel-distribution official|custom --otel-config-complete --otel-config-precedence-resolved --from 0.110.0 --to 0.111.0 (--now RFC3339 | --knowledge-db DIR) [--otel-collector-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project opentelemetry --otel-rule internal-telemetry-default-bind --otel-collector-config FILE --otel-distribution official --otel-config-complete --otel-config-precedence-resolved --otel-metrics-localhost-default true|false --otel-metrics-remote-scrape-required true|false --from 0.110.0 --to 0.111.0 (--now RFC3339 | --knowledge-db DIR) [--otel-collector-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --scrape-config FILE --scrape-job NAME --from 2.55.1 --to 3.1.0 --scrape-config-complete --scrape-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--scrape-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project prometheus --alertmanager-config FILE --from 2.55.1 --to 3.1.0 --alertmanager-config-complete --alertmanager-config-precedence-resolved (--now RFC3339 | --knowledge-db DIR) [--alertmanager-config-digest SHA256] [--replay-report FILE] [--format human|json]
+   or: prufyx check cncf --project prometheus --prometheus-config FILE --prometheus-config-complete --prometheus-config-precedence-resolved --prometheus-rule remote-write-http2-default --prometheus-remote-write-name NAME --prometheus-remote-write-http2-required=true|false --from 2.55.1 --to 3.14.0 (--now RFC3339 | --knowledge-db DIR) [--prometheus-config-digest SHA256] [--replay-report FILE] [--format human|json]
    or: prufyx check cncf --project cloudnativepg --current-resource FILE --resource FILE --from 1.29.0 --to 1.30.0 (--now RFC3339 | --knowledge-db DIR) [--current-resource-digest SHA256] [--resource-digest SHA256] [--replay-report FILE] [--format human|json]
 
 Optional, local source-constraint preview using minimized operator declarations.
@@ -103,6 +107,18 @@ No cluster, network, model, or database download is used by this command.
 The Argo CD ConfigMap mode prepares and checks the local file in memory. The resource-exclusions mode admits one complete, precedence-resolved argocd-cm YAML and only exact target default, absent, or explicit empty values; it never infers v2 visibility intent, resource existence, watches, UI, reconciliation, or runtime behavior.
 It
 does not write canonical input, infer RBAC intent, or edit the ConfigMap.
+The CoreDNS Corefile mode reads a caller-selected complete local Corefile and
+recognizes only a literal federation directive at a direct server-block
+position. The official distribution and completeness declarations remain
+caller authority. Balanced brace-delimited plugin bodies are structurally
+admitted up to 32 levels but their properties are ignored. Imports, snippets,
+substitutions, quotes, escapes, malformed structure, plugin validity, included
+files, DNS behavior, and runtime state remain UNKNOWN.
+The Envoy bootstrap mode reads a caller-selected local JSON bootstrap and can
+derive only a literal V2 xDS transport blocker at three direct DynamicResources
+paths. It never derives a V3/PASS result from an absent, AUTO, or V3 field, and
+does not parse YAML, other ConfigSource paths, Any/typed_config, fetched xDS,
+or runtime state.
 The Knative Serving Service mode derives only the target named HTTP startup-
 probe port-match fact. Embedded knowledge reviews only 1.22.0 -> 1.23.0.
 An explicit external store is authoritative and never falls back to embedded
@@ -134,6 +150,14 @@ api_version can PASS only as the exact target source-derived v2 default with
 both caller declarations. PASS does not establish that Alertmanager supports
 v2, is reachable, or can receive alerts; validate compatibility and the complete
 target Prometheus configuration separately.
+The Prometheus remote-write HTTP/2 mode reads one full caller-supplied
+prometheus.yml and selects exactly one remote_write mapping by literal name.
+It classifies only the direct inline enable_http2 key or its exact source-
+derived default and compares that with an explicit endpoint requirement.
+Nested http_config lookalikes, aliases, merges, substitutions, ambiguous names,
+unresolved completeness or precedence, and other version pairs stay UNKNOWN.
+PASS does not prove HTTP/2 negotiation, endpoint support, delivery, startup,
+runtime flag precedence, included configuration, or whole-config validity.
 The TUF mode uses a Go lexical parser that admits one unaliased direct import
 and one top-level direct Updater call. It reads private Python source as data
 and never imports or executes it. Source outside that narrow grammar remains
@@ -245,6 +269,13 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	ciliumConfigComplete := fs.Bool("cilium-config-complete", false, "caller declaration that the selected Cilium ConfigMap is complete")
 	ciliumConfigPrecedenceResolved := fs.Bool("cilium-config-precedence-resolved", false, "caller declaration that Cilium ConfigMap precedence is resolved")
 	ciliumDistribution := fs.String("cilium-distribution", "", "Cilium distribution: official_upstream or custom_build")
+	corednsCorefile := fs.String("coredns-corefile", "", "private selected complete CoreDNS Corefile")
+	corednsCorefilePin := fs.String("coredns-corefile-digest", "", "optional exact Corefile SHA-256")
+	corednsCorefileComplete := fs.Bool("coredns-corefile-complete", false, "caller declaration that the selected Corefile is complete")
+	corednsDistribution := fs.String("coredns-distribution", "", "CoreDNS distribution: official")
+	envoyBootstrap := fs.String("envoy-bootstrap", "", "private selected Envoy JSON bootstrap")
+	envoyBootstrapPin := fs.String("envoy-bootstrap-digest", "", "optional exact Envoy bootstrap SHA-256")
+	envoyBootstrapSelected := fs.Bool("envoy-bootstrap-selected", false, "caller declaration that this is the directly loaded Envoy bootstrap")
 	natsConfig := fs.String("nats-config", "", "private standalone NATS JSON-like configuration")
 	natsConfigPin := fs.String("nats-config-digest", "", "optional exact NATS configuration SHA-256")
 	otelCollectorConfig := fs.String("otel-collector-config", "", "private selected OpenTelemetry Collector YAML configuration")
@@ -252,11 +283,21 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	otelDistribution := fs.String("otel-distribution", "", "declared Collector distribution: official or custom")
 	otelConfigComplete := fs.Bool("otel-config-complete", false, "caller declaration that the selected Collector configuration is complete")
 	otelConfigPrecedenceResolved := fs.Bool("otel-config-precedence-resolved", false, "caller declaration that Collector provider and CLI precedence is resolved")
+	otelRule := fs.String("otel-rule", "", "explicit OpenTelemetry native rule selector")
+	otelMetricsLocalhostDefault := fs.String("otel-metrics-localhost-default", "", "declared effective target internal-metrics localhost-default gate: true or false")
+	otelMetricsRemoteScrapeRequired := fs.String("otel-metrics-remote-scrape-required", "", "declared requirement for non-loopback internal-metrics scraping: true or false")
 	scrapeConfig := fs.String("scrape-config", "", "private selected native Prometheus scrape_config YAML")
 	scrapeConfigPin := fs.String("scrape-config-digest", "", "optional exact selected scrape_config SHA-256")
 	scrapeJob := fs.String("scrape-job", "", "exact job_name selecting the supplied scrape_config")
 	scrapeConfigComplete := fs.Bool("scrape-config-complete", false, "caller declaration that the selected scrape_config is complete")
 	scrapeConfigPrecedenceResolved := fs.Bool("scrape-config-precedence-resolved", false, "caller declaration that configuration precedence is resolved")
+	prometheusConfig := fs.String("prometheus-config", "", "private complete Prometheus YAML configuration")
+	prometheusConfigPin := fs.String("prometheus-config-digest", "", "optional exact Prometheus configuration SHA-256")
+	prometheusConfigComplete := fs.Bool("prometheus-config-complete", false, "caller declaration that the selected remote_write subtree is complete")
+	prometheusConfigPrecedenceResolved := fs.Bool("prometheus-config-precedence-resolved", false, "caller declaration that selected remote_write precedence is resolved")
+	prometheusRule := fs.String("prometheus-rule", "", "explicit Prometheus rule selector")
+	prometheusRemoteWriteName := fs.String("prometheus-remote-write-name", "", "literal name selecting one remote_write entry")
+	prometheusRemoteWriteHTTP2Required := fs.String("prometheus-remote-write-http2-required", "", "declared endpoint HTTP/2 requirement: true or false")
 	alertmanagerConfig := fs.String("alertmanager-config", "", "private selected native Prometheus alerting.alertmanagers entry YAML")
 	alertmanagerConfigPin := fs.String("alertmanager-config-digest", "", "optional exact selected Alertmanager config SHA-256")
 	alertmanagerConfigComplete := fs.Bool("alertmanager-config-complete", false, "caller declaration that the selected Alertmanager mapping is complete")
@@ -276,7 +317,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "cilium-config-map-digest") && !digestRE.MatchString(*ciliumConfigMapPin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "containerd-config-digest") && !digestRE.MatchString(*containerdConfigPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "cilium-config-map-digest") && !digestRE.MatchString(*ciliumConfigMapPin)) || (flagProvided(args, "coredns-corefile-digest") && !digestRE.MatchString(*corednsCorefilePin)) || (flagProvided(args, "envoy-bootstrap-digest") && !digestRE.MatchString(*envoyBootstrapPin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "prometheus-config-digest") && !digestRE.MatchString(*prometheusConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "containerd-config-digest") && !digestRE.MatchString(*containerdConfigPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -291,47 +332,86 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	fluxNativeRequested := *project == "flux" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete")
 	kubernetesNativeRequested := *project == "kubernetes" && anyFlagProvided(args, "native-resource", "native-resource-digest", "resource-scope-complete", "distribution", "target-api-apply-required")
 	ciliumNativeRequested := *project == "cilium" && anyFlagProvided(args, "cilium-config-map", "cilium-config-map-digest", "cilium-config-complete", "cilium-config-precedence-resolved", "cilium-distribution")
+	corednsNativeRequested := *project == "coredns" && anyFlagProvided(args, "coredns-corefile", "coredns-corefile-digest", "coredns-corefile-complete", "coredns-distribution")
+	envoyNativeRequested := *project == "envoy" && anyFlagProvided(args, "envoy-bootstrap", "envoy-bootstrap-digest", "envoy-bootstrap-selected")
 	natsFlags := anyFlagProvided(args, "nats-config", "nats-config-digest")
-	otelFlags := anyFlagProvided(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved")
+	otelFlags := anyFlagProvided(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved", "otel-rule", "otel-metrics-localhost-default", "otel-metrics-remote-scrape-required")
 	prometheusScrapeFlags := anyFlagProvided(args, "scrape-config", "scrape-config-digest", "scrape-job", "scrape-config-complete", "scrape-config-precedence-resolved")
 	prometheusAlertmanagerFlags := anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
+	prometheusRemoteWriteFlags := anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required")
 	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux" || *project == "kubernetes" || *project == "cilium"
 	containerdFlags := anyFlagProvided(args, "containerd-config", "containerd-config-digest", "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only")
 	if (nativeFlags || flagProvided(args, "resource-scope-complete") || flagProvided(args, "distribution") || flagProvided(args, "target-api-apply-required") || ciliumNativeRequested) && !nativeProject {
 		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, flux, kubernetes, or cilium; use --help")
 	}
 	if nativeProject && (nativeFlags || fluxNativeRequested || kubernetesNativeRequested) {
-		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, *distribution, *targetAPIApplyRequired, "", args)
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, *distribution, *targetAPIApplyRequired, "", "", "", "", args, nil)
 	}
 	if ciliumNativeRequested {
-		return r.cncfNativeResourceCheck(*project, *ciliumConfigMap, *ciliumConfigMapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *ciliumConfigComplete, *ciliumConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, *ciliumDistribution, args)
+		return r.cncfNativeResourceCheck(*project, *ciliumConfigMap, *ciliumConfigMapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *ciliumConfigComplete, *ciliumConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, *ciliumDistribution, "", "", "", args, nil)
+	}
+	if anyFlagProvided(args, "coredns-corefile", "coredns-corefile-digest", "coredns-corefile-complete", "coredns-distribution") && *project != "coredns" {
+		return r.usage("CoreDNS Corefile flags require project coredns; use --help")
+	}
+	if corednsNativeRequested && *corednsDistribution != "" && *corednsDistribution != "official" && *corednsDistribution != "custom" {
+		return r.usage("invalid CoreDNS distribution; use --help")
+	}
+	if corednsNativeRequested {
+		return r.cncfNativeResourceCheck(*project, *corednsCorefile, *corednsCorefilePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *corednsDistribution, *corednsCorefileComplete, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+	}
+	if anyFlagProvided(args, "envoy-bootstrap", "envoy-bootstrap-digest", "envoy-bootstrap-selected") && *project != "envoy" {
+		return r.usage("Envoy bootstrap flags require project envoy; use --help")
+	}
+	if envoyNativeRequested {
+		return r.cncfNativeResourceCheck(*project, *envoyBootstrap, *envoyBootstrapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *envoyBootstrapSelected, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
 	}
 	if natsFlags && *project != "nats" {
 		return r.usage("NATS configuration flags require project nats; use --help")
 	}
 	if *project == "nats" && natsFlags {
-		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
+		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
 	}
 	if otelFlags && *project != "opentelemetry" {
 		return r.usage("OpenTelemetry Collector configuration flags require project opentelemetry; use --help")
 	}
 	if *project == "opentelemetry" && otelFlags {
-		if *otelCollectorConfig == "" || *otelDistribution == "" || cncfUnexpectedModeFlag(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved") {
+		if *otelCollectorConfig == "" || *otelDistribution == "" || cncfUnexpectedModeFlag(args, "otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved", "otel-rule", "otel-metrics-localhost-default", "otel-metrics-remote-scrape-required") || (*otelRule == "" && (*otelMetricsLocalhostDefault != "" || *otelMetricsRemoteScrapeRequired != "")) {
 			return r.usage("invalid OpenTelemetry Collector configuration arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
+		if *otelRule != "" && *otelRule != cncfprepare.OpenTelemetryInternalMetricsRuleID {
+			if *otelRule == "internal-telemetry-default-bind" {
+				*otelRule = cncfprepare.OpenTelemetryInternalMetricsRuleID
+			} else {
+				return r.usage("invalid OpenTelemetry rule selector; use --help")
+			}
+		}
+		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", *otelRule, *otelMetricsLocalhostDefault, *otelMetricsRemoteScrapeRequired, args, nil)
+	}
+	if prometheusRemoteWriteFlags && *project != "prometheus" {
+		return r.usage("Prometheus remote-write configuration flags require project prometheus; use --help")
+	}
+	if *project == "prometheus" && prometheusRemoteWriteFlags {
+		if *prometheusConfig == "" || (*prometheusRemoteWriteHTTP2Required != "" && *prometheusRemoteWriteHTTP2Required != "true" && *prometheusRemoteWriteHTTP2Required != "false") || cncfUnexpectedModeFlag(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required") {
+			return r.usage("invalid Prometheus remote-write HTTP/2 arguments; use --help")
+		}
+		var required *bool
+		if *prometheusRule == cncfprepare.PrometheusRemoteWriteHTTP2Rule && *prometheusRemoteWriteHTTP2Required != "" {
+			value := *prometheusRemoteWriteHTTP2Required == "true"
+			required = &value
+		}
+		return r.cncfNativeResourceCheck(*project, *prometheusConfig, *prometheusConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *prometheusRemoteWriteName, *prometheusConfigComplete, *prometheusConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, required)
 	}
 	if prometheusScrapeFlags && *project != "prometheus" {
 		return r.usage("Prometheus scrape configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusScrapeFlags {
-		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
+		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
 	}
 	if prometheusAlertmanagerFlags && *project != "prometheus" {
 		return r.usage("Prometheus Alertmanager configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusAlertmanagerFlags {
-		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", args)
+		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
 	}
 	if containerdFlags && *project != "containerd" {
 		return r.usage("containerd configuration flags require project containerd; use --help")

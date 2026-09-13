@@ -24,6 +24,9 @@ func TestVerifiedInputsBindExactAcceptedBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotDigest, err := policy.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got, want := mustDigest(t, []byte(policyRaw)), policy.digest; got != want || gotDigest != want {
 		t.Fatalf("policy did not retain exact accepted digest: got=%q want=%q", policy.digest, got)
 	}

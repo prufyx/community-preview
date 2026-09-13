@@ -6,6 +6,7 @@ package releaseworkflow
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -992,7 +993,8 @@ func verify(v, out string) error {
 		return errors.New("release output directory unavailable")
 	}
 	num := strings.TrimPrefix(v, "v")
-	names := []string{"LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SHA256SUMS", "SBOM.spdx.json", "SOURCE-MANIFEST.json", "SOURCE-REVISION", "SOURCE-TREE.sha256", fmt.Sprintf("prufyx-cli_%s_linux_amd64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_linux_arm64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num)}
+	assets := releaseAssets(v)
+	names := append([]string{"SHA256SUMS"}, assets...)
 	actual, err := os.ReadDir(dst)
 	if err != nil {
 		return err
@@ -1059,22 +1061,62 @@ func verify(v, out string) error {
 			return e
 		}
 	}
-	return verifySums(dst)
+	return verifySums(dst, assets)
 }
-func verifySums(dir string) error {
+
+func releaseAssets(version string) []string {
+	num := strings.TrimPrefix(version, "v")
+	names := []string{"LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SBOM.spdx.json", "SOURCE-MANIFEST.json", "SOURCE-REVISION", "SOURCE-TREE.sha256", fmt.Sprintf("prufyx-cli_%s_linux_amd64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_linux_arm64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num)}
+	sort.Strings(names)
+	return names
+}
+
+func verifySums(dir string, expected []string) error {
 	raw, e := os.ReadFile(filepath.Join(dir, "SHA256SUMS"))
 	if e != nil {
 		return e
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
-		p := strings.SplitN(line, "  ", 2)
-		if len(p) != 2 || len(p[0]) != 64 {
+	names := make([]string, 0, len(expected))
+	hashes := make([]string, 0, len(expected))
+	for _, line := range bytes.SplitAfter(raw, []byte{'\n'}) {
+		if len(line) == 0 {
+			continue
+		}
+		if len(line) < 68 || line[64] != ' ' || line[65] != ' ' || line[len(line)-1] != '\n' {
 			return errors.New("SHA256SUMS is invalid")
 		}
-		d, e := digest(filepath.Join(dir, p[1]))
-		if e != nil || strings.TrimPrefix(d, "sha256:") != p[0] {
+		hash, name := string(line[:64]), string(line[66:len(line)-1])
+		if strings.ToLower(hash) != hash || !isSHA256(hash) || name == "" || name != filepath.Base(name) || strings.ContainsAny(name, "/\\\x00\r\n") {
+			return errors.New("SHA256SUMS is invalid")
+		}
+		names = append(names, name)
+		hashes = append(hashes, hash)
+	}
+	if len(names) != len(expected) {
+		return errors.New("SHA256SUMS is invalid")
+	}
+	for i, name := range names {
+		if name != expected[i] {
+			return errors.New("SHA256SUMS is invalid")
+		}
+		d, e := digest(filepath.Join(dir, name))
+		if e != nil || strings.TrimPrefix(d, "sha256:") != hashes[i] {
 			return errors.New("SHA256SUMS mismatch")
 		}
 	}
 	return nil
+}
+
+func isSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, c := range value {
+		if c < '0' || c > '9' {
+			if c < 'a' || c > 'f' {
+				return false
+			}
+		}
+	}
+	return true
 }

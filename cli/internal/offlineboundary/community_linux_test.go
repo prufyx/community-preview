@@ -79,7 +79,9 @@ func TestOfflineBoundaryLinuxCommunityJourneys(t *testing.T) {
 	}
 	run("cilium-check", 10, "check", "cncf", "--project", "cilium", "--input", ciliumInput, "--input-digest", offlineDigest([]byte(ciliumPrepared.Stdout)), "--now", "2026-09-09T06:00:00Z", "--format", "json")
 
-	artifacts, err := knowledgefixture.GenerateConstraints(time.Date(2026, 9, 9, 6, 0, 0, 0, time.UTC))
+	// The subprocess verifies TUF expiry against its real clock. Generate the
+	// ephemeral fixture now so this boundary test does not expire with its seed.
+	artifacts, err := knowledgefixture.GenerateConstraints(time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

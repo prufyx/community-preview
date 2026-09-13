@@ -56,15 +56,28 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 	if !profile.valid() || admit == nil || (testRefTime != nil && (now.IsZero() || now.Location() != time.UTC)) {
 		return ImportReceipt{}, fmt.Errorf("import context: %w", ErrInvalid)
 	}
+	// Snapshot caller-owned assertion memory once so the digest and every later
+	// comparison refer to the same immutable request within this transaction.
+	if req.ExpectedVerification != nil {
+		assertions := *req.ExpectedVerification
+		assertions.RootHistory = append([]RootHistoryEntry(nil), req.ExpectedVerification.RootHistory...)
+		req.ExpectedVerification = &assertions
+	}
 	// A pinned package is read and canonically parsed before opening the store.
 	// Keep that exact in-memory package for the complete transaction so a
 	// replacement at PackagePath cannot change what is admitted. Empty pins
 	// retain the legacy ordering below.
 	var pinnedPackage *importPackage
-	if req.ExpectedPackageDigest != "" {
+	if req.ExpectedPackageDigest != "" || req.ExpectedVerification != nil {
 		if err := ValidateImportAssertions(req); err != nil {
 			return ImportReceipt{}, err
 		}
+	}
+	expectedVerificationDigest, err := verificationAssertionsDigest(req.ExpectedVerification)
+	if err != nil {
+		return ImportReceipt{}, err
+	}
+	if req.ExpectedPackageDigest != "" {
 		expected, err := normalizeDigest(req.ExpectedPackageDigest)
 		if err != nil {
 			return ImportReceipt{}, fmt.Errorf("expected package digest: %w", err)
@@ -172,7 +185,7 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 		}
 		req.ExpectedBundleDigest = normalized
 	}
-	if pending != nil && prior != nil && pending.AcceptedTrustStateDigest == prior.stateDigest && pending.PackageDigest == pkg.digest && pending.InitialRootDigest == initialDigest && pending.ExpectedRevision == req.ExpectedRevision && pending.ExpectedBundleDigest == req.ExpectedBundleDigest {
+	if pending != nil && prior != nil && pending.AcceptedTrustStateDigest == prior.stateDigest && pending.PackageDigest == pkg.digest && pending.InitialRootDigest == initialDigest && pending.ExpectedRevision == req.ExpectedRevision && pending.ExpectedBundleDigest == req.ExpectedBundleDigest && pending.ExpectedVerificationAssertionsDigest == expectedVerificationDigest {
 		if selected, e := loadSelection(store); e == nil && selectionCommitted(store, selected, pending, profile, admit) {
 			if e = runImportHook(hook, "before-completed-recovery-clear", store); e != nil {
 				return durableFailureReceipt(store, pending, profile, admit, errors.Join(e, ErrRecoveryRequired))
@@ -191,7 +204,7 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 	if e != nil {
 		return ImportReceipt{}, e
 	}
-	transaction := importPending{PriorTrustStateDigest: priorDigest, PriorSelectionDigest: priorSelection, InitialRootDigest: initialDigest, PackageDigest: pkg.digest, ExpectedRevision: req.ExpectedRevision, ExpectedBundleDigest: req.ExpectedBundleDigest, StartedAt: now.Format(time.RFC3339)}
+	transaction := importPending{PriorTrustStateDigest: priorDigest, PriorSelectionDigest: priorSelection, InitialRootDigest: initialDigest, PackageDigest: pkg.digest, ExpectedRevision: req.ExpectedRevision, ExpectedBundleDigest: req.ExpectedBundleDigest, ExpectedVerificationAssertionsDigest: expectedVerificationDigest, StartedAt: now.Format(time.RFC3339)}
 	active, beginErr := beginImportTransaction(store, transaction)
 	if beginErr != nil {
 		return ImportReceipt{}, beginErr
@@ -252,6 +265,9 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 	if err := ensureAllPackageMembersUsed(pkg, verified.served, &verified.material); err != nil {
 		return finish(rejected, err)
 	}
+	if req.ExpectedVerification != nil && !verificationTrustMatches(req.ExpectedVerification, verified.material.state) {
+		return finish(rejected, fmt.Errorf("expected verified trust identity: %w", ErrIntegrity))
+	}
 	bundleDigest := digestBytes(verified.target)
 	if req.ExpectedBundleDigest != "" {
 		expected, err := normalizeDigest(req.ExpectedBundleDigest)
@@ -269,6 +285,9 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 	}
 	if req.ExpectedRevision != "" && req.ExpectedRevision != admission.Revision {
 		return finish(rejected, fmt.Errorf("expected revision: %w", ErrIntegrity))
+	}
+	if req.ExpectedVerification != nil && !verificationAdmissionMatches(req.ExpectedVerification, profile.targetPath, admission) {
+		return finish(rejected, fmt.Errorf("expected verified target identity: %w", ErrIntegrity))
 	}
 	previousFloor := verified.material.state.RevisionFloor
 	if err := enforceRevisionFloor(previousFloor, verified.material.state.RevisionFloorBundleDigest, admission.Revision, bundleDigest); err != nil {
@@ -295,13 +314,24 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 		target, targetErr := store.read(rel+"/target.json", maxPackageEntry)
 		receiptRaw, receiptErr := store.read(rel+"/trust-receipt.json", maxStateFile)
 		var old TrustReceipt
-		if targetErr == nil && receiptErr == nil && digestBytes(target) == bundleDigest && digestBytes(receiptRaw) == existing.TrustReceiptDigest && decodeCanonicalStrict(receiptRaw, &old) == nil && validateTrustReceiptForProfile(old, existing, &verified.material, int64(len(target)), profile) == nil && admissionMatchesReceipt(admission, old) {
+		validExisting := targetErr == nil && receiptErr == nil && digestBytes(target) == bundleDigest && digestBytes(receiptRaw) == existing.TrustReceiptDigest && decodeCanonicalStrict(receiptRaw, &old) == nil && validateTrustReceiptForProfile(old, existing, &verified.material, int64(len(target)), profile) == nil && admissionMatchesReceipt(admission, old)
+		if !validExisting {
+			return rejected, ErrIntegrity
+		}
+		if expectedVerificationDigest == "" || old.ExpectedVerificationAssertionsDigest == expectedVerificationDigest {
 			return finish(ImportReceipt{APIVersion: "prufyx.io/knowledge-import-receipt/v1", Status: "IMPORTED", TrustStateAdvanced: trustChanged, SelectionChanged: false, TrustStateDigest: verified.material.stateDigest, TrustReceipt: old, TrustReceiptDigest: existing.TrustReceiptDigest, AdmissionPath: rel}, nil)
 		}
-		return rejected, ErrIntegrity
+		// A valid manual v1 admission does not claim it checked a later release
+		// plan. Fall through after re-verifying this request and mint a v2
+		// receipt bound to the exact assertions instead of invalidating the old
+		// admission or reusing it with a false verification claim.
+	}
+	receiptVersion := trustReceiptV1
+	if expectedVerificationDigest != "" {
+		receiptVersion = trustReceiptV2
 	}
 	receipt := TrustReceipt{
-		APIVersion: "prufyx.io/knowledge-trust-receipt/v1", TrustSource: "OPERATOR_PROVISIONED",
+		APIVersion: receiptVersion, TrustSource: "OPERATOR_PROVISIONED",
 		VerifiedAt: verified.verifiedAt.Format(time.RFC3339), InitialRootDigest: verified.material.state.InitialRootDigest,
 		RootHistory: append([]RootHistoryEntry(nil), verified.material.state.RootHistory...), Root: verified.material.state.Root,
 		Timestamp: verified.material.state.Timestamp, Snapshot: verified.material.state.Snapshot, Targets: verified.material.state.Targets,
@@ -309,6 +339,7 @@ func importWithProfile(req ImportRequest, profile profileSpec, admit AdmitFunc, 
 		KnowledgeRevision: admission.Revision, Purpose: admission.Purpose, EngineCapabilityDigest: admission.EngineCapabilityDigest, HasRule: admission.HasRule,
 		RuleDigest: admission.RuleDigest, EvidenceExpiresAt: admission.EvidenceExpiresAt,
 		ExpectedRevision: req.ExpectedRevision, ExpectedBundleDigest: req.ExpectedBundleDigest,
+		ExpectedVerificationAssertionsDigest: expectedVerificationDigest,
 	}
 	receiptRaw, err := marshalCanonical(receipt)
 	if err != nil {
@@ -365,7 +396,16 @@ func selectionCommitted(store *storeFS, selected selectionPointer, pending *impo
 	if pending == nil || admit == nil || selected.TrustStateDigest != pending.AcceptedTrustStateDigest || pending.ExpectedRevision != "" && selected.Revision != pending.ExpectedRevision || pending.ExpectedBundleDigest != "" && selected.BundleDigest != pending.ExpectedBundleDigest {
 		return false
 	}
-	return validateStoredSelection(store, selected, profile, admit) == nil
+	if validateStoredSelection(store, selected, profile, admit) != nil {
+		return false
+	}
+	if pending.ExpectedVerificationAssertionsDigest == "" {
+		return true
+	}
+	rel := admissionRelative(selected.BundleDigest, selected.TrustReceiptDigest)
+	receiptRaw, err := store.read(rel+"/trust-receipt.json", maxStateFile)
+	var receipt TrustReceipt
+	return err == nil && decodeCanonicalStrict(receiptRaw, &receipt) == nil && receipt.APIVersion == trustReceiptV2 && receipt.ExpectedVerificationAssertionsDigest == pending.ExpectedVerificationAssertionsDigest
 }
 
 func validateStoredSelection(store *storeFS, selected selectionPointer, profile profileSpec, admit AdmitFunc) error {

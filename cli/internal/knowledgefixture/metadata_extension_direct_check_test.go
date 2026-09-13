@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -39,8 +38,12 @@ func TestSyntheticMetadataExtensionActivatesStableRawAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	goBinary, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
 	binary := filepath.Join(dir, "prufyx")
-	build := exec.Command(filepath.Join(runtime.GOROOT(), "bin", "go"), "build", "-o", binary, "./cmd/prufyx-community")
+	build := exec.Command(goBinary, "build", "-o", binary, "./cmd/prufyx-community")
 	build.Dir = moduleRoot
 	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "GOFLAGS=-mod=vendor -buildvcs=false")
 	if output, err := build.CombinedOutput(); err != nil {

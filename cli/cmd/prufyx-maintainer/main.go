@@ -21,6 +21,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasegate"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releaseworkflow"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/reviewrecord"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecapture"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecorpus"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/stagingreceipt"
@@ -99,6 +100,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: code, message: "source-corpus failed", printed: true}
 		}
 		return nil
+	case "review-record":
+		if err := reviewrecord.Run(args[1:], stdout); err != nil {
+			return &commandError{code: 2, message: "review-record: record rejected", err: err}
+		}
+		return nil
 	case "public-source-capture":
 		if code := sourcecapture.Run(context.Background(), args[1:], stdout, stderr, sourcecapture.FixedHTTPSFetcher{}, time.Now); code != 0 {
 			return &commandError{code: code, message: "public-source-capture failed", printed: true}
@@ -110,7 +116,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|review-record|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()

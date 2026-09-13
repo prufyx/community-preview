@@ -332,19 +332,19 @@ func (r runtime) runOpenTelemetryExample() (communityExampleResult, error) {
 		return communityExampleResult{}, fmt.Errorf("create private example directory: %w", err)
 	}
 	defer os.RemoveAll(work)
-	blocked := []byte(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.110.0","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.111.0","facts":[{"id":"component.opentelemetry.distribution","state":"declared","enumValue":"official"},{"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true}]}]}}`)
-	clean := []byte(strings.Replace(string(blocked), `"boolValue":true`, `"boolValue":false`, 1))
+	blocked := []byte(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.110.0","facts":[]}]},"proposed":{"components":[{"component":"pkg:github/open-telemetry/opentelemetry-collector","version":"0.111.0","facts":[{"id":"component.opentelemetry.config_complete","state":"declared","boolValue":true},{"id":"component.opentelemetry.config_precedence_resolved","state":"declared","boolValue":true},{"id":"component.opentelemetry.distribution","state":"declared","enumValue":"official"},{"id":"component.opentelemetry.internal_metrics_localhost_remote_conflict","state":"declared","boolValue":false},{"id":"component.opentelemetry.internal_metrics_override_absent","state":"declared","boolValue":true},{"id":"component.opentelemetry.internal_metrics_remote_scrape_required","state":"declared","boolValue":false},{"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true},{"id":"component.opentelemetry.telemetry_use_localhost_default_metrics_address_effective","state":"declared","boolValue":false}]}]}}`)
+	clean := []byte(strings.Replace(string(blocked), `"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true`, `"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":false`, 1))
 	unknown := []byte(strings.Replace(string(blocked), `,{"id":"component.opentelemetry.logging_exporter_present","state":"declared","boolValue":true}`, "", 1))
 	blockedCode, blockedReport, err := r.checkPrepared(work, "opentelemetry", blocked)
-	if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+	if err != nil || blockedCode != ExitBlocked || !communityClaims(blockedReport, "BLOCKED", "PASS") {
 		return communityExampleResult{}, fmt.Errorf("OpenTelemetry logging exporter witness did not produce scoped BLOCKED")
 	}
 	cleanCode, cleanReport, err := r.checkPrepared(work, "opentelemetry", clean)
-	if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+	if err != nil || cleanCode != ExitOK || !communityClaims(cleanReport, "PASS", "PASS") {
 		return communityExampleResult{}, fmt.Errorf("OpenTelemetry corrected witness did not produce scoped PASS")
 	}
 	unknownCode, unknownReport, err := r.checkPrepared(work, "opentelemetry", unknown)
-	if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+	if err != nil || unknownCode != ExitUnknown || !communityClaims(unknownReport, "UNKNOWN", "PASS") {
 		return communityExampleResult{}, fmt.Errorf("OpenTelemetry missing fact did not produce scoped UNKNOWN")
 	}
 	return communityExampleResult{Example: "cncf-opentelemetry", BlockedExit: blockedCode, CleanExit: cleanCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
@@ -443,7 +443,7 @@ func (r runtime) checkPrepared(work, project string, raw []byte) (int, map[strin
 	child.stdout = &stdout
 	evaluationTime := "2026-09-10T00:00:00Z"
 	if project == "opentelemetry" {
-		evaluationTime = "2026-09-12T02:35:00Z"
+		evaluationTime = "2026-09-13T10:00:00Z"
 	} else if project == "etcd" {
 		evaluationTime = "2026-09-12T07:38:00Z"
 	} else if project == "rook" {
@@ -461,13 +461,28 @@ func (r runtime) checkPrepared(work, project string, raw []byte) (int, map[strin
 }
 
 func communityClaim(report map[string]any, want string) bool {
+	return communityClaims(report, want)
+}
+
+func communityClaims(report map[string]any, wants ...string) bool {
 	check, _ := report["check"].(map[string]any)
 	claims, _ := check["claims"].([]any)
-	if len(claims) != 1 {
+	if len(claims) != len(wants) {
 		return false
 	}
-	claim, _ := claims[0].(map[string]any)
-	return report["assessment"] == "UNKNOWN" && claim["status"] == want && report["networkUsed"] == false && report["runtimeReproduced"] == float64(0)
+	remaining := make(map[string]int, len(wants))
+	for _, want := range wants {
+		remaining[want]++
+	}
+	for _, value := range claims {
+		claim, _ := value.(map[string]any)
+		status, _ := claim["status"].(string)
+		if remaining[status] == 0 {
+			return false
+		}
+		remaining[status]--
+	}
+	return report["assessment"] == "UNKNOWN" && report["networkUsed"] == false && report["runtimeReproduced"] == float64(0)
 }
 
 func communityDigest(raw []byte) string {

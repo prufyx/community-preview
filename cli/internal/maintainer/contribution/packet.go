@@ -347,7 +347,10 @@ func ValidatePacket(value any, landscapePath string) (map[string]any, error) {
 	if !oneOf(license, "DECLARED_UNKNOWN", "DECLARED_PERMISSIVE", "DECLARED_RESTRICTED") {
 		return nil, ErrRejected
 	}
-	canon, _ := canonical(p, false)
+	canon, e := canonical(p, false)
+	if e != nil {
+		return nil, e
+	}
 	return map[string]any{"schema": "prufyx.io/upstream-evidence-receipt/v1", "packetDigest": digest(canon), "landscapeDigest": landscapeDigest, "submissionKind": kind, "consistency": "VALID", "workflowState": "CANDIDATE", "limitations": []any{"local consistency only; upstream identity, tag bindings, source bytes, hashes, and spans are unverified", "declared reviewer and attribution fields are not authentication, independent review, approval, publication, or evaluator authority"}}, nil
 }
 
@@ -399,7 +402,10 @@ func Scaffold(o ScaffoldOptions) error {
 	} else {
 		return ErrRejected
 	}
-	raw, _ := canonical(p, true)
+	raw, e := canonical(p, true)
+	if e != nil {
+		return e
+	}
 	parent := filepath.Dir(o.Output)
 	info, e := os.Lstat(parent)
 	if e != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {

@@ -36,6 +36,32 @@ func fixturePath(parts ...string) string {
 	return path
 }
 
+func TestReadRegularFileAcceptsPublicModeAndRejectsAliases(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "public.json")
+	if err := os.WriteFile(path, []byte("public"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := ReadRegularFile(path, 16)
+	if err != nil || string(raw) != "public" {
+		t.Fatalf("read=%q err=%v", raw, err)
+	}
+	symlink := filepath.Join(directory, "symlink.json")
+	if err := os.Symlink(path, symlink); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadRegularFile(symlink, 16); err == nil {
+		t.Fatal("symlink accepted")
+	}
+	hardlink := filepath.Join(directory, "hardlink.json")
+	if err := os.Link(path, hardlink); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadRegularFile(path, 16); err == nil {
+		t.Fatal("multiply linked file accepted")
+	}
+}
+
 func decodeReceipt(t *testing.T, raw []byte) map[string]any {
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(raw))

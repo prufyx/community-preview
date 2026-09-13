@@ -361,3 +361,39 @@ The bypass is not a universal remediation. An operator can instead grant the
 monitor privilege or adjust the calling client. Prufyx does not contact Kibana,
 validate authentication or privilege assignments, invoke the status route, or
 assert its runtime response.
+
+The MariaDB Operator `26.3.0` → `26.6.0` route accepts one private,
+caller-selected JSON resource with `apiVersion: k8s.mariadb.com/v1alpha1` and
+`kind: MariaDB`. It is limited to a Galera resource: `spec.galera.enabled`
+must be true, and a declared `spec.replication.enabled: true` leaves the
+predicate UNKNOWN. Use `--resource-complete --pre-operator-update` to declare
+that the selected resource is complete and the check is being made before the
+operator update is planned:
+
+```sh
+prufyx check project \
+  --project mariadb-operator --mariadb-resource ./mariadb-resource.json \
+  --from 26.3.0 --to 26.6.0 \
+  --resource-complete --pre-operator-update \
+  --now 2026-09-13T09:00:00Z
+```
+
+`spec.updateStrategy.autoUpdateDataPlane: true` is a scoped PASS; explicit
+false is BLOCKED because the retained 26.6.0 upgrade guide documents enabling
+the data-plane update before updating the operator. Missing, null, non-Boolean,
+wrong-type, incomplete, post-update, standalone, replication-only, and
+unreviewed version-pair inputs remain UNKNOWN or fail private-file admission.
+The route does not inspect a cluster, perform Kubernetes admission, run the
+operator, execute Helm, or establish data-plane completion or whole-upgrade
+safety. The MariaDB Operator identity is separate from the MariaDB Server
+identity, and CNCF membership is not asserted.
+
+The public synthetic examples in
+[`examples/projects/mariadb-operator`](../examples/projects/mariadb-operator)
+cover the same route without embedding private workload data. Copy each input
+to a mode-0700 private directory before checking it. `broken.json` is the
+explicit `autoUpdateDataPlane: false` case and exits 10, `fixed.json` is the
+explicit `true` case and exits 0, and `unknown.json` omits the setting and exits
+11. The aggregate compatibility assessment remains UNKNOWN for all three
+scoped results. Each command must include `--resource-complete`,
+`--pre-operator-update`, `--from 26.3.0`, and `--to 26.6.0`.

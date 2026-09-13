@@ -24,18 +24,19 @@ import (
 )
 
 const (
-	RequestSchema  = "prufyx.io/public-project-onboarding-request/v1"
-	SnapshotSchema = "prufyx.io/public-project-onboarding-snapshot/v1"
-	ReceiptSchema  = "prufyx.io/public-project-onboarding-sync-receipt/v1"
-	Authority      = "DECLARED_PUBLIC_PROJECT_EVIDENCE_NOT_RULE_OR_RUNTIME_PROOF"
-	maxRequest     = 64 << 10
-	maxAPI         = 1 << 20
-	maxObject      = 4 << 20
-	maxAggregate   = 32 << 20
-	maxCorpusBytes = 16 << 20
-	maxRequests    = 108
-	maxJSONDepth   = 32
-	maxJSONTokens  = 1 << 16
+	RequestSchema     = "prufyx.io/public-project-onboarding-request/v1"
+	SnapshotSchema    = "prufyx.io/public-project-onboarding-snapshot/v1"
+	ReceiptSchema     = "prufyx.io/public-project-onboarding-sync-receipt/v1"
+	Authority         = "DECLARED_PUBLIC_PROJECT_EVIDENCE_NOT_RULE_OR_RUNTIME_PROOF"
+	maxRequest        = 64 << 10
+	maxAPI            = 1 << 20
+	maxReleaseListAPI = 4 << 20
+	maxObject         = 4 << 20
+	maxAggregate      = 32 << 20
+	maxCorpusBytes    = 16 << 20
+	maxRequests       = 108
+	maxJSONDepth      = 32
+	maxJSONTokens     = 1 << 16
 )
 
 var (
@@ -123,7 +124,7 @@ type githubRelease struct {
 
 func decodeReleaseList(raw []byte) ([]githubRelease, error) {
 	var releases []githubRelease
-	if decodeAPI(raw, &releases) != nil || len(releases) > 30 {
+	if decodeAPILimit(raw, maxReleaseListAPI, &releases) != nil || len(releases) > 30 {
 		return nil, ErrRejected
 	}
 	for _, release := range releases {
@@ -534,7 +535,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 		}
 		return d
 	}
-	api := func(path string) ([]byte, string, error) {
+	api := func(path string, limit int) ([]byte, string, error) {
 		data, status, err := fetch("api.github.com", path)
 		if err != nil {
 			return nil, "", ErrNetwork
@@ -545,7 +546,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 		if status == 404 {
 			return nil, "", ErrUnavailable
 		}
-		if status != 200 || len(data) == 0 || len(data) > maxAPI {
+		if status != 200 || len(data) == 0 || len(data) > limit {
 			return nil, "", ErrRejected
 		}
 		d := add(data)
@@ -554,7 +555,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 		}
 		return data, d, nil
 	}
-	repoRaw, repoDigest, err := api("/repos/" + r.owner + "/" + r.name)
+	repoRaw, repoDigest, err := api("/repos/"+r.owner+"/"+r.name, maxAPI)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -566,7 +567,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 	if decodeAPI(repoRaw, &repoWire) != nil || repoWire.ID < 1 || repoWire.FullName != r.owner+"/"+r.name || repoWire.HTMLURL != r.repo {
 		return nil, nil, nil, nil, ErrRejected
 	}
-	releasesRaw, releasesDigest, err := api("/repos/" + r.owner + "/" + r.name + "/releases?per_page=30&page=1")
+	releasesRaw, releasesDigest, err := api("/repos/"+r.owner+"/"+r.name+"/releases?per_page=30&page=1", maxReleaseListAPI)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -590,7 +591,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 			return nil, nil, nil, nil, ErrRejected
 		}
 		seenReleaseIDs[rel.ID], seenReleaseTags[rel.Tag] = true, true
-		refRaw, refDigest, refErr := api("/repos/" + r.owner + "/" + r.name + "/git/ref/tags/" + url.PathEscape(rel.Tag))
+		refRaw, refDigest, refErr := api("/repos/"+r.owner+"/"+r.name+"/git/ref/tags/"+url.PathEscape(rel.Tag), maxAPI)
 		if refErr != nil {
 			return nil, nil, nil, nil, refErr
 		}
@@ -605,7 +606,7 @@ func Sync(ctx context.Context, r request, previousSnapshot map[string]any, prior
 		annotatedSHA := any(nil)
 		if ref.Object.Type == "tag" {
 			outerSHA := ref.Object.SHA
-			tagRaw, tagDigest, tagErr := api("/repos/" + r.owner + "/" + r.name + "/git/tags/" + ref.Object.SHA)
+			tagRaw, tagDigest, tagErr := api("/repos/"+r.owner+"/"+r.name+"/git/tags/"+ref.Object.SHA, maxAPI)
 			if tagErr != nil {
 				return nil, nil, nil, nil, tagErr
 			}
@@ -777,7 +778,13 @@ func digestMust(value any) string {
 }
 
 func decodeAPI(raw []byte, target any) error {
-	if len(raw) == 0 || len(raw) > maxAPI || !utf8.Valid(raw) || !validJSONUnicodeEscapes(raw) {
+	return decodeAPILimit(raw, maxAPI, target)
+}
+
+// decodeAPILimit preserves the structural limits while allowing the one
+// reviewed release-list endpoint to have its own retained-object byte bound.
+func decodeAPILimit(raw []byte, limit int, target any) error {
+	if len(raw) == 0 || len(raw) > limit || !utf8.Valid(raw) || !validJSONUnicodeEscapes(raw) {
 		return ErrRejected
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))

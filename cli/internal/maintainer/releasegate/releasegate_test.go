@@ -109,6 +109,44 @@ func TestResolveOutputOutsideRejectsRelativePathInsideSource(t *testing.T) {
 	}
 }
 
+func TestResolveOutputOutsideRejectsAbsolutePathInsideSource(t *testing.T) {
+	root := t.TempDir()
+	if _, err := resolveOutputOutside(root, filepath.Join(root, "stage")); err == nil {
+		t.Fatal("absolute output inside source root was accepted")
+	}
+}
+
+func TestRunNativeChecksRejectsUnsafeManifestModuleRoot(t *testing.T) {
+	if err := RunNativeChecks(t.TempDir(), Manifest{ModuleRoot: "../outside", Entrypoints: []string{"./cmd/community"}}, "go"); err == nil {
+		t.Fatal("unsafe manifest module root was accepted")
+	}
+}
+
+func TestRunNativeChecksUsesManifestModuleRootAndAllEntrypoints(t *testing.T) {
+	stage := t.TempDir()
+	moduleRoot := filepath.Join(stage, "alternate-module")
+	if err := os.Mkdir(moduleRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	record := filepath.Join(t.TempDir(), "commands")
+	goBin := filepath.Join(t.TempDir(), "recording-go")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$*\" >> %q\npwd >> %q\nif [ \"$1\" = env ]; then printf 'darwin arm64\\n'; fi\n", record, record)
+	if err := os.WriteFile(goBin, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := Manifest{ModuleRoot: "alternate-module", Entrypoints: []string{"./cmd/first", "./cmd/second"}, SourceBuildTargets: []string{"darwin/arm64"}, BuildTargets: []string{"linux/amd64"}, BinaryName: "community"}
+	if err := RunNativeChecks(stage, manifest, goBin); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), moduleRoot) || !strings.Contains(string(got), "build -trimpath -buildvcs=false -o ") || !strings.Contains(string(got), "./cmd/first") || !strings.Contains(string(got), "./cmd/second") {
+		t.Fatalf("native checks did not build every declared entrypoint: %s", got)
+	}
+}
+
 func TestBaseEnvForwardsWritableGoCache(t *testing.T) {
 	t.Setenv("GOCACHE", "/private/writable-cache")
 	found := false

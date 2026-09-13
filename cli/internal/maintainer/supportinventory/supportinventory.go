@@ -22,6 +22,7 @@ import (
 
 const Schema = "prufyx.io/community-support-inventory/v1alpha1"
 const selectedSchema = "prufyx.io/selected-source-records/v1"
+const maxCNCFPrepareSourceBytes = 1 << 20
 
 var ErrInvalid = errors.New("invalid support inventory input")
 var projectRE = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -397,9 +398,25 @@ func selectedRecords(document map[string]any) ([]map[string]any, map[string]any,
 	return result, map[string]any{"collectionIndexDigest": digest, "referenceState": "reference_only", "licenseState": "license_unreviewed"}, nil
 }
 
-func preparerProjects(file string) (map[string]bool, error) {
+func loadPreparerSource(path string) ([]byte, string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, "", fmt.Errorf("read CNCF preparer dispatch: %w", err)
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, maxCNCFPrepareSourceBytes+1))
+	if err != nil {
+		return nil, "", fmt.Errorf("read CNCF preparer dispatch: %w", err)
+	}
+	if len(raw) > maxCNCFPrepareSourceBytes {
+		return nil, "", invalid("CNCF preparer dispatch exceeds the bounded size")
+	}
+	return raw, fmt.Sprintf("sha256:%x", sha256.Sum256(raw)), nil
+}
+
+func preparerProjects(source []byte) (map[string]bool, error) {
 	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, file, nil, 0)
+	parsed, err := parser.ParseFile(fset, "cncf_prepare.go", source, 0)
 	if err != nil {
 		return nil, invalid("CNCF preparer dispatch cannot be parsed")
 	}
@@ -655,6 +672,16 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 		"metadataState": "implemented_native_selected_configmap_minimizer",
 		"limit":         "Checks only the whitespace-trimmed literal cluster-name in one caller-selected complete, precedence-resolved official-upstream v1 ConfigMap for the exact Cilium 1.16.19 to 1.17.18 transition. ClusterMesh, networking, name collisions, source configuration discovery, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
 	}},
+	"coredns": {{
+		"command":       []any{"check", "cncf", "--project", "coredns", "--coredns-corefile", "FILE", "--coredns-corefile-complete", "--coredns-distribution", "official", "--from", "1.13.2", "--to", "1.14.7"},
+		"metadataState": "implemented_native_selected_coredns_corefile_minimizer",
+		"limit":         "Checks only direct federation directive presence in one caller-selected complete Corefile under a caller-declared official distribution. The route is limited to the reviewed 1.6.9 to 1.7.0 transition and origins 1.9.4, 1.10.1, 1.11.4, 1.12.4, or 1.13.2 to target 1.14.7. Imports, snippets, substitutions, custom distributions, unsupported structure, plugin validity, DNS behavior, runtime state, and whole-upgrade safety remain UNKNOWN.",
+	}},
+	"envoy": {{
+		"command":       []any{"check", "cncf", "--project", "envoy", "--envoy-bootstrap", "FILE", "--envoy-bootstrap-selected", "--from", "1.38.4", "--to", "1.39.1"},
+		"metadataState": "implemented_native_selected_envoy_bootstrap_minimizer",
+		"limit":         "Blocker-only route checking direct V2 transport_api_version at ADS, LDS, or CDS api_config_source paths in one caller-selected directly loaded JSON bootstrap. It is limited to origins 1.34.14, 1.35.13, 1.36.10, 1.37.6, or 1.38.4 to target 1.39.1. V3, AUTO, absence, and unsupported structure remain UNKNOWN; there is no native PASS or historical 1.18 native route. Bootstrap completeness, distribution identity, xDS behavior, runtime state, and whole-upgrade safety remain UNKNOWN.",
+	}},
 	"prometheus": {
 		{
 			"command":       []any{"check", "cncf", "--project", "prometheus", "--alertmanager-config", "FILE", "--from", "2.55.1", "--to", "3.1.0", "--alertmanager-config-complete", "--alertmanager-config-precedence-resolved"},
@@ -666,12 +693,24 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 			"metadataState": "implemented_native_selected_scrape_config_minimizer",
 			"limit":         "Checks only the reviewed old/new key in one caller-selected complete native scrape_config; job names, targets, full configuration, startup, scraping, native-histogram behavior, and whole-upgrade safety remain unresolved.",
 		},
+		{
+			"command":       []any{"check", "cncf", "--project", "prometheus", "--prometheus-config", "FILE", "--prometheus-config-complete", "--prometheus-config-precedence-resolved", "--prometheus-rule", "remote-write-http2-default", "--prometheus-remote-write-name", "NAME", "--prometheus-remote-write-http2-required=true|false", "--from", "2.55.1", "--to", "3.14.0"},
+			"metadataState": "implemented_native_selected_remote_write_http2_minimizer",
+			"limit":         "Checks one literal-name remote_write entry's direct inline enable_http2 value or exact reviewed omitted default against an explicit endpoint requirement. It does not validate the whole configuration, runtime flags, endpoint support, protocol negotiation, delivery, startup, or whole-upgrade safety.",
+		},
 	},
-	"opentelemetry": {{
-		"command":       []any{"check", "cncf", "--project", "opentelemetry", "--otel-collector-config", "FILE", "--otel-distribution", "official|custom", "--otel-config-complete", "--otel-config-precedence-resolved", "--from", "0.110.0", "--to", "0.111.0"},
-		"metadataState": "implemented_native_selected_opentelemetry_collector_config_minimizer",
-		"limit":         "Checks one caller-selected complete, precedence-resolved native OpenTelemetry Collector configuration for a logging exporter under a caller-declared official distribution. Unsupported YAML or values, defaults, custom distributions, resource presence, pipeline behavior, exporter execution, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
-	}},
+	"opentelemetry": {
+		{
+			"command":       []any{"check", "cncf", "--project", "opentelemetry", "--otel-collector-config", "FILE", "--otel-distribution", "official|custom", "--otel-config-complete", "--otel-config-precedence-resolved", "--from", "0.110.0", "--to", "0.111.0"},
+			"metadataState": "implemented_native_selected_opentelemetry_collector_config_minimizer",
+			"limit":         "Checks one caller-selected complete, precedence-resolved native OpenTelemetry Collector configuration for a logging exporter under a caller-declared official distribution. Unsupported YAML or values, defaults, custom distributions, resource presence, pipeline behavior, exporter execution, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		},
+		{
+			"command":       []any{"check", "cncf", "--project", "opentelemetry", "--otel-rule", "internal-telemetry-default-bind", "--otel-collector-config", "FILE", "--otel-distribution", "official", "--otel-config-complete", "--otel-config-precedence-resolved", "--otel-metrics-localhost-default", "true|false", "--otel-metrics-remote-scrape-required", "true|false", "--from", "0.110.0", "--to", "0.111.0"},
+			"metadataState": "implemented_native_selected_opentelemetry_internal_metrics_minimizer",
+			"limit":         "Checks only the source-defined internal-metrics default bind for one caller-selected complete, precedence-resolved official Collector configuration without a service.telemetry.metrics override. The feature gate and remote-scrape requirement are caller declarations; missing authority, unsupported syntax or distribution, listener or scrape behavior, runtime behavior, and whole-upgrade safety remain UNKNOWN.",
+		},
+	},
 }
 
 func communityProjects(rules, registry map[string]any) ([]map[string]any, int, error) {
@@ -752,6 +791,8 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			limit = "Scoped current-backend constraint for one explicitly selected caller-supplied OSD metadata object; it does not assert other OSDs, cluster inventory, target deployment, whole-upgrade safety, or runtime behavior."
 		} else if project == "mariadb" {
 			limit = "Scoped explicit requirement for removed upstream MariaDB InnoDB defragmentation behavior; option presence alone does not assert startup failure, packaged or fork behavior, whole-upgrade safety, or runtime behavior."
+		} else if project == "mariadb-operator" {
+			limit = "Scoped Galera-only prerequisite for one complete caller-selected MariaDB resource before the 26.3.0 to 26.6.0 operator update; it does not inspect admission, cluster state, runtime behavior, controller progress, data-plane completion, or whole-upgrade safety."
 		}
 		grouped[project] = append(grouped[project], map[string]any{"ruleID": id, "transition": tr, "evidence": normalized, "evidenceState": "active", "limit": limit})
 	}
@@ -774,6 +815,8 @@ func communityProjects(rules, registry map[string]any) ([]map[string]any, int, e
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "3.2.0", "--to", "4.0.0", "--effective-config-complete", "--current-default-was-used", "--preserve-http2-enabled"}, "metadataState": "implemented_native_classic_configuration_minimizer", "limit": "Requires one caller-selected complete classic [OUTPUT] configuration and caller declarations that the current default was used and HTTP/2 must remain enabled; it evaluates only that setting. Unsupported syntax remains UNKNOWN."}
 		} else if project == "mariadb" {
 			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--effective-config", "FILE", "--from", "10.11.8", "--to", "11.4.2", "--effective-config-complete", "--precedence-resolved", "--upstream-distribution", "--require-innodb-defragmentation", "true|false"}, "metadataState": "implemented_native_mariadb_option_file_minimizer", "limit": "Requires one caller-selected complete, precedence-resolved upstream MariaDB option file and an explicit true or false removed-behavior requirement. Includes, aliases, prefixes, unsupported groups, packaged or fork-specific behavior remain UNKNOWN."}
+		} else if project == "mariadb-operator" {
+			preparer = map[string]any{"command": []any{"prepare", "project", "--project", project, "--mariadb-resource", "FILE", "--from", "26.3.0", "--to", "26.6.0", "--resource-complete", "--pre-operator-update"}, "metadataState": "implemented_native_mariadb_operator_resource_minimizer", "limit": "Requires one caller-selected complete native apiVersion k8s.mariadb.com/v1alpha1, kind MariaDB resource, explicit Galera-only scope, and the pre-operator-update declaration. It checks only the documented autoUpdateDataPlane prerequisite; admission, cluster state, runtime behavior, controller progress, data-plane completion, and whole-upgrade safety remain UNKNOWN."}
 		}
 		capability := map[string]any{"kind": "embedded_community_project_source_rule", "command": []any{"check", "project", "--project", project}, "rules": grouped[project], "metadataState": "embedded_active_source_rule_pack_no_external_update", "localPreparer": preparer}
 		if project == "loki" {
@@ -1175,7 +1218,11 @@ func Generate(cfg Config) ([]byte, string, error) {
 		}
 		identities[slug] = identity{name, repository}
 	}
-	preparers, err := preparerProjects(cfg.CNCFPrepareSource)
+	preparerSource, preparerDigest, err := loadPreparerSource(cfg.CNCFPrepareSource)
+	if err != nil {
+		return nil, "", err
+	}
+	preparers, err := preparerProjects(preparerSource)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1290,7 +1337,7 @@ func Generate(cfg Config) ([]byte, string, error) {
 	for _, id := range names {
 		projectList = append(projectList, projects[id])
 	}
-	inputDigests := map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "selectedSourceManifest": inputs[7].digest, "communityProjectRules": inputs[8].digest, "communityProjectRegistry": inputs[9].digest}
+	inputDigests := map[string]any{"rules": inputs[0].digest, "landscape": inputs[1].digest, "certManagerSourceContract": inputs[2].digest, "prometheusSourceContract": inputs[3].digest, "spiffeX509SVIDProfile": inputs[4].digest, "cloudEventsStructuredJSONProfile": inputs[5].digest, "tikvGCPV2WIFBackupProfile": inputs[6].digest, "cncfPreparerDispatchSource": preparerDigest, "selectedSourceManifest": inputs[7].digest, "communityProjectRules": inputs[8].digest, "communityProjectRegistry": inputs[9].digest}
 	if latestContractDigest != "" {
 		inputDigests["certManagerLatestSourceContract"] = latestContractDigest
 	}

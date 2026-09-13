@@ -57,6 +57,54 @@ CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off \
   GOFLAGS='-mod=vendor -buildvcs=false' go build -trimpath -o ../prufyx ./cmd/prufyx-community
 ```
 
+The CLI module declares `go 1.26.8`, which makes older toolchains fail. A Go
+`toolchain` directive would only select a preferred version when toolchain
+switching is permitted; `GOTOOLCHAIN=local` always uses the invoked Go
+executable and does not validate that executable's patch release. Before an
+offline check, use the explicit local gate:
+
+```sh
+cd cli
+make toolchain-check GO=/absolute/path/to/go1.26.8/bin/go
+```
+
+Staticcheck is an opt-in local analysis gate. It is not part of the ordinary
+offline build, and it never downloads a tool. Provision a pinned binary outside
+the checkout using Staticcheck 2026.2.1 (which supports Go 1.27 and therefore
+the supported Go 1.26.8 toolchain), verify its published SHA-256 sidecar:
+
+```sh
+mkdir -p /private/tmp/prufyx-staticcheck && cd /private/tmp/prufyx-staticcheck
+curl -fsSLO https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_darwin_arm64.tar.gz
+curl -fsSLO https://github.com/dominikh/go-tools/releases/download/2026.2.1/staticcheck_darwin_arm64.tar.gz.sha256
+shasum -a 256 -c staticcheck_darwin_arm64.tar.gz.sha256
+tar -xzf staticcheck_darwin_arm64.tar.gz
+```
+
+Use the matching release asset for another host. `make staticcheck` runs the
+correctness-focused `SA*` checks, including `SA4006`, for ordinary and
+`parityreview` package variants offline. Use `make staticcheck-full` to run
+Staticcheck's complete default check set:
+
+```sh
+cd cli
+make staticcheck GO=/absolute/path/to/go1.26.8/bin/go \
+  STATICCHECK=/absolute/path/to/staticcheck
+make staticcheck-full GO=/absolute/path/to/go1.26.8/bin/go \
+  STATICCHECK=/absolute/path/to/staticcheck
+```
+
+Check DCO trailers in a non-empty, forward revision range before sending a
+change for review:
+
+```sh
+cd cli
+make dco-check REVISION_RANGE=base..head
+```
+
+The range checker uses Git's trailer parser and requires every selected commit
+to contain a `Signed-off-by:` trailer.
+
 Run relevant race tests on a native supported host with a C toolchain using
 `CGO_ENABLED=1 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off GOFLAGS='-mod=vendor -buildvcs=false' go test -race ./...`.
 Published binaries use `CGO_ENABLED=0`.

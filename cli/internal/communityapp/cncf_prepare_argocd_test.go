@@ -2,6 +2,7 @@ package communityapp
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -102,7 +103,7 @@ func TestArgoCDPreparationRejectsUnsafeFlagsAndBadPin(t *testing.T) {
 	}
 	for _, format := range []string{"human", "json", "input"} {
 		var stderr bytes.Buffer
-		code := Run(nil, append(append(argoCDPreparationArgs(path), "--requires-inherited-application-permissions", "true", "--format", format), []string{}...), failedPreparationWriter{}, &stderr, "test")
+		code := Run(context.TODO(), append(append(argoCDPreparationArgs(path), "--requires-inherited-application-permissions", "true", "--format", format), []string{}...), failedPreparationWriter{}, &stderr, "test")
 		if code != ExitIntegrity || stderr.String() != "prufyx: CNCF_PREPARATION_INTEGRITY_FAILURE\n" {
 			t.Fatalf("format=%s output failure code=%d stderr=%q", format, code, stderr.String())
 		}

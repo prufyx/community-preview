@@ -36,7 +36,9 @@ func TestValidateSourceRejectsInvalidInputBeforeNetwork(t *testing.T) {
 }
 
 func TestFetchFixedTranscriptAndCompleteBytes(t *testing.T) {
+	var calls atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
 		if r.Method != http.MethodGet || r.Header.Get("Accept") != "application/octet-stream" || r.Header.Get("Accept-Encoding") != "identity" || r.Header.Get("User-Agent") != "prufyx-knowledge-fetch/1" {
 			t.Errorf("unexpected transcript: method=%q headers=%v", r.Method, r.Header)
 		}
@@ -48,8 +50,8 @@ func TestFetchFixedTranscriptAndCompleteBytes(t *testing.T) {
 	defer server.Close()
 	client := testTLSClient(server)
 	got, err := fetchWithClient(context.Background(), server.URL+"/knowledge.tar", client)
-	if err != nil || string(got) != "complete-package" {
-		t.Fatalf("Fetch = %q, %v", got, err)
+	if err != nil || string(got) != "complete-package" || calls.Load() != 1 {
+		t.Fatalf("Fetch = %q, %v, calls=%d", got, err, calls.Load())
 	}
 }
 

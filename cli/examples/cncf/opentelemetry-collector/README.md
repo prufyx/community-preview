@@ -61,3 +61,57 @@ This selected configuration is expected to produce a scoped `BLOCKED` claim.
 The fixed fixture uses a matching `debug` pipeline reference and produces the
 scoped absence `PASS` when the same declarations are complete. The unknown
 fixture references a connector-only `logging` ID and produces `UNKNOWN`.
+
+## Internal metrics default bind
+
+The explicitly selected `internal-telemetry-default-bind` route covers only
+the source-defined `0.110.0` → `0.111.0` default. It needs a complete,
+precedence-resolved official Collector declaration, plus the caller's effective
+feature-gate and remote-scrape requirement. With no `service.telemetry.metrics`
+override, a localhost default and a required remote scrape produce `BLOCKED`;
+a wildcard default or no remote-scrape requirement produces `PASS`. An override,
+missing authority, unsupported syntax, or ambiguous scope produces `UNKNOWN`.
+These are declared configuration outcomes; they do not observe a running
+Collector, listener, Service, scrape, or network.
+
+Copy each tracked fixture to a private file before checking it. The commands
+below use `mktemp -d` and an explicit mode change so they work in both Bash and
+Zsh. Set `PRUFYX_BIN` to an existing checkout-root binary (or `prufyx` on your
+`PATH`). Expected exit codes are `10` for `BLOCKED`, `0` for `PASS`, and `11`
+for `UNKNOWN`.
+
+```sh
+umask 077
+PRUFYX_BIN=${PRUFYX_BIN:-prufyx}
+otel_dir=$(mktemp -d)
+chmod 700 "$otel_dir"
+cp cli/examples/cncf/opentelemetry-collector/internal-metrics-blocked.yaml "$otel_dir/blocked.yaml"
+cp cli/examples/cncf/opentelemetry-collector/internal-metrics-fixed.yaml "$otel_dir/fixed.yaml"
+cp cli/examples/cncf/opentelemetry-collector/internal-metrics-unknown.yaml "$otel_dir/unknown.yaml"
+chmod 600 "$otel_dir"/*.yaml
+
+prufyx_example_exit=0
+"$PRUFYX_BIN" check cncf --project opentelemetry --otel-rule internal-telemetry-default-bind \
+  --otel-collector-config "$otel_dir/blocked.yaml" --otel-distribution official \
+  --otel-config-complete --otel-config-precedence-resolved \
+  --otel-metrics-localhost-default true --otel-metrics-remote-scrape-required true \
+  --from 0.110.0 --to 0.111.0 --now 2026-09-13T10:00:00Z --format json >"$otel_dir/blocked.json" || prufyx_example_exit=$?
+test "$prufyx_example_exit" -eq 10
+grep -q '"status":"BLOCKED"' "$otel_dir/blocked.json"
+
+"$PRUFYX_BIN" check cncf --project opentelemetry --otel-rule internal-telemetry-default-bind \
+  --otel-collector-config "$otel_dir/fixed.yaml" --otel-distribution official \
+  --otel-config-complete --otel-config-precedence-resolved \
+  --otel-metrics-localhost-default false --otel-metrics-remote-scrape-required true \
+  --from 0.110.0 --to 0.111.0 --now 2026-09-13T10:00:00Z --format json >"$otel_dir/fixed.json"
+grep -q '"status":"PASS"' "$otel_dir/fixed.json"
+
+prufyx_example_exit=0
+"$PRUFYX_BIN" check cncf --project opentelemetry --otel-rule internal-telemetry-default-bind \
+  --otel-collector-config "$otel_dir/unknown.yaml" --otel-distribution official \
+  --otel-config-complete --otel-config-precedence-resolved \
+  --otel-metrics-localhost-default false --otel-metrics-remote-scrape-required true \
+  --from 0.110.0 --to 0.111.0 --now 2026-09-13T10:00:00Z --format json >"$otel_dir/unknown.json" || prufyx_example_exit=$?
+test "$prufyx_example_exit" -eq 11
+grep -q '"status":"UNKNOWN"' "$otel_dir/unknown.json"
+```

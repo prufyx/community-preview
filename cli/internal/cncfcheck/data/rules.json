@@ -1,10 +1,10 @@
 {
   "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
-  "revision": "cncf-2026-09-12.13",
+  "revision": "cncf-2026-09-13.2",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:1b7d145692318baef5d26f48467f066fe1b40268ceeca11d8f0d1c5bb5a20086",
+  "registryDigest": "sha256:15810707a5713eb0582d0190aac592db14f494f48670805a9ac0d9bab391f14b",
   "entries": [
     {
       "description": "Argo CD v3.5.2 uses Helm 4; this checks one effective official Helm repository with OCI enabled and caller-declared plain-HTTP transport for the documented force-HTTP flag requirement and direct-repository conflicting TLS flags.",
@@ -11449,6 +11449,137 @@
     },
     {
       "project": "opentelemetry",
+      "description": "OpenTelemetry Collector 0.111.0 changes the internal metrics default from wildcard :8888 to localhost:8888 when the target feature gate is effective; this checks only a caller-declared non-loopback scrape requirement for a complete config with no service.telemetry.metrics override.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.distribution",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "enum",
+          "enumTokens": [
+            "custom",
+            "official"
+          ],
+          "description": "Whether the proposed artifact uses the official upstream Collector distribution or a custom build."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.internal_metrics_override_absent",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the selected complete Collector config has no service.telemetry.metrics override; any override is outside this rule scope."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.config_complete",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller declares the selected Collector config complete."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.config_precedence_resolved",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the caller declares provider and CLI precedence resolved."
+        },
+        {
+          "side": "proposed",
+          "id": "component.opentelemetry.internal_metrics_localhost_remote_conflict",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the declared target gate and remote scrape requirement conflict: localhost default is effective while remote scraping is required."
+        }
+      ],
+      "rule": {
+        "id": "opentelemetry.internal-telemetry-default-bind.0-110-to-0-111",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "from": "0.110.0",
+          "to": "0.111.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/open-telemetry/opentelemetry-collector",
+          "factId": "component.opentelemetry.internal_metrics_localhost_remote_conflict",
+          "boolValue": true
+        },
+        "appliesWhen": [
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-telemetry/opentelemetry-collector",
+            "factId": "component.opentelemetry.distribution",
+            "enumValue": "official"
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-telemetry/opentelemetry-collector",
+            "factId": "component.opentelemetry.internal_metrics_override_absent",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-telemetry/opentelemetry-collector",
+            "factId": "component.opentelemetry.config_complete",
+            "boolValue": true
+          },
+          {
+            "side": "proposed",
+            "component": "pkg:github/open-telemetry/opentelemetry-collector",
+            "factId": "component.opentelemetry.config_precedence_resolved",
+            "boolValue": true
+          }
+        ],
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-13T09:29:22Z",
+          "validUntil": "2026-12-12T09:29:22Z",
+          "sources": [
+            {
+              "id": "otel-0.110.0-telemetry-factory",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/d6f568dd5b6ddfd87a7c6350545cb818f902a06f/service/telemetry/factory.go",
+              "revision": "d6f568dd5b6ddfd87a7c6350545cb818f902a06f",
+              "contentDigest": "sha256:ae0f16ce00b66d156233045f9f773441acde359a276f1dfae817f22b4e5ff21f",
+              "startLine": 76,
+              "endLine": 98
+            },
+            {
+              "id": "otel-0.111.0-changelog",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/CHANGELOG.md",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:8b2b559dd21ff7facbacf97af92c9f92e3b55f64b5232f6e406d6fd87c295429",
+              "startLine": 9,
+              "endLine": 14
+            },
+            {
+              "id": "otel-0.111.0-telemetry-config",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/service/telemetry/config.go",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:554dc7873e49b9553c619fcebe7f29e369a61bd02f4bac25695e36701eb8700e",
+              "startLine": 112,
+              "endLine": 176
+            },
+            {
+              "id": "otel-0.111.0-telemetry-factory",
+              "url": "https://github.com/open-telemetry/opentelemetry-collector/blob/080b76506c5b508f7f017f198e44b076485a69e9/service/telemetry/factory.go",
+              "revision": "080b76506c5b508f7f017f198e44b076485a69e9",
+              "contentDigest": "sha256:dfb362147711a970dac45a7c3e66c38fafed215690d85c69418696b45e20a82b",
+              "startLine": 19,
+              "endLine": 113
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "For a caller-declared non-loopback scrape requirement, select an explicit target metrics bind or separately review feature-gate and network configuration; verify listener and scrape behavior separately."
+      }
+    },
+    {
+      "project": "opentelemetry",
       "description": "Logging exporter removal in the upstream Collector; this does not prove replacement exporter availability or telemetry delivery.",
       "requiredFacts": [
         {
@@ -12170,6 +12301,100 @@
         "subject": {
           "component": "pkg:github/prometheus/prometheus",
           "from": "3.9.1",
+          "to": "3.14.0"
+        }
+      }
+    },
+    {
+      "description": "Prometheus 3.14.0 changes the selected remote_write entry's omitted inline enable_http2 default from true to false for this exact 2.55.1 to 3.14.0 transition. This checks only a caller-declared endpoint requirement against one literal-name entry.",
+      "project": "prometheus",
+      "requiredFacts": [
+        {
+          "component": "pkg:github/prometheus/prometheus",
+          "description": "Whether the selected remote_write entry's direct literal enable_http2 value or exact source-derived omitted default conflicts with the caller's declared HTTP/2 requirement. The preparer also binds the direct value class in canonical input; it does not test protocol negotiation or delivery.",
+          "enumTokens": null,
+          "id": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+          "side": "proposed",
+          "type": "bool"
+        }
+      ],
+      "rule": {
+        "condition": {
+          "component": "pkg:github/prometheus/prometheus",
+          "factId": "component.prometheus.remote_write_http2_requirement_unsatisfied",
+          "side": "proposed",
+          "boolValue": true
+        },
+        "evidence": {
+          "reviewedAt": "2026-09-13T08:57:28Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:65a2d40744ed955abccecea69ab8a200c13d969e3301e96853e6bd69b9a80dcc",
+              "endLine": 53,
+              "id": "prometheus-common-v0-59-1-http2-default",
+              "revision": "be8a747a1cf9f34dd301ff4e9f8527262e66c153",
+              "startLine": 39,
+              "url": "https://github.com/prometheus/common/blob/be8a747a1cf9f34dd301ff4e9f8527262e66c153/config/http_config.go"
+            },
+            {
+              "contentDigest": "sha256:65a2d40744ed955abccecea69ab8a200c13d969e3301e96853e6bd69b9a80dcc",
+              "endLine": 304,
+              "id": "prometheus-common-v0-59-1-http2-field",
+              "revision": "be8a747a1cf9f34dd301ff4e9f8527262e66c153",
+              "startLine": 279,
+              "url": "https://github.com/prometheus/common/blob/be8a747a1cf9f34dd301ff4e9f8527262e66c153/config/http_config.go"
+            },
+            {
+              "contentDigest": "sha256:9f4ce6feb314691b5570d0ce21dbbf91e40c47f82dd5e965c091e184ab0ad3d4",
+              "endLine": 58,
+              "id": "prometheus-v2-55-1-common-version",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 52,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/go.mod"
+            },
+            {
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "endLine": 193,
+              "id": "prometheus-v2-55-1-remote-write-default",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 186,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:0c939b2fe3867ef5e24e4bdb6ae7d9d327350f1294ff79bd29bf8c3b73c2fd15",
+              "endLine": 1179,
+              "id": "prometheus-v2-55-1-remote-write-parser",
+              "revision": "6d7569113f1ca814f1e149f74176656540043b8d",
+              "startLine": 1142,
+              "url": "https://github.com/prometheus/prometheus/blob/6d7569113f1ca814f1e149f74176656540043b8d/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 217,
+              "id": "prometheus-v3-14-remote-write-default",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 206,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            },
+            {
+              "contentDigest": "sha256:629498030714922f585aa2414bce578377b3fa9dc587f001fca658ae83c42a9a",
+              "endLine": 1427,
+              "id": "prometheus-v3-14-remote-write-inline-parser",
+              "revision": "d7598b7141418fa35be2b5ec5d0fefb634199610",
+              "startLine": 1375,
+              "url": "https://github.com/prometheus/prometheus/blob/d7598b7141418fa35be2b5ec5d0fefb634199610/config/config.go"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-12T08:57:28Z"
+        },
+        "id": "prometheus.remote-write-http2-default.2-55-1-to-3-14-0",
+        "nextAction": "Set direct enable_http2: true on the selected remote_write entry or revise the declared endpoint requirement, then separately verify endpoint protocol support, negotiation, delivery, and the complete target configuration.",
+        "operator": "forbid_predicate_value",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/prometheus/prometheus",
+          "from": "2.55.1",
           "to": "3.14.0"
         }
       }

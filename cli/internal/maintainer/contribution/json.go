@@ -119,7 +119,9 @@ func canonical(value any, newline bool) ([]byte, error) {
 	var out bytes.Buffer
 	enc := json.NewEncoder(&out)
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(value)
+	if err := enc.Encode(value); err != nil {
+		return nil, ErrRejected
+	}
 	b, err := escapeNonASCII(out.Bytes())
 	if err != nil {
 		return nil, ErrRejected

@@ -155,12 +155,19 @@ func runFinalizeKnowledgePackage(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("knowledge-publish finalize-package", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	var common publishCommon
-	var targets, snapshot, timestamp string
+	var targets, snapshot, timestamp, packageURL, releasePlanOutput string
 	bindPublishCommon(flags, &common, true)
 	flags.StringVar(&targets, "targets", "", "finalized targets metadata")
 	flags.StringVar(&snapshot, "snapshot", "", "finalized snapshot metadata")
 	flags.StringVar(&timestamp, "timestamp", "", "finalized timestamp metadata")
-	if flags.Parse(args) != nil || flags.NArg() != 0 || !completeCommon(common, true) || targets == "" || snapshot == "" || timestamp == "" {
+	flags.StringVar(&packageURL, "package-url", "", "exact HTTPS URL for the complete package")
+	flags.StringVar(&releasePlanOutput, "release-plan-output", "", "new local release plan file")
+	if flags.Parse(args) != nil {
+		return knowledgePublishError()
+	}
+	planRequested := packageURL != "" || releasePlanOutput != ""
+	if flags.NArg() != 0 || !completeCommon(common, true) || targets == "" || snapshot == "" || timestamp == "" ||
+		(packageURL == "") != (releasePlanOutput == "") || planRequested && (!filepath.IsAbs(releasePlanOutput) || filepath.Clean(releasePlanOutput) == filepath.Clean(common.output)) {
 		return knowledgePublishError()
 	}
 	root, target, err := readRootTarget(common)
@@ -173,8 +180,15 @@ func runFinalizeKnowledgePackage(args []string, stdout io.Writer) error {
 	if err1 != nil || err2 != nil || err3 != nil {
 		return knowledgePublishError()
 	}
-	packageRaw, receipt, err := knowledgepublish.FinalizePackage(knowledgepublish.FinalizePackageOptions{Root: root, Target: target, Targets: targetsRaw, Snapshot: snapshotRaw, Timestamp: timestampRaw, RootDigest: common.rootDigest})
-	if err != nil || knowledgepublish.WriteExclusive(common.output, packageRaw) != nil {
+	opts := knowledgepublish.FinalizePackageOptions{Root: root, Target: target, Targets: targetsRaw, Snapshot: snapshotRaw, Timestamp: timestampRaw, RootDigest: common.rootDigest}
+	var packageRaw, planRaw []byte
+	var receipt knowledgepublish.FinalizationReceipt
+	if planRequested {
+		packageRaw, planRaw, receipt, err = knowledgepublish.FinalizePackageWithReleasePlan(opts, packageURL)
+	} else {
+		packageRaw, receipt, err = knowledgepublish.FinalizePackage(opts)
+	}
+	if err != nil || writePackageAndPlan(common.output, packageRaw, releasePlanOutput, planRaw) != nil {
 		return knowledgePublishError()
 	}
 	receiptRaw, err := json.Marshal(receipt)
@@ -183,6 +197,18 @@ func runFinalizeKnowledgePackage(args []string, stdout io.Writer) error {
 	}
 	if _, err := fmt.Fprintln(stdout, string(receiptRaw)); err != nil {
 		return &commandError{code: 2, message: "knowledge-publish: receipt output failed"}
+	}
+	return nil
+}
+
+func writePackageAndPlan(packagePath string, packageRaw []byte, planPath string, planRaw []byte) error {
+	if err := knowledgepublish.WriteExclusive(packagePath, packageRaw); err != nil {
+		return err
+	}
+	// Publication is deliberately ordered, not crash-atomic. The already
+	// durable package remains if the plan output cannot be created.
+	if planPath != "" {
+		return knowledgepublish.WriteExclusive(planPath, planRaw)
 	}
 	return nil
 }

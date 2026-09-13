@@ -212,13 +212,17 @@ custom or unresolved configuration, and runtime behavior remain `UNKNOWN`.
 This depth route is additional to the 115 selected latest-target pairs in the
 2026-09-12 matrix.
 
-OpenTelemetry Collector has one independently selected `0.110.0` → `0.111.0`
-native route for the existing logging-exporter removal constraint. It reads one
-caller-selected complete, precedence-resolved Collector YAML and requires a
-caller declaration of the official distribution. Unsupported YAML or values,
-defaults, custom distributions, resource presence, pipeline behavior, exporter
-execution, runtime behavior, and whole-upgrade safety remain `UNKNOWN`. See the
-[OpenTelemetry Collector native example](../examples/cncf/opentelemetry-collector/README.md).
+OpenTelemetry Collector has two independently selected `0.110.0` → `0.111.0`
+native routes. The existing logging-exporter route reads one caller-selected
+complete, precedence-resolved Collector YAML and requires a caller declaration
+of the official distribution. The internal-metrics route additionally requires
+caller declarations for the effective feature gate and whether non-loopback
+scraping is required; it evaluates only the source-defined default bind when no
+`service.telemetry.metrics` override is present. Unsupported YAML or values,
+defaults outside this contract, custom distributions, resource presence,
+pipeline behavior, exporter execution, listener or scrape behavior, runtime
+behavior, and whole-upgrade safety remain `UNKNOWN`. See the [OpenTelemetry
+Collector native examples](../examples/cncf/opentelemetry-collector/README.md).
 
 Cilium project-level `prepare cncf --project cilium` adapter accepts raw policy input only for the exact `1.18.6` → `1.19.0` and `1.18.13` → `1.19.7` pairs. It derives only the existing nonempty-requires fact; a scoped false result still requires an explicit complete CNP and CCNP set declaration. A project-level prepare command never implies preparation of every exact rule pair listed for that project. The
 catalogue's 255 identities and 30 maintainer-selected priority projects are

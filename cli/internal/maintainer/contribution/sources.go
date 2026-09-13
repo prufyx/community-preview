@@ -61,7 +61,10 @@ func VerifySources(o ValidateOptions, sourceRoot string) ([]byte, error) {
 	for i, k := range keys {
 		set[i] = k
 	}
-	setRaw, _ := canonical(set, false)
+	setRaw, err := canonical(set, false)
+	if err != nil {
+		return nil, err
+	}
 	return canonical(map[string]any{"schema": "prufyx.io/upstream-evidence-source-receipt/v1", "packetDigest": receipt["packetDigest"], "verification": "LOCAL_DECLARED_PUBLIC_SOURCE_BYTES_MATCHED", "workflowState": "CANDIDATE", "admissionState": "NOT_ADMITTED", "sourceCount": sourceCount, "uniqueObjectCount": len(cache), "spanCount": spanCount, "aggregateVerifiedByteLength": aggregate, "sourceSetDigest": digest(setRaw), "limitations": []any{"local supplied public bytes only; no upstream fetch, tag or ref authentication, contributor or reviewer authentication, or license determination", "matching bytes and excerpts do not approve semantic correctness, a rule, catalogue admission, signing, runtime behavior, or publication"}}, true)
 }
 

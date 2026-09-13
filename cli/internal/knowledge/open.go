@@ -423,8 +423,24 @@ func validateTrustReceipt(r TrustReceipt, s selectionPointer, material *trustMat
 }
 
 func validateTrustReceiptForProfile(r TrustReceipt, s selectionPointer, material *trustMaterial, targetLength int64, profile profileSpec) error {
-	if !profile.valid() || material == nil || r.APIVersion != "prufyx.io/knowledge-trust-receipt/v1" || r.TrustSource != "OPERATOR_PROVISIONED" || r.TargetPath != profile.targetPath || r.TargetDigest != s.BundleDigest || r.KnowledgeRevision != s.Revision || r.TargetLength != targetLength || r.TargetLength < 1 || r.TargetLength > profile.maxTarget || r.InitialRootDigest != material.state.InitialRootDigest || !reflect.DeepEqual(r.RootHistory, material.state.RootHistory) || r.Root != material.state.Root || r.Timestamp != material.state.Timestamp || r.Snapshot != material.state.Snapshot || r.Targets != material.state.Targets || r.ExpectedRevision != "" && r.ExpectedRevision != s.Revision || r.ExpectedBundleDigest != "" && r.ExpectedBundleDigest != s.BundleDigest {
+	if !profile.valid() || material == nil || !receiptAssertionVersion(r) || r.TrustSource != "OPERATOR_PROVISIONED" || r.TargetPath != profile.targetPath || r.TargetDigest != s.BundleDigest || r.KnowledgeRevision != s.Revision || r.TargetLength != targetLength || r.TargetLength < 1 || r.TargetLength > profile.maxTarget || r.InitialRootDigest != material.state.InitialRootDigest || !reflect.DeepEqual(r.RootHistory, material.state.RootHistory) || r.Root != material.state.Root || r.Timestamp != material.state.Timestamp || r.Snapshot != material.state.Snapshot || r.Targets != material.state.Targets || r.ExpectedRevision != "" && r.ExpectedRevision != s.Revision || r.ExpectedBundleDigest != "" && r.ExpectedBundleDigest != s.BundleDigest {
 		return ErrIntegrity
+	}
+	if r.APIVersion == trustReceiptV2 {
+		assertionDigest, err := VerificationAssertionsDigest(VerificationAssertions{
+			PublisherInitialRootDigest: r.InitialRootDigest,
+			RootHistory:                append([]RootHistoryEntry(nil), r.RootHistory...),
+			Root:                       r.Root,
+			Timestamp:                  r.Timestamp,
+			Snapshot:                   r.Snapshot,
+			Targets:                    r.Targets,
+			TargetPath:                 r.TargetPath,
+			Purpose:                    r.Purpose,
+			EngineCapabilityDigest:     r.EngineCapabilityDigest,
+		})
+		if err != nil || assertionDigest != r.ExpectedVerificationAssertionsDigest {
+			return ErrIntegrity
+		}
 	}
 	verifiedAt, e := parseTime(r.VerifiedAt)
 	if e != nil {

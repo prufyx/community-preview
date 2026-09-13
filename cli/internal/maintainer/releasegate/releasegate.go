@@ -60,6 +60,7 @@ type Manifest struct {
 	BuildTargets       []string                `json:"buildTargets"`
 	SourceBuildTargets []string                `json:"sourceBuildTargets"`
 	Entrypoints        []string                `json:"entrypoints"`
+	ModuleRoot         string                  `json:"moduleRoot,omitempty"`
 	TestTags           []string                `json:"testTags"`
 	Files              []FileEntry             `json:"files"`
 	Packages           []PackageReceipt        `json:"packages"`
@@ -834,8 +835,8 @@ func stableRead(root, rel string, binary bool) ([]byte, os.FileMode, error) {
 		return nil, 0, reject("selected source exceeds size bound: %s", rel)
 	}
 	raw, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
-	after, _ := f.Stat()
-	if err != nil || int64(len(raw)) != before.Size() || int64(len(raw)) > MaxFileBytes || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
+	after, statErr := f.Stat()
+	if err != nil || statErr != nil || int64(len(raw)) != before.Size() || int64(len(raw)) > MaxFileBytes || !os.SameFile(before, after) || before.ModTime() != after.ModTime() {
 		return nil, 0, reject("selected source changed while being read: %s", rel)
 	}
 	if !binary && bytes.IndexByte(raw, 0) >= 0 {
@@ -1006,7 +1007,7 @@ func collect(root string, policy map[string]any, goBin string) (map[string]strin
 			return nil, nil, err
 		}
 		rel = filepath.ToSlash(rel)
-		for _, n := range append(append(append([]string{}, p.GoFiles...), p.CgoFiles...), p.CFiles...) {
+		for _, n := range append(append(append(append(append(append(append(append(append(append(append([]string{}, p.GoFiles...), p.CgoFiles...), p.CFiles...), p.CXXFiles...), p.MFiles...), p.HFiles...), p.FFiles...), p.SFiles...), p.SwigFiles...), p.SwigCXXFiles...), p.SysoFiles...) {
 			addFile(files, rel+"/"+n, "test-support-go")
 		}
 		for _, n := range p.EmbedFiles {
@@ -1190,7 +1191,7 @@ func derive(o Options) (Manifest, map[string][]byte, error) {
 			return Manifest{}, nil, err
 		}
 	}
-	m := Manifest{SchemaVersion: ManifestSchema, BinaryName: policy["binaryName"].(string), BuildTargets: mustStrings(policy["buildTargets"]), SourceBuildTargets: mustStrings(policy["sourceBuildTargets"]), Entrypoints: mustStrings(policy["entrypoints"]), TestTags: []string{"parityreview"}, Files: entries, Packages: pkg, PolicyDigest: digest(raw), RequiredGoVersion: policy["requiredGoVersion"].(string), ToolchainArchives: mustStringMap(policy["toolchainArchives"])}
+	m := Manifest{SchemaVersion: ManifestSchema, BinaryName: policy["binaryName"].(string), BuildTargets: mustStrings(policy["buildTargets"]), SourceBuildTargets: mustStrings(policy["sourceBuildTargets"]), Entrypoints: mustStrings(policy["entrypoints"]), ModuleRoot: policy["moduleRoot"].(string), TestTags: []string{"parityreview"}, Files: entries, Packages: pkg, PolicyDigest: digest(raw), RequiredGoVersion: policy["requiredGoVersion"].(string), ToolchainArchives: mustStringMap(policy["toolchainArchives"])}
 	if policy["schemaVersion"] == SchemaV2 {
 		m.ModuleMode = "vendor"
 		m.VendorTreeDigest = policy["vendorTreeDigest"].(string)
@@ -1331,6 +1332,11 @@ func Stage(o Options) (Manifest, error) {
 	if o.OutputPath == "" {
 		return Manifest{}, reject("stage output is required")
 	}
+	out, err := resolveOutputOutside(o.SourceRoot, o.OutputPath)
+	if err != nil {
+		return Manifest{}, err
+	}
+	o.OutputPath = out
 	parent := filepath.Dir(o.OutputPath)
 	name := filepath.Base(o.OutputPath)
 	if name == "." || name == string(filepath.Separator) || name == "" {
@@ -1414,7 +1420,14 @@ func contains(values []string, want string) bool {
 // RunNativeChecks runs the bounded Go source-stage checks and declared
 // release cross-builds. It never executes downloaded artifacts.
 func RunNativeChecks(stage string, manifest Manifest, goBin string) error {
-	moduleRoot := filepath.Join(stage, "cli")
+	moduleRel, err := safeRelative(manifest.ModuleRoot, "manifest module root")
+	if err != nil {
+		return err
+	}
+	if len(manifest.Entrypoints) == 0 {
+		return reject("native checks require declared entrypoints")
+	}
+	moduleRoot := filepath.Join(stage, filepath.FromSlash(moduleRel))
 	st, err := os.Stat(moduleRoot)
 	if err != nil || !st.IsDir() {
 		return reject("staged module root is unavailable")
@@ -1449,9 +1462,12 @@ func RunNativeChecks(stage string, manifest Manifest, goBin string) error {
 		if len(parts) != 2 {
 			return reject("invalid build target")
 		}
-		out := filepath.Join(work, manifest.BinaryName+"-"+parts[0]+"-"+parts[1])
-		if _, err := command(goBin, []string{"build", "-trimpath", "-buildvcs=false", "-o", out, "./cmd/prufyx-community"}, moduleRoot, baseEnv(manifest.ModuleMode == "vendor", "GOOS="+parts[0], "GOARCH="+parts[1])); err != nil {
-			return err
+		for i, entrypoint := range manifest.Entrypoints {
+			out := filepath.Join(work, fmt.Sprintf("%s-%s-%s-%d", manifest.BinaryName, parts[0], parts[1], i))
+			args := []string{"build", "-trimpath", "-buildvcs=false", "-o", out, entrypoint}
+			if _, err := command(goBin, args, moduleRoot, baseEnv(manifest.ModuleMode == "vendor", "GOOS="+parts[0], "GOARCH="+parts[1])); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

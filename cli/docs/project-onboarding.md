@@ -99,6 +99,12 @@ the explicit pinned-reference workflow in
 [`public-source-capture.md`](public-source-capture.md); that path does not
 provide automatic discovery.
 
+The retained first-page release-list response is bounded at 4 MiB. Other
+GitHub API responses remain bounded at 1 MiB; JSON depth, JSON node count,
+aggregate bytes, and request limits are unchanged. The snapshot window stays
+the same first 30 candidates. Older CLI versions may reject a newly retained
+snapshot whose release-list object is larger than their 1 MiB API bound.
+
 Unauthenticated GitHub API requests share an IP-based limit of 60 requests per
 hour. The CLI reports `GITHUB_RATE_LIMITED` when GitHub returns a rate-limit
 response. Other bounded failures are reported as

@@ -48,7 +48,7 @@ func TestOfflineCollectorOutputsImportIntoCurrentBundle(t *testing.T) {
 			rootPath, code := (localcollector.Collector{Runner: integrationRunner{mode: tc.mode}}).Collect(context.Background(), localcollector.Options{
 				OutputRoot: output, Kubeconfig: kubeconfig, Contexts: []string{"synthetic-context"}, AcknowledgeExecRisk: true,
 				AllowPartial: true, IncludeComponentConfiguration: components, ComponentConfigurationProfile: profile,
-				Kubectl: "/not-executed", ExecEnv: integrationProxyNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("i", 32)),
+				Kubectl: os.Args[0], ExecEnv: integrationProxyNames, Now: func() time.Time { return time.Unix(1, 0) }, Random: strings.NewReader(strings.Repeat("i", 32)),
 			}, &stdout, &stderr)
 			if code != 0 {
 				t.Fatalf("collector exit=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())

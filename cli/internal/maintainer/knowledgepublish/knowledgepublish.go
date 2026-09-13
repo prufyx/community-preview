@@ -19,6 +19,7 @@ import (
 
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/knowledge"
+	"github.com/prufyx/prufyx-cli/internal/knowledgereleaseplan"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/v2/metadata"
@@ -117,6 +118,47 @@ type TimestampOptions struct {
 type FinalizePackageOptions struct {
 	Root, Target, Targets, Snapshot, Timestamp []byte
 	RootDigest                                 string
+}
+
+// FinalizePackageWithReleasePlan generates a release plan only from the exact
+// package and in-memory verification receipt returned by FinalizePackage. It
+// never accepts a saved receipt and the plan grants no bootstrap authority.
+func FinalizePackageWithReleasePlan(opts FinalizePackageOptions, packageURL string) ([]byte, []byte, FinalizationReceipt, error) {
+	packageRaw, receipt, err := FinalizePackage(opts)
+	if err != nil {
+		return nil, nil, FinalizationReceipt{}, err
+	}
+	verification := receipt.Verification
+	if receipt.Status != "VERIFIED_FOR_PACKAGING" || receipt.Profile != "cncf" || receipt.NetworkUsed || receipt.KeysHandled ||
+		receipt.PackageDigest != digest(packageRaw) || verification.Status != "VERIFIED" || verification.Profile != "cncf" ||
+		verification.NetworkUsed || verification.StoreUsed || verification.StoreChanged ||
+		verification.PackageDigest != receipt.PackageDigest || verification.TargetDigest != receipt.TargetDigest ||
+		verification.KnowledgeRevision != receipt.KnowledgeRevision || verification.EngineCapabilityDigest != receipt.CapabilityDigest ||
+		verification.InitialRootDigest != receipt.RootDigest {
+		return nil, nil, FinalizationReceipt{}, ErrRejected
+	}
+	plan := knowledgereleaseplan.Plan{
+		Schema:    knowledgereleaseplan.Schema,
+		Authority: knowledgereleaseplan.Authority,
+		Profile:   "cncf",
+		Package:   knowledgereleaseplan.Package{URL: packageURL, Digest: receipt.PackageDigest},
+		Target: knowledgereleaseplan.Target{
+			Path: verification.TargetPath, Revision: receipt.KnowledgeRevision,
+			Digest: receipt.TargetDigest, Purpose: verification.Purpose,
+			EngineCapabilityDigest: receipt.CapabilityDigest,
+		},
+		PublisherVerification: knowledgereleaseplan.PublisherVerification{
+			Mode: knowledgereleaseplan.RootMode, PublisherInitialRootDigest: verification.InitialRootDigest,
+			RootHistory: append([]knowledge.RootHistoryEntry(nil), verification.RootHistory...),
+			Root:        verification.Root, Timestamp: verification.Timestamp,
+			Snapshot: verification.Snapshot, Targets: verification.Targets,
+		},
+	}
+	planRaw, err := knowledgereleaseplan.Marshal(plan)
+	if err != nil {
+		return nil, nil, FinalizationReceipt{}, ErrRejected
+	}
+	return packageRaw, planRaw, receipt, nil
 }
 
 // PrepareTargets creates an unsigned targets role and its exact signing payload.

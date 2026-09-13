@@ -4,12 +4,12 @@
   "destination": "https://github.com/prufyx/community-preview",
   "source": {
     "inventoryPath": "cli/docs/generated/community-support-inventory.json",
-    "inventorySha256": "sha256:8359d46e458832e5220ba53824c46700b68a0e341708aafc88eceb9d1297df8f",
+    "inventorySha256": "sha256:6d47facc4ef8cc25f1a587ec880b59f9044b2137d37791cc7c6d4954e3f93c1a",
     "counts": {
-      "executableProjects": 65,
+      "executableProjects": 66,
       "selectedSourceRecords": 110,
       "selectedSourceProjects": 58,
-      "documentedScenarioExamples": 28
+      "documentedScenarioExamples": 33
     },
     "latestUpgradeCoverage": {
       "asOf": "2026-09-12",
@@ -20,7 +20,7 @@
       "inputAuthority": "Bounded native input or explicit minimized operator declarations, as stated per matrix row.",
       "claimScope": "Exact endpoints and named predicates only; missing, custom, incomplete, ambiguous, runtime, cluster, data-migration, and whole-upgrade facts remain UNKNOWN.",
       "additionalPreservedRoute": "Jaeger 1.76.0 to 2.20.0 is retained outside the selected-pair count.",
-      "additionalDepthRoute": "Prometheus 2.55.1 to 3.14.0 adds two canonical constraints over existing declared facts outside the selected-pair count.",
+      "additionalDepthRoute": "Prometheus 2.55.1 to 3.14.0 adds three scoped constraints, including a native remote_write HTTP/2-default route, outside the selected-pair count.",
       "preexistingSelectedPair": "Cortex 1.17.2 to 1.21.1 was already present and is included in the selected-pair count.",
       "qualificationGaps": [
         {
@@ -257,6 +257,46 @@
       "to": "1.17.18",
       "rule": "whitespace-trimmed selected ConfigMap cluster-name violates target syntax",
       "input": "caller-selected complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON"
+    },
+    {
+      "project": "coredns",
+      "repository": "https://github.com/coredns/coredns",
+      "from": "1.13.2",
+      "to": "1.14.7",
+      "rule": "the removed federation directive is blocked in a direct complete Corefile",
+      "input": "caller-selected complete Corefile with declared official distribution"
+    },
+    {
+      "project": "envoy",
+      "repository": "https://github.com/envoyproxy/envoy",
+      "from": "1.38.4",
+      "to": "1.39.1",
+      "rule": "direct V2 transport_api_version at the selected ADS, LDS, or CDS api_config_source path is blocked; this native route has no PASS",
+      "input": "caller-selected directly loaded JSON bootstrap"
+    },
+    {
+      "project": "prometheus",
+      "repository": "https://github.com/prometheus/prometheus",
+      "from": "2.55.1",
+      "to": "3.14.0",
+      "rule": "one selected remote_write entry direct enable_http2 setting or reviewed omitted default is checked against an explicit endpoint requirement",
+      "input": "caller-selected complete, precedence-resolved native Prometheus YAML with a unique literal remote_write entry name"
+    },
+    {
+      "project": "mariadb-operator",
+      "repository": "https://github.com/mariadb-operator/mariadb-operator",
+      "from": "26.3.0",
+      "to": "26.6.0",
+      "rule": "one complete Galera resource must enable autoUpdateDataPlane before the operator update",
+      "input": "caller-selected complete native k8s.mariadb.com/v1alpha1 MariaDB JSON with Galera-only and pre-operator-update declarations"
+    },
+    {
+      "project": "opentelemetry",
+      "repository": "https://github.com/open-telemetry/opentelemetry-collector",
+      "from": "0.110.0",
+      "to": "0.111.0",
+      "rule": "target internal-metrics localhost default is incompatible with a required non-loopback scrape when no metrics override is configured",
+      "input": "caller-selected complete, precedence-resolved native Collector YAML with declared official distribution, effective feature gate, and non-loopback scrape requirement"
     }
   ],
   "resultScope": [

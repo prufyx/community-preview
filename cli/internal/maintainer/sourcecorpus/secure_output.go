@@ -27,6 +27,13 @@ func ReadPrivateFile(path string, maximum int64) ([]byte, error) {
 	return readOwnerOnlyRegular(file, maximum)
 }
 
+// ReadRegularFile safely admits a single-link regular file. Unlike
+// ReadPrivateFile it does not require owner-only permissions, so it can read
+// public review inputs such as exported targets and checked-in vectors.
+func ReadRegularFile(path string, maximum int64) ([]byte, error) {
+	return readPhysicalFile(path, maximum, false)
+}
+
 // ReadPrivateTreeFile reads one fixed relative regular file below a private
 // directory using the same no-follow descriptor walk as corpus collections.
 func ReadPrivateTreeFile(rootPath, relative string, maximum int64) ([]byte, error) {
