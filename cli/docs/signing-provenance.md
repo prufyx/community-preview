@@ -40,6 +40,12 @@ The release owner's Go `release verify` workflow checks the archive layout,
 metadata and `SOURCE-REVISION` binding before a formal bundle is finalized.
 Do not replace that validation with an ad-hoc JSON parser.
 
+Release assembly uses a dedicated output directory owned by the current user
+with mode `0700`. Use a separate directory for each release version. Versioned
+archives and `SHA256SUMS` refuse overwrite; repeatable source sidecars and
+finalization metadata replace only safe regular files through atomic local
+updates. Finalization rejects links, hard links and unexpected output members.
+
 Use the archive matching the host architecture. Every checksum and attestation
 verification must succeed before execution. GitHub verification needs network
 access unless you separately prepare and manage offline trust inputs. The

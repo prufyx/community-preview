@@ -10,32 +10,40 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 )
 
 var envNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
 func validateLocalPathsAndTools(o *Options) error {
-	info, err := os.Lstat(o.Kubeconfig)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("An explicit readable, non-symlink kubeconfig file is required.")
+	raw, err := readKubeconfigForSnapshot(o.Kubeconfig)
+	if err != nil {
+		return errors.New("An explicit readable, non-symlink private kubeconfig file is required.")
 	}
-	st, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || int(st.Uid) != os.Getuid() || st.Nlink != 1 || info.Mode().Perm()&0o077 != 0 {
-		return errors.New("The kubeconfig must be owned by the invoking user, single-linked, with no group/other permission bits; use mode 0600.")
+	if err := validateKubeconfigSnapshotSemantics(raw); err != nil {
+		wipeKubeconfigBytes(raw)
+		return errors.New("The kubeconfig cannot be safely snapshotted; use absolute credential paths and a supported authentication helper form.")
 	}
+	o.kubeconfigSnapshot = raw
 	kubectl, err := resolveKubectl(o.Kubectl)
 	if err != nil {
+		wipeKubeconfigBytes(o.kubeconfigSnapshot)
+		o.kubeconfigSnapshot = nil
 		return err
 	}
 	o.Kubectl = kubectl
 	if info, err := os.Lstat(o.OutputRoot); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		wipeKubeconfigBytes(o.kubeconfigSnapshot)
+		o.kubeconfigSnapshot = nil
 		return errors.New("The output directory must not be a symbolic link.")
 	}
 	if err := os.MkdirAll(o.OutputRoot, 0o700); err != nil {
+		wipeKubeconfigBytes(o.kubeconfigSnapshot)
+		o.kubeconfigSnapshot = nil
 		return errors.New("Cannot create output directory.")
 	}
 	if err := os.Chmod(o.OutputRoot, 0o700); err != nil {
+		wipeKubeconfigBytes(o.kubeconfigSnapshot)
+		o.kubeconfigSnapshot = nil
 		return errors.New("Cannot make output directory private.")
 	}
 	return nil

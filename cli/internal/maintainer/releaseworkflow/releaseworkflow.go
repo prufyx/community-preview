@@ -258,40 +258,8 @@ func target(t string) (string, string, error) {
 		return "", "", errors.New("release target must be linux-amd64 or linux-arm64")
 	}
 }
-func outputDir(repo, raw string) (string, error) {
-	if raw == "" {
-		return "", errors.New("output directory is required")
-	}
-	candidate, err := filepath.Abs(raw)
-	if err != nil {
-		return "", errors.New("cannot resolve output directory")
-	}
-	r, err := filepath.EvalSymlinks(repo)
-	if err != nil {
-		return "", err
-	}
-	if within(r, candidate) {
-		return "", errors.New("OUTPUT_DIR must be outside the Git checkout")
-	}
-	prospective, err := prospectivePath(candidate)
-	if err != nil || within(r, prospective) {
-		return "", errors.New("OUTPUT_DIR must be outside the Git checkout")
-	}
-	if err := os.MkdirAll(candidate, 0700); err != nil {
-		return "", errors.New("cannot create output directory")
-	}
-	i, err := os.Lstat(candidate)
-	if err != nil || !i.IsDir() || i.Mode()&os.ModeSymlink != 0 {
-		return "", errors.New("output directory is unavailable")
-	}
-	p, err := filepath.EvalSymlinks(candidate)
-	if err != nil {
-		return "", errors.New("cannot resolve output directory")
-	}
-	if within(r, p) {
-		return "", errors.New("OUTPUT_DIR must be outside the Git checkout")
-	}
-	return p, nil
+func outputDir(repo, raw string) (*outputDirectory, error) {
+	return openOutputDirectory(repo, raw)
 }
 
 func within(root, candidate string) bool {
@@ -299,38 +267,6 @@ func within(root, candidate string) bool {
 	return err == nil && (rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."))
 }
 
-// prospectivePath resolves the nearest existing ancestor before creating any
-// output. This prevents an outside-looking path through an existing symlink
-// from creating a directory inside the checkout.
-func prospectivePath(candidate string) (string, error) {
-	var suffix []string
-	probe := candidate
-	for {
-		info, err := os.Lstat(probe)
-		if err == nil {
-			if !info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
-				return "", errors.New("output ancestor is not a directory")
-			}
-			root, err := filepath.EvalSymlinks(probe)
-			if err != nil {
-				return "", err
-			}
-			for i := len(suffix) - 1; i >= 0; i-- {
-				root = filepath.Join(root, suffix[i])
-			}
-			return root, nil
-		}
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-		parent := filepath.Dir(probe)
-		if parent == probe {
-			return "", errors.New("output ancestor is unavailable")
-		}
-		suffix = append(suffix, filepath.Base(probe))
-		probe = parent
-	}
-}
 func stage(repo, goBin string, native bool) (string, string, string, error) {
 	work, err := os.MkdirTemp("", "prufyx-community-release-*")
 	if err != nil {
@@ -573,10 +509,11 @@ func binary(v, t, out string) (string, error) {
 	if e != nil {
 		return "", e
 	}
+	defer dst.Close()
 	num := strings.TrimPrefix(v, "v")
-	archive := filepath.Join(dst, fmt.Sprintf("prufyx-cli_%s_%s_%s.tar.gz", num, osName, arch))
-	if _, e = os.Lstat(archive); e == nil {
-		return "", errors.New("refusing to overwrite archive")
+	archiveName := fmt.Sprintf("prufyx-cli_%s_%s_%s.tar.gz", num, osName, arch)
+	if e = dst.preflight(outputAsset{name: archiveName}); e != nil {
+		return "", e
 	}
 	work, manifest, staged, e := stage(repo, g, false)
 	if e != nil {
@@ -646,7 +583,13 @@ func binary(v, t, out string) (string, error) {
 	if e = releasehelpers.VerifyDemo(raw); e != nil {
 		return "", e
 	}
-	return archive, tarGz(pkg, filepath.Base(pkg), archive, buildTime)
+	if e = dst.createTarGz(archiveName, pkg, filepath.Base(pkg), buildTime); e != nil {
+		return "", e
+	}
+	if e = dst.verifyBinding(); e != nil {
+		return "", e
+	}
+	return dst.assetPath(archiveName), nil
 }
 func exitCode(e error) (int, error) {
 	if e == nil {
@@ -698,10 +641,16 @@ func source(v, out string) (string, error) {
 	if e != nil {
 		return "", e
 	}
+	defer dst.Close()
 	num := strings.TrimPrefix(v, "v")
-	archive := filepath.Join(dst, fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num))
-	if _, e = os.Lstat(archive); e == nil {
-		return "", errors.New("refusing to overwrite archive")
+	archiveName := fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num)
+	if e = dst.preflight(
+		outputAsset{name: archiveName},
+		outputAsset{name: "SOURCE-MANIFEST.json", replace: true},
+		outputAsset{name: "SOURCE-REVISION", replace: true},
+		outputAsset{name: "SOURCE-TREE.sha256", replace: true},
+	); e != nil {
+		return "", e
 	}
 	work, manifest, staged, e := stage(repo, g, false)
 	if e != nil {
@@ -712,19 +661,26 @@ func source(v, out string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	if e = tarGz(staged, fmt.Sprintf("prufyx-cli_%s_source", num), archive, time.Unix(0, 0)); e != nil {
+	if e = dst.createTarGz(archiveName, staged, fmt.Sprintf("prufyx-cli_%s_source", num), time.Unix(0, 0)); e != nil {
 		return "", e
 	}
-	if e = copyFile(manifest, filepath.Join(dst, "SOURCE-MANIFEST.json"), 0644); e != nil {
+	manifestBytes, e := os.ReadFile(manifest)
+	if e != nil {
 		return "", e
 	}
-	if e = os.WriteFile(filepath.Join(dst, "SOURCE-REVISION"), []byte(rev+"\n"), 0644); e != nil {
+	if e = dst.replace("SOURCE-MANIFEST.json", 0o644, writeBytes(manifestBytes)); e != nil {
 		return "", e
 	}
-	if e = os.WriteFile(filepath.Join(dst, "SOURCE-TREE.sha256"), sourceTreeChecksum(d), 0644); e != nil {
+	if e = dst.replace("SOURCE-REVISION", 0o644, writeBytes([]byte(rev+"\n"))); e != nil {
 		return "", e
 	}
-	return archive, nil
+	if e = dst.replace("SOURCE-TREE.sha256", 0o644, writeBytes(sourceTreeChecksum(d))); e != nil {
+		return "", e
+	}
+	if e = dst.verifyBinding(); e != nil {
+		return "", e
+	}
+	return dst.assetPath(archiveName), nil
 }
 
 func sourceTreeChecksum(digest string) []byte {
@@ -754,12 +710,30 @@ func finalize(v, out string) error {
 	if e != nil {
 		return e
 	}
-	for _, n := range []string{"LICENSE", "NOTICE", "THIRD-PARTY.md"} {
-		if e = copyFile(filepath.Join(repo, n), filepath.Join(dst, n), 0644); e != nil {
+	defer dst.Close()
+	names := releaseAssets(v)
+	assets := make([]outputAsset, 0, len(names)+1)
+	for _, name := range names {
+		switch name {
+		case "LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SBOM.spdx.json":
+			assets = append(assets, outputAsset{name: name, replace: true})
+		default:
+			assets = append(assets, outputAsset{name: name, required: true})
+		}
+	}
+	assets = append(assets, outputAsset{name: "SHA256SUMS"})
+	if e = dst.preflightExact(assets...); e != nil {
+		return e
+	}
+	generated := make(map[string][]byte, 5)
+	for _, name := range []string{"LICENSE", "NOTICE", "THIRD-PARTY.md"} {
+		generated[name], e = os.ReadFile(filepath.Join(repo, name))
+		if e != nil {
 			return e
 		}
 	}
-	if e = copyFile(filepath.Join(repo, "LICENSES", "Go-BSD-3-Clause.txt"), filepath.Join(dst, "Go-BSD-3-Clause.txt"), 0644); e != nil {
+	generated["Go-BSD-3-Clause.txt"], e = os.ReadFile(filepath.Join(repo, "LICENSES", "Go-BSD-3-Clause.txt"))
+	if e != nil {
 		return e
 	}
 	bt, e := epoch(repo, rev)
@@ -770,32 +744,42 @@ func finalize(v, out string) error {
 	if e != nil {
 		return e
 	}
-	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: filepath.Join(dst, "SBOM.spdx.json"), Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gv)), Policy: filepath.Join(repo, policyRel)}); e != nil {
-		return e
-	}
-	num := strings.TrimPrefix(v, "v")
-	names := []string{"LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SBOM.spdx.json", "SOURCE-MANIFEST.json", "SOURCE-REVISION", "SOURCE-TREE.sha256", fmt.Sprintf("prufyx-cli_%s_linux_amd64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_linux_arm64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num)}
-	sort.Strings(names)
-	for _, n := range names {
-		if i, e := os.Lstat(filepath.Join(dst, n)); e != nil || !i.Mode().IsRegular() || i.Mode()&os.ModeSymlink != 0 {
-			return errors.New("release output contains missing or unsafe file")
-		}
-	}
-	f, e := os.OpenFile(filepath.Join(dst, "SHA256SUMS"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	work, e := os.MkdirTemp("", "prufyx-community-finalize-*")
 	if e != nil {
 		return e
 	}
-	defer f.Close()
-	for _, n := range names {
-		d, e := digest(filepath.Join(dst, n))
-		if e != nil {
-			return e
+	defer os.RemoveAll(work)
+	sbom := filepath.Join(work, "SBOM.spdx.json")
+	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: sbom, Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gv)), Policy: filepath.Join(repo, policyRel)}); e != nil {
+		return e
+	}
+	generated["SBOM.spdx.json"], e = os.ReadFile(sbom)
+	if e != nil {
+		return e
+	}
+	for _, name := range []string{"LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SBOM.spdx.json"} {
+		mode := uint32(0o644)
+		if name == "SBOM.spdx.json" {
+			mode = 0o600
 		}
-		if _, e = fmt.Fprintf(f, "%s  %s\n", strings.TrimPrefix(d, "sha256:"), n); e != nil {
+		if e = dst.replace(name, mode, writeBytes(generated[name])); e != nil {
 			return e
 		}
 	}
-	return nil
+	var sums bytes.Buffer
+	for _, n := range names {
+		d, e := dst.digest(n)
+		if e != nil {
+			return e
+		}
+		if _, e = fmt.Fprintf(&sums, "%s  %s\n", strings.TrimPrefix(d, "sha256:"), n); e != nil {
+			return e
+		}
+	}
+	if e = dst.create("SHA256SUMS", 0o644, writeBytes(sums.Bytes())); e != nil {
+		return e
+	}
+	return dst.verifyBinding()
 }
 
 func smoke(v, t, out string, stdout io.Writer) error {

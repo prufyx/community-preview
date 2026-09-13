@@ -9,8 +9,18 @@ runtime command dependency is the caller-trusted `kubectl` executable. It does
 not invoke Python, jq, or a shell projection pipeline. Build it from a reviewed
 source checkout with `cd cli && go build -o bin/prufyx-collector ./cmd/prufyx-collector`,
 or use the matching packaged executable. The kubeconfig must be a regular,
-non-symlink file owned by the
-invoking user with no group or other permission bits. A v3 collection can be
+non-symlink file owned by the invoking user with no group or other permission
+bits. Before any `kubectl` call, the collector opens it through no-follow
+descriptors, validates the opened file, and makes one private temporary
+snapshot outside the observation directory. Every collector command receives
+that one snapshot; it is removed before the observation is finalized. To
+preserve that relocation safely, credential and certificate file references
+(`certificate-authority`, `client-certificate`, `client-key`, and `tokenFile`)
+must be absolute. Relative exec command paths and `auth-provider` blocks are
+rejected. Bare exec program names retain their existing `PATH` lookup behavior,
+while absolute exec command paths are accepted. This is a bounded input guard,
+not a claim that the collector validates the entire kubeconfig or its referenced
+files. A v3 collection can be
 run as follows; replace the paths and context with local values, and add
 `--exec-env NAME` only for variables the reviewed auth plugin requires.
 
@@ -83,7 +93,8 @@ it does not mean reproducing the context pseudonym in a later collection.
 
 Kubectl and kubeconfig exec plugins receive a closed process environment. The
 collector forwards `PATH`, `HOME`, `USER`, and `TMPDIR` when present, and
-supplies a fixed C locale and `KUBECONFIG` set to the reviewed explicit file. `PATH` and `HOME`
+supplies a fixed C locale and sets `KUBECONFIG` to point to a verified private
+snapshot of the accepted kubeconfig bytes. `PATH` and `HOME`
 remain part of the trusted local exec-plugin boundary. Forward any additional
 required variable by repeating `--exec-env NAME`; only a variable that existed
 in the invoking environment can be selected, and its value is never printed or
