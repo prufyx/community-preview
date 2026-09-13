@@ -23,12 +23,59 @@ func runKnowledgeSign(args []string, stdout, stderr io.Writer) error {
 		return runKnowledgeSignInit(args[1:], stdout, stderr)
 	case "sign-role":
 		return runKnowledgeSignRole(args[1:], stdout, stderr)
+	case "verify-key":
+		return runKnowledgeSignVerifyKey(args[1:], stdout, stderr)
 	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign <init|sign-role> [options]")
+		_, err := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign <init|sign-role|verify-key> [options]")
 		return err
 	default:
 		return knowledgeSignError()
 	}
+}
+
+func runKnowledgeSignVerifyKey(args []string, stdout, stderr io.Writer) error {
+	flags := flag.NewFlagSet("knowledge-sign verify-key", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	var root, rootDigest, role, key string
+	flags.StringVar(&root, "root", "", "independently supplied signed public root")
+	flags.StringVar(&rootDigest, "root-digest", "", "independently verified root SHA-256")
+	flags.StringVar(&role, "role", "", "root, targets, snapshot, or timestamp")
+	flags.StringVar(&key, "key", "", "encrypted restored local role key")
+	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			_, writeErr := fmt.Fprintln(stdout, "usage: prufyx-maintainer knowledge-sign verify-key --root ABS --root-digest sha256:... --role root|targets|snapshot|timestamp --key ABS")
+			return writeErr
+		}
+		return knowledgeSignError()
+	}
+	if flags.NArg() != 0 || root == "" || rootDigest == "" || !verifyKeyRole(role) || key == "" {
+		return knowledgeSignError()
+	}
+	rootRaw, err1 := signerInput(root, 128<<10)
+	keyRaw, err2 := signerKey(key)
+	if err1 != nil || err2 != nil || knowledgesign.ValidateRoot(rootRaw, rootDigest) != nil {
+		return knowledgeSignError()
+	}
+	passphrase, err := promptPassphrase(stderr, false)
+	if err != nil {
+		return knowledgeSignError()
+	}
+	receipt, err := knowledgesign.VerifyKey(knowledgesign.VerifyKeyOptions{Root: rootRaw, RootDigest: rootDigest, Role: role, EncryptedKey: keyRaw, Passphrase: passphrase})
+	if err != nil {
+		return knowledgeSignError()
+	}
+	encoded, err := json.Marshal(receipt)
+	if err != nil {
+		return knowledgeSignError()
+	}
+	if _, err := fmt.Fprintln(stdout, string(encoded)); err != nil {
+		return &commandError{code: 2, message: "knowledge-sign: receipt output failed"}
+	}
+	return nil
+}
+
+func verifyKeyRole(role string) bool {
+	return role == "root" || role == "targets" || role == "snapshot" || role == "timestamp"
 }
 
 func runKnowledgeSignInit(args []string, stdout, stderr io.Writer) error {
@@ -114,6 +161,9 @@ func signerInput(path string, limit int) ([]byte, error) {
 }
 
 func signerKey(path string) ([]byte, error) {
+	if !filepath.IsAbs(path) {
+		return nil, knowledgesign.ErrRejected
+	}
 	raw, info, err := currentbundle.ReadBoundedFileInfo(path, knowledgesign.MaxKeyBytes)
 	if err != nil || info == nil || info.Mode().Perm() != 0o600 || !ownedByCurrentUser(info) {
 		return nil, knowledgesign.ErrRejected
