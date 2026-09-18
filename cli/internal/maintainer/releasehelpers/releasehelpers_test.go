@@ -4,9 +4,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha1"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -190,4 +195,147 @@ func writeArchiveFixture(t *testing.T, path string, epoch int64, extraName, root
 		t.Fatal(err)
 	}
 	_ = root
+}
+
+// writeSBOMArtifact places one fake release artifact and returns its SHA-256
+// and SHA-1 so a test can assert the SBOM records exact shipped bytes.
+func writeSBOMArtifact(t *testing.T, dir, name, body string) (string, string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sum256 := sha256.Sum256([]byte(body))
+	sum1 := sha1.Sum([]byte(body))
+	return hex.EncodeToString(sum256[:]), hex.EncodeToString(sum1[:])
+}
+
+func TestWriteSBOMBindsFinalArtifacts(t *testing.T) {
+	artifacts := t.TempDir()
+	amdSHA256, amdSHA1 := writeSBOMArtifact(t, artifacts, "prufyx-cli_1.0.0_linux_amd64.tar.gz", "amd64 archive bytes")
+	srcSHA256, srcSHA1 := writeSBOMArtifact(t, artifacts, "prufyx-cli_1.0.0_source.tar.gz", "source archive bytes")
+
+	out := filepath.Join(t.TempDir(), "SBOM.json")
+	options := SBOMOptions{
+		Output: out, Version: "v1.0.0", Revision: strings.Repeat("a", 40), BuildEpoch: "0", GoVersion: "go1.26.8",
+		ArtifactDir: artifacts,
+		Artifacts:   []string{"prufyx-cli_1.0.0_source.tar.gz", "prufyx-cli_1.0.0_linux_amd64.tar.gz"},
+	}
+	if err := WriteSBOM(options); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(out)
+	var sbom map[string]any
+	if err := json.Unmarshal(raw, &sbom); err != nil {
+		t.Fatal(err)
+	}
+	files, _ := sbom["files"].([]any)
+	if len(files) != 2 {
+		t.Fatalf("SBOM file count=%d, want 2", len(files))
+	}
+	// Files are emitted in sorted name order regardless of the caller's order.
+	first, _ := files[0].(map[string]any)
+	if first["fileName"] != "./prufyx-cli_1.0.0_linux_amd64.tar.gz" {
+		t.Fatalf("analyzed files are not sorted by name: %v", first["fileName"])
+	}
+	for _, want := range []string{amdSHA256, amdSHA1, srcSHA256, srcSHA1} {
+		if !bytes.Contains(raw, []byte(want)) {
+			t.Fatalf("SBOM omits artifact checksum %s", want)
+		}
+	}
+	packages, _ := sbom["packages"].([]any)
+	described, _ := packages[0].(map[string]any)
+	if described["filesAnalyzed"] != true {
+		t.Fatal("artifact-bound SBOM must set filesAnalyzed")
+	}
+	code, _ := described["packageVerificationCode"].(map[string]any)
+	value, _ := code["packageVerificationCodeValue"].(string)
+	expectedOrder := []string{amdSHA1, srcSHA1}
+	sort.Strings(expectedOrder)
+	expected := sha1.Sum([]byte(strings.Join(expectedOrder, "")))
+	if value != hex.EncodeToString(expected[:]) {
+		t.Fatalf("package verification code=%q, want %q", value, hex.EncodeToString(expected[:]))
+	}
+	hasFiles, _ := described["hasFiles"].([]any)
+	if len(hasFiles) != 2 {
+		t.Fatalf("described package lists %d files, want 2", len(hasFiles))
+	}
+	contains := 0
+	relationships, _ := sbom["relationships"].([]any)
+	for _, item := range relationships {
+		if r, ok := item.(map[string]any); ok && r["relationshipType"] == "CONTAINS" {
+			contains++
+		}
+	}
+	if contains != 2 {
+		t.Fatalf("CONTAINS relationship count=%d, want 2", contains)
+	}
+}
+
+func TestWriteSBOMArtifactBindingIsDeterministic(t *testing.T) {
+	artifacts := t.TempDir()
+	writeSBOMArtifact(t, artifacts, "prufyx-cli_1.0.0_source.tar.gz", "source archive bytes")
+	options := SBOMOptions{
+		Version: "v1.0.0", Revision: strings.Repeat("a", 40), BuildEpoch: "0", GoVersion: "go1.26.8",
+		ArtifactDir: artifacts, Artifacts: []string{"prufyx-cli_1.0.0_source.tar.gz"},
+	}
+	first := options
+	first.Output = filepath.Join(t.TempDir(), "SBOM.json")
+	second := options
+	second.Output = filepath.Join(t.TempDir(), "SBOM.json")
+	if err := WriteSBOM(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteSBOM(second); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := os.ReadFile(first.Output)
+	b, _ := os.ReadFile(second.Output)
+	if !bytes.Equal(a, b) {
+		t.Fatal("artifact-bound SBOM is not byte-reproducible; release verify would fail")
+	}
+}
+
+func TestWriteSBOMRejectsUnsafeOrMissingArtifacts(t *testing.T) {
+	artifacts := t.TempDir()
+	writeSBOMArtifact(t, artifacts, "present.tar.gz", "bytes")
+	cases := map[string]SBOMOptions{
+		"missing artifact":      {ArtifactDir: artifacts, Artifacts: []string{"absent.tar.gz"}},
+		"path traversal":        {ArtifactDir: artifacts, Artifacts: []string{"../escape"}},
+		"nested path":           {ArtifactDir: artifacts, Artifacts: []string{"sub/dir.tar.gz"}},
+		"empty name":            {ArtifactDir: artifacts, Artifacts: []string{""}},
+		"duplicate artifact":    {ArtifactDir: artifacts, Artifacts: []string{"present.tar.gz", "present.tar.gz"}},
+		"artifacts without dir": {Artifacts: []string{"present.tar.gz"}},
+		"dir without artifacts": {ArtifactDir: artifacts},
+	}
+	for name, extra := range cases {
+		t.Run(name, func(t *testing.T) {
+			options := SBOMOptions{
+				Output: filepath.Join(t.TempDir(), "SBOM.json"), Version: "v1.0.0",
+				Revision: strings.Repeat("a", 40), BuildEpoch: "0", GoVersion: "go1.26.8",
+				ArtifactDir: extra.ArtifactDir, Artifacts: extra.Artifacts,
+			}
+			if err := WriteSBOM(options); err == nil {
+				t.Fatalf("expected rejection for %s", name)
+			}
+		})
+	}
+}
+
+func TestRunReleaseSBOMAcceptsArtifactFlags(t *testing.T) {
+	artifacts := t.TempDir()
+	writeSBOMArtifact(t, artifacts, "prufyx-cli_1.0.0_source.tar.gz", "source archive bytes")
+	out := filepath.Join(t.TempDir(), "SBOM.json")
+	args := []string{
+		"release-sbom", "--output", out, "--version", "v1.0.0", "--revision", strings.Repeat("a", 40),
+		"--build-epoch", "0", "--go-version", "go1.26.8",
+		"--policy", filepath.Join("..", "..", "..", "release", "community-shipping-policy-v2.json"),
+		"--artifact-dir", artifacts, "--artifacts", "prufyx-cli_1.0.0_source.tar.gz",
+	}
+	if err := Run(args, bytes.NewReader(nil), io.Discard, io.Discard); err != nil {
+		t.Fatalf("release-sbom with artifact flags: %v", err)
+	}
+	raw, _ := os.ReadFile(out)
+	if !bytes.Contains(raw, []byte(`"files":[`)) {
+		t.Fatal("release-sbom did not bind the declared artifacts")
+	}
 }

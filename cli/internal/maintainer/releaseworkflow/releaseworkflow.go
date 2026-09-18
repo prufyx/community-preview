@@ -25,6 +25,7 @@ import (
 
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasegate"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/releasesign"
 )
 
 const (
@@ -78,13 +79,40 @@ func Run(args []string, stdout, stderr io.Writer) error {
 			return usage()
 		}
 		return verify(args[1], args[2])
+	case "sign":
+		// usage: release sign VERSION OUTPUT_DIR TRUST_ROOT KEY
+		if len(args) != 5 {
+			return usage()
+		}
+		key, err := readBoundedRelease(args[4], 64<<10)
+		if err != nil {
+			return errors.New("release signing key is unavailable")
+		}
+		passphrase, err := ReadSigningPassphrase(stderr)
+		if err != nil {
+			return errors.New("release signing passphrase is unavailable")
+		}
+		return sign(args[1], args[2], args[3], key, passphrase, stdout)
+	case "verify-signature":
+		// usage: release verify-signature VERSION OUTPUT_DIR TRUST_ROOT TRUST_ROOT_DIGEST
+		if len(args) != 5 {
+			return usage()
+		}
+		return verifySignature(args[1], args[2], args[3], args[4], stdout)
 	default:
 		return usage()
 	}
 }
 
+// ReadSigningPassphrase is supplied by the command layer, which owns terminal
+// access. It is a variable so tests can drive signing without a terminal; the
+// production binary installs a terminal-only prompt.
+var ReadSigningPassphrase = func(io.Writer) ([]byte, error) {
+	return nil, errors.New("no release signing passphrase reader is installed")
+}
+
 func usage() error {
-	return errors.New("usage: prufyx-maintainer release <test|binary|smoke|source|finalize|verify> ...")
+	return errors.New("usage: prufyx-maintainer release <test|binary|smoke|source|finalize|verify|sign|verify-signature> ...")
 }
 
 func root() (string, error) {
@@ -762,7 +790,11 @@ func finalize(v, out string) error {
 	}
 	defer os.RemoveAll(work)
 	sbom := filepath.Join(work, "SBOM.spdx.json")
-	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: sbom, Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gv)), Policy: filepath.Join(repo, policyRel)}); e != nil {
+	// The distributable archives already exist at this point (preflightExact
+	// requires them), so the SBOM can be bound to the exact final artifacts
+	// rather than to the shipping policy alone. It deliberately omits itself
+	// and SHA256SUMS, which are derived from it.
+	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: sbom, Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gv)), Policy: filepath.Join(repo, policyRel), ArtifactDir: dst.path, Artifacts: distributableArchives(v)}); e != nil {
 		return e
 	}
 	generated["SBOM.spdx.json"], e = os.ReadFile(sbom)
@@ -995,7 +1027,18 @@ func verify(v, out string) error {
 	if err != nil {
 		return err
 	}
-	if len(actual) != len(names) {
+	// A signed release additionally carries the release statement and its
+	// detached envelope. Both are optional here: `release verify` proves
+	// derivation, and `release verify-signature` proves authority. Neither
+	// substitutes for the other.
+	allowed := map[string]bool{releasesign.StatementName: true, releasesign.EnvelopeName: true}
+	extra := 0
+	for _, entry := range actual {
+		if allowed[entry.Name()] {
+			extra++
+		}
+	}
+	if len(actual) != len(names)+extra {
 		return errors.New("release output contains unexpected files")
 	}
 	for _, n := range names {
@@ -1042,7 +1085,7 @@ func verify(v, out string) error {
 		return e
 	}
 	sbom := filepath.Join(work, "SBOM.spdx.json")
-	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: sbom, Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gvb)), Policy: filepath.Join(repo, policyRel)}); e != nil {
+	if e = releasehelpers.WriteSBOM(releasehelpers.SBOMOptions{Output: sbom, Version: v, Revision: rev, BuildEpoch: fmt.Sprint(bt.Unix()), GoVersion: strings.TrimSpace(string(gvb)), Policy: filepath.Join(repo, policyRel), ArtifactDir: dst, Artifacts: distributableArchives(v)}); e != nil {
 		return e
 	}
 	if a, e := os.ReadFile(sbom); e != nil {
@@ -1065,6 +1108,224 @@ func releaseAssets(version string) []string {
 	names := []string{"LICENSE", "NOTICE", "THIRD-PARTY.md", "Go-BSD-3-Clause.txt", "SBOM.spdx.json", "SOURCE-MANIFEST.json", "SOURCE-REVISION", "SOURCE-TREE.sha256", fmt.Sprintf("prufyx-cli_%s_linux_amd64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_linux_arm64.tar.gz", num), fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num)}
 	sort.Strings(names)
 	return names
+}
+
+// distributableArchives is the subset of release assets that a downloader
+// actually executes or builds from. The SBOM is bound to exactly these bytes.
+// SBOM.spdx.json and SHA256SUMS are excluded because both are derived from
+// them, and a document cannot record its own digest.
+func distributableArchives(version string) []string {
+	num := strings.TrimPrefix(version, "v")
+	names := []string{
+		fmt.Sprintf("prufyx-cli_%s_linux_amd64.tar.gz", num),
+		fmt.Sprintf("prufyx-cli_%s_linux_arm64.tar.gz", num),
+		fmt.Sprintf("prufyx-cli_%s_source.tar.gz", num),
+	}
+	sort.Strings(names)
+	return names
+}
+
+// signedCoveredAssets is every asset a release statement binds: the full
+// release asset set plus SHA256SUMS. The statement and envelope themselves are
+// excluded, since the envelope covers the statement.
+func signedCoveredAssets(version string) []string {
+	names := append([]string{"SHA256SUMS"}, releaseAssets(version)...)
+	sort.Strings(names)
+	return names
+}
+
+// releaseIdentity re-derives the exact release identity from the checkout so a
+// statement is never signed over numbers a caller supplied by hand.
+func releaseIdentity(v string) (repoPath, revision, goVersion string, buildEpoch int64, sourceTree, manifestDigest string, err error) {
+	repo, err := root()
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	rev, err := checkout(repo)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	g, err := toolchain(repo)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	if err = sourceInputs(repo, g); err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	work, manifest, staged, err := stage(repo, g, false)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	defer os.RemoveAll(work)
+	tree, err := sourceDigest(staged, work)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	md, err := digest(manifest)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	bt, err := epoch(repo, rev)
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	gv, err := command("", g, "env", "GOVERSION")
+	if err != nil {
+		return "", "", "", 0, "", "", err
+	}
+	return repo, rev, strings.TrimSpace(string(gv)), bt.Unix(), tree, md, nil
+}
+
+// sign binds the finalized release output to an offline Ed25519 signature.
+// It refuses to sign an output that `release verify` would reject, so an
+// operator cannot sign a set that does not derive from the exact checkout.
+func sign(v, out, trustRootPath string, key []byte, passphrase []byte, stdout io.Writer) error {
+	defer func() {
+		for i := range passphrase {
+			passphrase[i] = 0
+		}
+	}()
+	if !versionOK(v) {
+		return errors.New("version must be v-prefixed semantic version")
+	}
+	if err := verify(v, out); err != nil {
+		return fmt.Errorf("refusing to sign an unverified release output: %w", err)
+	}
+	_, rev, gv, buildEpoch, tree, manifestDigest, err := releaseIdentity(v)
+	if err != nil {
+		return err
+	}
+	dst, err := filepath.EvalSymlinks(out)
+	if err != nil {
+		return errors.New("release output directory unavailable")
+	}
+	trustRoot, err := readBoundedRelease(trustRootPath, releasesign.MaxTrustRootBytes)
+	if err != nil {
+		return errors.New("release trust root is unavailable")
+	}
+	artifacts, err := releasesign.DirectoryArtifacts(dst, signedCoveredAssets(v))
+	if err != nil {
+		return errors.New("release artifacts could not be bound")
+	}
+	statement, err := releasesign.BuildStatement(releasesign.StatementOptions{
+		Version: v, SourceRevision: rev, SourceTreeDigest: tree, ReleaseManifestDigest: manifestDigest,
+		GoVersion: gv, BuildEpoch: buildEpoch,
+		Expires:   time.Now().UTC().Add(365 * 24 * time.Hour).Truncate(time.Second).Format(time.RFC3339),
+		TrustRoot: trustRoot, Artifacts: artifacts,
+	})
+	if err != nil {
+		return errors.New("release statement could not be built")
+	}
+	envelope, err := releasesign.Sign(releasesign.SignOptions{
+		Statement: statement, TrustRoot: trustRoot, EncryptedKey: key, Passphrase: passphrase,
+	})
+	if err != nil {
+		return errors.New("release statement could not be signed")
+	}
+	if err := writeNewRelease(dst, releasesign.StatementName, statement); err != nil {
+		return err
+	}
+	if err := writeNewRelease(dst, releasesign.EnvelopeName, envelope); err != nil {
+		return err
+	}
+	result, err := releasesign.VerifyDirectory(dst, releasesign.VerifyOptions{
+		Statement: statement, Envelope: envelope, TrustRoot: trustRoot,
+		TrustRootDigest: mustTrustRootDigest(trustRoot),
+	})
+	if err != nil {
+		return errors.New("signed release output did not verify")
+	}
+	_, err = fmt.Fprintln(stdout, releasesign.Describe(result))
+	return err
+}
+
+// verifySignature checks a signed release output against an independently
+// supplied trust root and its independently established digest.
+func verifySignature(v, out, trustRootPath, trustRootDigest string, stdout io.Writer) error {
+	if !versionOK(v) {
+		return errors.New("version must be v-prefixed semantic version")
+	}
+	dst, err := filepath.EvalSymlinks(out)
+	if err != nil {
+		return errors.New("release output directory unavailable")
+	}
+	trustRoot, err := readBoundedRelease(trustRootPath, releasesign.MaxTrustRootBytes)
+	if err != nil {
+		return errors.New("release trust root is unavailable")
+	}
+	statement, err := readBoundedRelease(filepath.Join(dst, releasesign.StatementName), releasesign.MaxStatementBytes)
+	if err != nil {
+		return errors.New("release statement is unavailable")
+	}
+	envelope, err := readBoundedRelease(filepath.Join(dst, releasesign.EnvelopeName), releasesign.MaxEnvelopeBytes)
+	if err != nil {
+		return errors.New("release signature is unavailable")
+	}
+	result, err := releasesign.VerifyDirectory(dst, releasesign.VerifyOptions{
+		Statement: statement, Envelope: envelope, TrustRoot: trustRoot, TrustRootDigest: trustRootDigest,
+	})
+	if err != nil {
+		return errors.New("release signature verification failed")
+	}
+	if result.Version != v {
+		return errors.New("release signature covers a different version")
+	}
+	// Confirm the signed set is exactly the expected release asset set: a
+	// valid signature over a short list must not pass as a full release.
+	expected := signedCoveredAssets(v)
+	if result.Artifacts != len(expected) {
+		return errors.New("release signature covers an unexpected asset set")
+	}
+	_, err = fmt.Fprintln(stdout, releasesign.Describe(result))
+	return err
+}
+
+func mustTrustRootDigest(raw []byte) string {
+	d, err := releasesign.TrustRootDigest(raw)
+	if err != nil {
+		return ""
+	}
+	return d
+}
+
+// readBoundedRelease reads one bounded regular file without following a
+// symlink.
+func readBoundedRelease(path string, limit int) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() > int64(limit) {
+		return nil, errors.New("bounded release input is unavailable")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	if err != nil || int64(len(raw)) != info.Size() {
+		return nil, errors.New("bounded release input changed while being read")
+	}
+	return raw, nil
+}
+
+// writeNewRelease creates one new 0644 release asset and never overwrites.
+func writeNewRelease(dir, name string, raw []byte) error {
+	file, err := os.OpenFile(filepath.Join(dir, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return fmt.Errorf("refusing to overwrite %s", name)
+	}
+	if err := file.Chmod(0o644); err != nil {
+		file.Close()
+		return err
+	}
+	if _, err := file.Write(raw); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 func verifySums(dir string, expected []string) error {

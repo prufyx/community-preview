@@ -7,7 +7,10 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -36,7 +40,20 @@ type VersionOptions struct {
 	Report               []byte
 }
 type ArchiveOptions struct{ Archive, PackageName, RepositoryRoot, BuildEpoch string }
-type SBOMOptions struct{ Output, Version, Revision, BuildEpoch, GoVersion, Policy string }
+type SBOMOptions struct {
+	Output, Version, Revision, BuildEpoch, GoVersion, Policy string
+	// ArtifactDir and Artifacts bind the SBOM to the exact final release
+	// artifacts. When supplied, the document gains an analyzed file inventory
+	// with a SHA-256 and SHA-1 per artifact and an SPDX package verification
+	// code, so the SBOM describes shipped bytes rather than intent alone.
+	ArtifactDir string
+	Artifacts   []string
+}
+
+// sbomFile is one analyzed final release artifact.
+type sbomFile struct {
+	name, sha256, sha1 string
+}
 type SmokeReceiptOptions struct{ Version, Target, ArchiveDigest, Metadata string }
 
 const (
@@ -633,6 +650,10 @@ func WriteSBOM(o SBOMOptions) error {
 		return e
 	}
 	t := time.Unix(epoch, 0).UTC().Format("2006-01-02T15:04:05Z")
+	analyzed, e := sbomArtifacts(o)
+	if e != nil {
+		return e
+	}
 	cliPackage := map[string]any{
 		"SPDXID": "SPDXRef-Package-PrufyxCLI", "name": "prufyx-cli", "versionInfo": o.Version,
 		"downloadLocation": "https://github.com/prufyx/prufyx-cli/tree/" + o.Revision,
@@ -691,6 +712,11 @@ func WriteSBOM(o SBOMOptions) error {
 		v["packages"] = packages
 		v["relationships"] = relationships
 	}
+	if len(analyzed) > 0 {
+		if e := bindArtifacts(v, analyzed); e != nil {
+			return e
+		}
+	}
 	b, _ := canonical(v)
 	f, e := exclusiveCreate(o.Output, 0600)
 	if e != nil {
@@ -701,6 +727,92 @@ func WriteSBOM(o SBOMOptions) error {
 		return e
 	}
 	return f.Close()
+}
+
+// sbomArtifacts hashes each declared final release artifact. It rejects any
+// name that is not a plain file, any unreadable or non-regular file, and any
+// duplicate, so the analyzed inventory always describes exact shipped bytes.
+func sbomArtifacts(o SBOMOptions) ([]sbomFile, error) {
+	if len(o.Artifacts) == 0 {
+		if o.ArtifactDir != "" {
+			return nil, reject("SBOM artifact directory requires an artifact list")
+		}
+		return nil, nil
+	}
+	if o.ArtifactDir == "" {
+		return nil, reject("SBOM artifacts require an artifact directory")
+	}
+	if len(o.Artifacts) > 256 {
+		return nil, reject("SBOM artifact list exceeds its bound")
+	}
+	names := append([]string(nil), o.Artifacts...)
+	sort.Strings(names)
+	out := make([]sbomFile, 0, len(names))
+	previous := ""
+	for _, name := range names {
+		if name == "" || name != filepath.Base(name) || name == "." || name == ".." || strings.ContainsAny(name, "/\\\x00\r\n") {
+			return nil, reject("SBOM artifact name is invalid")
+		}
+		if name == previous {
+			return nil, reject("SBOM artifact list contains a duplicate")
+		}
+		previous = name
+		raw, err := safeRead(filepath.Join(o.ArtifactDir, name), maxArchiveCompressed)
+		if err != nil {
+			return nil, reject("SBOM artifact is unavailable")
+		}
+		sum256 := sha256.Sum256(raw)
+		sum1 := sha1.Sum(raw)
+		out = append(out, sbomFile{name: name, sha256: hex.EncodeToString(sum256[:]), sha1: hex.EncodeToString(sum1[:])})
+	}
+	return out, nil
+}
+
+// bindArtifacts adds the analyzed file inventory to the document and switches
+// the described package to filesAnalyzed with an SPDX 2.3 package
+// verification code, which is the SHA-1 of the concatenated, sorted per-file
+// SHA-1 values.
+func bindArtifacts(document map[string]any, analyzed []sbomFile) error {
+	packages, ok := document["packages"].([]any)
+	if !ok || len(packages) == 0 {
+		return reject("SBOM package list is invalid")
+	}
+	described, ok := packages[0].(map[string]any)
+	if !ok || described["SPDXID"] != "SPDXRef-Package-PrufyxCLI" {
+		return reject("SBOM described package is invalid")
+	}
+	relationships, ok := document["relationships"].([]any)
+	if !ok {
+		return reject("SBOM relationship list is invalid")
+	}
+	files := make([]any, 0, len(analyzed))
+	identifiers := make([]string, 0, len(analyzed))
+	checksums := make([]string, 0, len(analyzed))
+	for i, artifact := range analyzed {
+		id := fmt.Sprintf("SPDXRef-File-ReleaseArtifact-%02d", i+1)
+		identifiers = append(identifiers, id)
+		checksums = append(checksums, artifact.sha1)
+		files = append(files, map[string]any{
+			"SPDXID": id, "fileName": "./" + artifact.name,
+			"checksums": []any{
+				map[string]any{"algorithm": "SHA1", "checksumValue": artifact.sha1},
+				map[string]any{"algorithm": "SHA256", "checksumValue": artifact.sha256},
+			},
+			"licenseConcluded": "Apache-2.0", "copyrightText": "Copyright 2026 Spas Atanasov",
+			"comment": "Exact published Community release artifact bytes.",
+		})
+		relationships = append(relationships, map[string]any{
+			"spdxElementId": "SPDXRef-Package-PrufyxCLI", "relationshipType": "CONTAINS", "relatedSpdxElement": id,
+		})
+	}
+	sort.Strings(checksums)
+	code := sha1.Sum([]byte(strings.Join(checksums, "")))
+	described["filesAnalyzed"] = true
+	described["hasFiles"] = identifiers
+	described["packageVerificationCode"] = map[string]any{"packageVerificationCodeValue": hex.EncodeToString(code[:])}
+	document["files"] = files
+	document["relationships"] = relationships
+	return nil
 }
 
 func jsonValueEqual(a, b any) bool {
@@ -800,11 +912,17 @@ func Run(args []string, stdin io.Reader, stdout, _ io.Writer) error {
 		}
 		return VerifyMarker(f["binary"], f["marker"])
 	case "release-sbom":
-		f, e := parseFlags(args[1:], map[string]bool{"output": true, "version": true, "revision": true, "build-epoch": true, "go-version": true, "policy": true})
+		allowed := map[string]bool{"output": true, "version": true, "revision": true, "build-epoch": true, "go-version": true, "policy": true, "artifact-dir": true, "artifacts": true}
+		required := map[string]bool{"output": true, "version": true, "revision": true, "build-epoch": true, "go-version": true, "policy": true}
+		f, e := parseFlagsOptional(args[1:], allowed, required)
 		if e != nil {
 			return e
 		}
-		return WriteSBOM(SBOMOptions{Output: f["output"], Version: f["version"], Revision: f["revision"], BuildEpoch: f["build-epoch"], GoVersion: f["go-version"], Policy: f["policy"]})
+		var artifacts []string
+		if f["artifacts"] != "" {
+			artifacts = strings.Split(f["artifacts"], ",")
+		}
+		return WriteSBOM(SBOMOptions{Output: f["output"], Version: f["version"], Revision: f["revision"], BuildEpoch: f["build-epoch"], GoVersion: f["go-version"], Policy: f["policy"], ArtifactDir: f["artifact-dir"], Artifacts: artifacts})
 	default:
 		return reject("unknown release helper command")
 	}

@@ -92,6 +92,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: 2, message: "release helper: operation rejected", err: err}
 		}
 		return nil
+	case "release-sign":
+		return runReleaseSign(args[1:], stdout, stderr)
 	case "release":
 		if err := releaseworkflow.Run(args[1:], stdout, stderr); err != nil {
 			return &commandError{code: 2, message: "release workflow: operation rejected", err: err}

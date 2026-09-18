@@ -3,6 +3,7 @@ package knowledgesign
 import (
 	"bytes"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -251,4 +252,35 @@ func allZero(value []byte) bool {
 		}
 	}
 	return true
+}
+
+func TestEncryptedKeyPEMRoundTripAndRejections(t *testing.T) {
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	passphrase := []byte("operator passphrase 123")
+	encoded, err := EncryptedKeyPEM(private, passphrase)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if !bytes.Contains(encoded, []byte(EncryptedPEMType)) {
+		t.Fatal("encrypted key is not in the shared PEM container")
+	}
+	recovered, err := DecryptPrivateKey(encoded, passphrase)
+	if err != nil || !bytes.Equal(recovered, private) {
+		t.Fatalf("round trip failed: %v", err)
+	}
+	if _, err := DecryptPrivateKey(encoded, []byte("wrong passphrase abc")); err == nil {
+		t.Fatal("decrypted with a wrong passphrase")
+	}
+	if _, err := DecryptPrivateKey(append(append([]byte(nil), encoded...), 'x'), passphrase); err == nil {
+		t.Fatal("accepted trailing bytes after the PEM block")
+	}
+	if _, err := EncryptedKeyPEM(private, []byte("short")); err == nil {
+		t.Fatal("accepted a passphrase below the minimum length")
+	}
+	if _, err := EncryptedKeyPEM(ed25519.PrivateKey("truncated"), passphrase); err == nil {
+		t.Fatal("accepted a malformed private key")
+	}
 }

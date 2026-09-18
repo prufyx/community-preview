@@ -181,19 +181,40 @@ func SignRoleToFile(options SignOptions, output string) error {
 }
 
 func writeEncryptedKeyAt(root *os.Root, name string, private ed25519.PrivateKey, passphrase []byte) error {
-	der, err := x509.MarshalPKCS8PrivateKey(private)
+	encoded, err := EncryptedKeyPEM(private, passphrase)
 	if err != nil {
 		return ErrRejected
+	}
+	defer wipe(encoded)
+	return writeNewAt(root, name, encoded)
+}
+
+// EncryptedKeyPEM encodes one Ed25519 private key as an encrypted PEM block
+// using the OWASP KDF parameters. It is the single definition of the local
+// key-custody format: every maintainer signing purpose must use it rather than
+// choosing its own KDF, cipher, or container.
+func EncryptedKeyPEM(private ed25519.PrivateKey, passphrase []byte) ([]byte, error) {
+	if len(private) != ed25519.PrivateKeySize || !validPassphrase(passphrase) {
+		return nil, ErrRejected
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(private)
+	if err != nil {
+		return nil, ErrRejected
 	}
 	defer wipe(der)
 	ciphertext, err := encrypted.EncryptWithCustomKDFParameters(der, passphrase, encrypted.OWASP)
 	if err != nil {
-		return ErrRejected
+		return nil, ErrRejected
 	}
 	defer wipe(ciphertext)
-	encoded := pem.EncodeToMemory(&pem.Block{Type: EncryptedPEMType, Bytes: ciphertext})
-	defer wipe(encoded)
-	return writeNewAt(root, name, encoded)
+	return pem.EncodeToMemory(&pem.Block{Type: EncryptedPEMType, Bytes: ciphertext}), nil
+}
+
+// DecryptPrivateKey recovers one Ed25519 private key from an encrypted PEM
+// block. It never accepts trailing bytes, PEM headers, or a re-encoded block
+// that differs from the exact supplied bytes.
+func DecryptPrivateKey(raw, passphrase []byte) (ed25519.PrivateKey, error) {
+	return decryptPrivateKey(raw, passphrase)
 }
 
 func decryptPrivateKey(raw, passphrase []byte) (ed25519.PrivateKey, error) {
