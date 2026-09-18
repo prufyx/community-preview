@@ -27,6 +27,8 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project cilium --cilium-config-map FILE --from 1.16.19 --to 1.17.18 --cilium-distribution official_upstream|custom_build --cilium-config-complete --cilium-config-precedence-resolved [--cilium-config-map-digest SHA256] [--format human|json|input]
 	 or: prufyx prepare cncf --project coredns --coredns-corefile FILE --from 1.6.9 --to 1.7.0 or 1.9.4|1.10.1|1.11.4|1.12.4|1.13.2 --to 1.14.7 --coredns-distribution official --coredns-corefile-complete [--coredns-corefile-digest SHA256] [--format human|json|input]
 	 or: prufyx prepare cncf --project envoy --envoy-bootstrap FILE --envoy-bootstrap-selected --from 1.34.14|1.35.13|1.36.10|1.37.6|1.38.4 --to 1.39.1 [--envoy-bootstrap-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project spire --spire-entry-argv FILE --from 1.10.4 --to 1.11.0 --spire-distribution official_upstream|custom_build [--spire-entry-argv-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project keda --keda-scaled-object FILE --from 2.16.0 --to 2.17.0 --keda-scaled-object-complete [--keda-legacy-tls-transport-required true|false] [--keda-scaled-object-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project kubernetes --input FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project strimzi --kafka-resource FILE --from 0.51.0 --to 1.0.0 --strimzi-distribution official_upstream|custom_build --target-kafka-crd-admission-required [--kafka-resource-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project falco --falco-argv FILE --from 0.40.0 --to 0.41.0|0.42.0 --falco-distribution official_upstream|custom_build [--falco-argv-digest SHA256] [--format human|json|input]
@@ -210,6 +212,13 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	upgradePlanPin := fs.String("upgrade-plan-digest", "", "optional exact upgrade plan SHA-256")
 	veleroServerDeployment := fs.String("velero-server-deployment", "", "literal metadata.name of the Velero server Deployment inside the selected plan")
 	veleroPlanOrderDeclared := fs.Bool("velero-plan-order-declared", false, "caller declaration that the supplied item order is the declared apply order")
+	spireEntryArgv := fs.String("spire-entry-argv", "", "private explicit effective spire-server entry create JSON argv array")
+	spireEntryArgvPin := fs.String("spire-entry-argv-digest", "", "optional exact SPIRE argv SHA-256")
+	spireDistribution := fs.String("spire-distribution", "", "SPIRE distribution: official_upstream or custom_build")
+	kedaScaledObject := fs.String("keda-scaled-object", "", "private selected rendered KEDA ScaledObject JSON, or one flat v1 List")
+	kedaScaledObjectPin := fs.String("keda-scaled-object-digest", "", "optional exact KEDA ScaledObject SHA-256")
+	kedaScaledObjectComplete := fs.Bool("keda-scaled-object-complete", false, "caller declaration that the selected ScaledObject set is complete")
+	kedaLegacyTransport := fs.String("keda-legacy-tls-transport-required", "", "explicit declaration that the External Scaler relies on the removed direct tlsCertFile transport: true or false")
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that selected rendered resource set is complete")
 	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that selected resource set is required for target API apply")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
@@ -256,6 +265,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	if *project != "velero" && anyFlagProvided(args, "upgrade-plan", "upgrade-plan-digest", "velero-server-deployment", "velero-plan-order-declared") {
 		return r.usage("Velero upgrade plan flags require Velero preparation")
+	}
+	if *project != "spire" && anyFlagProvided(args, "spire-entry-argv", "spire-entry-argv-digest", "spire-distribution") {
+		return r.usage("SPIRE argv flags require SPIRE preparation")
+	}
+	if *project != "keda" && anyFlagProvided(args, "keda-scaled-object", "keda-scaled-object-digest", "keda-scaled-object-complete", "keda-legacy-tls-transport-required") {
+		return r.usage("KEDA ScaledObject flags require KEDA preparation")
 	}
 	if *project != "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required") {
 		return r.usage("Prometheus remote-write flags require Prometheus preparation")
@@ -314,6 +329,18 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		*input, *pin = *upgradePlan, *upgradePlanPin
 	}
+	if *project == "spire" && *spireEntryArgv != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "spire-entry-argv-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*spireEntryArgvPin)) {
+			return r.fail("SPIRE_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *spireEntryArgv, *spireEntryArgvPin
+	}
+	if *project == "keda" && *kedaScaledObject != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "keda-scaled-object-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*kedaScaledObjectPin)) {
+			return r.fail("KEDA_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *kedaScaledObject, *kedaScaledObjectPin
+	}
 	if *project == "prometheus" && *prometheusConfig != "" {
 		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "prometheus-config-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*prometheusConfigPin)) {
 			return r.fail("PROMETHEUS_REMOTE_WRITE_INPUT_INVALID", ExitUsage)
@@ -362,6 +389,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "velero" {
 			return r.fail("VELERO_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "spire" {
+			return r.fail("SPIRE_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "keda" {
+			return r.fail("KEDA_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 	}
@@ -431,6 +464,14 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "envoy":
 		if *envoyBootstrap == "" || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
 			return r.fail("ENVOY_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "keda":
+		if *kedaScaledObject == "" || !*kedaScaledObjectComplete || (*kedaLegacyTransport != "" && *kedaLegacyTransport != cncfprepare.KEDADeclarationRequired && *kedaLegacyTransport != cncfprepare.KEDADeclarationNotRequired) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("KEDA_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "spire":
+		if *spireEntryArgv == "" || (*spireDistribution != cncfprepare.SpireDistributionOfficial && *spireDistribution != cncfprepare.SpireDistributionCustom) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("SPIRE_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "kubernetes":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "cilium-config-map") || flagProvided(args, "cilium-config-map-digest") || flagProvided(args, "cilium-config-complete") || flagProvided(args, "cilium-config-precedence-resolved") || flagProvided(args, "cilium-distribution") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") || (*distribution != "official_upstream" && *distribution != "custom_build") {
@@ -583,6 +624,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareCrossplaneComposition(raw, *from, *to, *crossplaneDistribution, *crossplaneSchemaValidationRequired)
 	case "velero":
 		prepared, err = cncfprepare.PrepareVeleroUpgradePlan(raw, *from, *to, *veleroServerDeployment, *veleroPlanOrderDeclared)
+	case "spire":
+		prepared, err = cncfprepare.PrepareSpireEntryCreateArgv(raw, *from, *to, *spireDistribution)
+	case "keda":
+		prepared, err = cncfprepare.PrepareKEDAScaledObject(raw, *from, *to, *kedaLegacyTransport, *kedaScaledObjectComplete)
 	case "etcd":
 		prepared, err = cncfprepare.PrepareEtcd(raw, *from, *to)
 	case "jaeger":
@@ -749,6 +794,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Crossplane"
 	} else if label == "velero" {
 		label = "Velero"
+	} else if label == "spire" {
+		label = "SPIRE"
+	} else if label == "keda" {
+		label = "KEDA"
 	}
 	if _, err := fmt.Fprintf(r.stdout, "%s declaration preparation: %s\nreason: %s\nsource digest: %s\nprepared input digest: %s\nnetwork used: false\nupgrade check performed: false\n", label, prepared.State, prepared.Reason, prepared.SourceDigest, prepared.InputDigest); err != nil {
 		if concreteCNCFPreparationProject(*project) {
@@ -780,7 +829,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi" || project == "falco" || project == "kuma" || project == "crossplane" || project == "velero"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi" || project == "falco" || project == "kuma" || project == "crossplane" || project == "velero" || project == "spire" || project == "keda"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {

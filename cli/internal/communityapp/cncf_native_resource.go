@@ -70,6 +70,10 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"composition", "composition-digest", "crossplane-distribution", "crossplane-schema-validation-required"}
 	} else if project == "velero" {
 		allowed = []string{"upgrade-plan", "upgrade-plan-digest", "velero-server-deployment", "velero-plan-order-declared"}
+	} else if project == "spire" {
+		allowed = []string{"spire-entry-argv", "spire-entry-argv-digest", "spire-distribution"}
+	} else if project == "keda" {
+		allowed = []string{"keda-scaled-object", "keda-scaled-object-digest", "keda-scaled-object-complete", "keda-legacy-tls-transport-required"}
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
 	} else if project == "kubernetes" {
@@ -100,7 +104,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -145,6 +149,16 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareCrossplaneComposition(raw, from, to, selectedJob, complete)
 		} else if project == "velero" {
 			prepared, err = cncfprepare.PrepareVeleroUpgradePlan(raw, from, to, selectedJob, complete)
+		} else if project == "spire" {
+			if selectedJob != "" && selectedJob != cncfprepare.SpireDistributionOfficial && selectedJob != cncfprepare.SpireDistributionCustom {
+				return r.usage("invalid SPIRE distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareSpireEntryCreateArgv(raw, from, to, selectedJob)
+		} else if project == "keda" {
+			if selectedJob != "" && selectedJob != cncfprepare.KEDADeclarationRequired && selectedJob != cncfprepare.KEDADeclarationNotRequired {
+				return r.usage("invalid KEDA legacy TLS transport declaration; use --help")
+			}
+			prepared, err = cncfprepare.PrepareKEDAScaledObject(raw, from, to, selectedJob, complete)
 		} else if project == "opentelemetry" {
 			if selectedRuleID == cncfprepare.OpenTelemetryInternalMetricsRuleID {
 				prepared, err = cncfprepare.PrepareOpenTelemetryInternalMetrics(raw, from, to, selectedJob, otelGate, otelRemote, complete, precedenceResolved)
