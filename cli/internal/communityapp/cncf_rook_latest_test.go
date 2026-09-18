@@ -15,6 +15,11 @@ func TestRookLatestCLIExactEndpointsAndKubernetesMinimum(t *testing.T) {
 		return []byte(fmt.Sprintf(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/rook/rook","version":%q,"facts":[]}]},"proposed":{"components":[%s{"component":"pkg:github/rook/rook","version":%q,"facts":[]}]}}`, from, dependency, to))
 	}
 	for _, from := range []string{"1.15.9", "1.16.9", "1.17.9", "1.18.11", "1.19.11"} {
+		// Rook documents only adjacent supported minor upgrade paths, so every
+		// non-adjacent origin carries a reviewed BLOCKED direct-minor-skip claim
+		// regardless of the declared Kubernetes version. Only the adjacent
+		// 1.19.11 origin still exercises the Kubernetes-minimum matrix alone.
+		directMinorSkip := from != "1.19.11"
 		for _, tc := range []struct {
 			name, kubernetes, status string
 			code                     int
@@ -24,14 +29,21 @@ func TestRookLatestCLIExactEndpointsAndKubernetesMinimum(t *testing.T) {
 			{"missing", "", "UNKNOWN", ExitUnknown},
 		} {
 			t.Run(from+"/"+tc.name, func(t *testing.T) {
+				expectedCode, expectedStatus := tc.code, tc.status
+				if directMinorSkip {
+					expectedCode, expectedStatus = ExitBlocked, "BLOCKED"
+				}
 				raw := input(from, "1.20.7", tc.kubernetes)
 				path := writeCNCFFile(t, "rook-latest.json", raw, 0o600)
 				code, output, stderr := runCNCFCLI(t, "check", "cncf", "--project", "rook", "--input", path, "--input-digest", cncfDigest(raw), "--now", "2026-09-12T08:32:00Z", "--format", "json")
-				if code != tc.code || stderr != "" || !strings.Contains(output, `"assessment":"UNKNOWN"`) {
+				if code != expectedCode || stderr != "" || !strings.Contains(output, `"assessment":"UNKNOWN"`) {
 					t.Fatalf("code=%d stderr=%q output=%s", code, stderr, output)
 				}
-				if tc.status != "UNKNOWN" && !strings.Contains(output, `"status":"`+tc.status+`"`) {
-					t.Fatalf("missing %s claim: %s", tc.status, output)
+				if expectedStatus != "UNKNOWN" && !strings.Contains(output, `"status":"`+expectedStatus+`"`) {
+					t.Fatalf("missing %s claim: %s", expectedStatus, output)
+				}
+				if directMinorSkip && !strings.Contains(output, `"ruleId":"rook.direct-minor-skip.`) {
+					t.Fatalf("missing reviewed direct-minor-skip claim: %s", output)
 				}
 			})
 		}
