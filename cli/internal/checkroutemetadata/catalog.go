@@ -232,7 +232,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 23)
+	result := make([]descriptor, 0, 24)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -272,6 +272,7 @@ func descriptorSet() []descriptor {
 		result = append(result, descriptor{family: FamilyCNCF, project: "falco", component: "pkg:github/falcosecurity/falco", ruleID: "falco.deprecated-cli-flags-removed.0-40-to-" + strings.ReplaceAll(strings.TrimSuffix(to, ".0"), ".", "-"), from: "0.40.0", to: to, command: exactPair(extend(cncfBase("falco"), file("--falco-argv"), name("--falco-distribution")), "0.40.0", to), limit: "One caller-declared explicit effective Falco argv only; wrappers, entrypoints, images, environment, defaults, and runtime behavior are unassessed."})
 	}
 	result = append(result, descriptor{family: FamilyCNCF, project: "kuma", component: "pkg:github/kumahq/kuma", ruleID: "kuma.deprecated-exclude-uid-flags-removed.2-8-to-2-9", from: "2.8.0", to: "2.9.0", command: exactPair(extend(cncfBase("kuma"), file("--kumactl-argv"), name("--kuma-distribution")), "2.8.0", "2.9.0"), limit: "One caller-declared explicit effective kumactl install transparent-proxy argv only; wrappers, images, defaults, consolidated-flag equivalence, Dataplane migration, and runtime behavior are unassessed."})
+	result = append(result, descriptor{family: FamilyCNCF, project: "crossplane", component: "pkg:github/crossplane/crossplane", ruleID: "crossplane.composition-resources-mode-removed.1-20-2-0", from: "1.20.0", to: "2.0.0", command: exactPair(extend(cncfBase("crossplane"), file("--composition"), name("--crossplane-distribution"), literal("--crossplane-schema-validation-required")), "1.20.0", "2.0.0"), limit: "One caller-selected rendered Composition, or one flat v1 List of rendered resources, only; an omitted spec.mode, target CRD installation, admission, conversion, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 	return result
 }
@@ -316,7 +317,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 23 {
+	if len(descriptors) != 24 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

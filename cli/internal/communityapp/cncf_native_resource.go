@@ -66,6 +66,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"falco-argv", "falco-argv-digest", "falco-distribution"}
 	} else if project == "kuma" {
 		allowed = []string{"kumactl-argv", "kumactl-argv-digest", "kuma-distribution"}
+	} else if project == "crossplane" {
+		allowed = []string{"composition", "composition-digest", "crossplane-distribution", "crossplane-schema-validation-required"}
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
 	} else if project == "kubernetes" {
@@ -96,7 +98,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -134,6 +136,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 				return r.usage("invalid Kuma distribution; use --help")
 			}
 			prepared, err = cncfprepare.PrepareKumaInstallTransparentProxyArgv(raw, from, to, selectedJob)
+		} else if project == "crossplane" {
+			if selectedJob != "" && selectedJob != cncfprepare.CrossplaneDistributionOfficial && selectedJob != cncfprepare.CrossplaneDistributionCustom {
+				return r.usage("invalid Crossplane distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareCrossplaneComposition(raw, from, to, selectedJob, complete)
 		} else if project == "opentelemetry" {
 			if selectedRuleID == cncfprepare.OpenTelemetryInternalMetricsRuleID {
 				prepared, err = cncfprepare.PrepareOpenTelemetryInternalMetrics(raw, from, to, selectedJob, otelGate, otelRemote, complete, precedenceResolved)

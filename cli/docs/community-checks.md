@@ -248,6 +248,48 @@ evidence for the existing rule is `app/kumactl/cmd/install/install_transparent_p
 at commits `1110a0305eec` and `948e6a439163` and `UPGRADE.md` at commit
 `948e6a439163`. Whole-upgrade safety remains `UNKNOWN`.
 
+## Crossplane Composition Resources-mode removal
+
+The native Composition route evaluates which mode one caller-selected rendered
+`kind: Composition` resource, or one flat `v1` `List` of rendered resources,
+literally declares in `spec.mode`. It covers only the reviewed `1.20.0` to
+`2.0.0` transition. It is a local usability route for the existing Crossplane
+`crossplane.composition-resources-mode-removed.1-20-2-0` rule; it does not add a
+project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > composition.json <<'JSON'
+{"apiVersion":"apiextensions.crossplane.io/v1","kind":"Composition","metadata":{"name":"example"},"spec":{"mode":"Resources"}}
+JSON
+chmod 600 composition.json
+./prufyx check cncf --project crossplane \
+  --composition composition.json --crossplane-distribution official_upstream \
+  --crossplane-schema-validation-required --from 1.20.0 --to 2.0.0 \
+  --now 2026-09-18T00:00:00Z
+```
+
+The caller declares the proposed distribution and that the selected resources
+must validate against the official target CRD schema. Any selected
+`Composition` whose `spec.mode` is the literal `Resources` is `BLOCKED`; a
+selection whose `Composition` documents all declare the literal `Pipeline` is a
+scoped `PASS` for this one enum constraint. A `custom_build` declaration, an
+undeclared schema-validation intent, an **omitted or unreviewed `spec.mode`**,
+other `apiextensions.crossplane.io` kinds, another served Composition version,
+unresolved templating, a paginated or typed list, and a structurally unresolved
+object all remain `UNKNOWN` rather than a negative-presence PASS.
+
+An omitted `spec.mode` is deliberately never resolved to any historical default:
+doing so would author a compatibility claim this route does not hold.
+
+The route does not install or read a CRD, run API admission or conversion,
+inspect stored objects, or establish composition, reconciliation, or provider
+behavior. Pinned source evidence for the existing rule is the Crossplane
+`apiextensions.crossplane.io_compositions.yaml` mode enum block at commits
+`2efdb03ae80fc27f4b6b9b0cebc96a462233cf17` and
+`b639502e2f93680ff83417a0f517ec459ce079cc`. Whole-upgrade safety remains
+`UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
