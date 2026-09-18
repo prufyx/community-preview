@@ -127,6 +127,46 @@ release note at commit `f59c03d09c3a3a12f571ad1087b979325f3dae30` and the
 BLOCKED, PASS, and UNKNOWN walkthrough in
 [`examples/cncf/coredns-corefile`](../examples/cncf/coredns-corefile/README.md).
 
+## Strimzi Kafka v1beta2 API removal
+
+The native Kafka resource route evaluates which `kafka.strimzi.io` API version
+one caller-selected rendered `kind: Kafka` resource, or one flat `v1` `List` of
+rendered resources, literally uses. It covers only the reviewed `0.51.0` to
+`1.0.0` transition. It is a local usability route for the existing Strimzi
+`strimzi.kafka-v1beta2-api-removed.1-0` rule; it does not add a project, rule,
+or upgrade-pair claim.
+
+```sh
+umask 077
+cat > kafka.json <<'JSON'
+{"apiVersion":"kafka.strimzi.io/v1beta2","kind":"Kafka","metadata":{"name":"cluster","namespace":"kafka"},"spec":{"kafka":{"replicas":3}}}
+JSON
+chmod 600 kafka.json
+./prufyx check cncf --project strimzi \
+  --kafka-resource kafka.json --strimzi-distribution official_upstream \
+  --target-kafka-crd-admission-required --from 0.51.0 --to 1.0.0 \
+  --now 2026-09-18T00:00:00Z
+```
+
+The caller declares the proposed distribution and that the selected resources
+must be admitted by the target Kafka CRD. Any selected `Kafka` document on
+`kafka.strimzi.io/v1beta2` is `BLOCKED`; a selection whose `Kafka` documents are
+all on `kafka.strimzi.io/v1` is a scoped `PASS` for this one removal
+constraint. A `custom_build` declaration, an undeclared target-CRD admission
+intent, `KafkaTopic`, `KafkaUser` or unrelated kinds, another served
+`kafka.strimzi.io` version, unresolved templating, a paginated or typed list,
+and a structurally unresolved object all remain `UNKNOWN` rather than a
+negative-presence PASS.
+
+The route does not install or read a CRD, run API admission or conversion,
+inspect stored objects, or establish operator, broker, topic, or client
+behavior. Pinned source evidence for the existing rule is the Strimzi
+`040-Crd-kafka.yaml` served-version block and `CHANGELOG.md` at commit
+`4836c7dd74ce973f06d97936916ed7f20c1a2ff0`, the same CRD at commit
+`54081abf97d0e5e524de773b88343756934db1a8`, and the
+`con-api-conversion-v1.adoc` upgrade module. Whole-upgrade safety remains
+`UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
