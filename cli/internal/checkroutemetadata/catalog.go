@@ -232,7 +232,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 22)
+	result := make([]descriptor, 0, 23)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -316,7 +316,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 22 {
+	if len(descriptors) != 23 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
