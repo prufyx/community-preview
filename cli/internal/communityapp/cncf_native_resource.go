@@ -62,6 +62,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		allowed = []string{"nats-config", "nats-config-digest"}
 	} else if project == "strimzi" {
 		allowed = []string{"kafka-resource", "kafka-resource-digest", "strimzi-distribution", "target-kafka-crd-admission-required"}
+	} else if project == "falco" {
+		allowed = []string{"falco-argv", "falco-argv-digest", "falco-distribution"}
 	} else if project == "flux" {
 		allowed = []string{"native-resource", "native-resource-digest", "resource-scope-complete"}
 	} else if project == "kubernetes" {
@@ -92,7 +94,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -120,6 +122,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 				return r.usage("invalid Strimzi distribution; use --help")
 			}
 			prepared, err = cncfprepare.PrepareStrimziKafkaResource(raw, from, to, selectedJob, complete)
+		} else if project == "falco" {
+			if selectedJob != "" && selectedJob != cncfprepare.FalcoDistributionOfficial && selectedJob != cncfprepare.FalcoDistributionCustom {
+				return r.usage("invalid Falco distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareFalcoArgv(raw, from, to, selectedJob)
 		} else if project == "opentelemetry" {
 			if selectedRuleID == cncfprepare.OpenTelemetryInternalMetricsRuleID {
 				prepared, err = cncfprepare.PrepareOpenTelemetryInternalMetrics(raw, from, to, selectedJob, otelGate, otelRemote, complete, precedenceResolved)

@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The thirty-four documented scenario examples are:
+The thirty-five documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -112,6 +112,7 @@ The thirty-four documented scenario examples are:
 | Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON |
 | CoreDNS | 1.13.2 → 1.14.7 rejects the removed `federation` directive | complete Corefile with declared official distribution |
 | Envoy | 1.38.4 → 1.39.1 blocks direct V2 xDS transport API versions at the selected ADS, LDS, or CDS paths | directly loaded JSON bootstrap selected by the caller; this route has no native PASS |
+| Falco | 0.40.0 → 0.41.0 and 0.40.0 → 0.42.0 remove five deprecated 0.40 CLI spellings for the `falco` executable | caller-declared explicit effective Falco argv JSON with declared distribution |
 | Prometheus | 2.55.1 → 3.14.0 checks one selected `remote_write` entry's direct `enable_http2` setting or reviewed omitted default against an explicit endpoint requirement | complete, precedence-resolved native Prometheus YAML with a unique literal entry name |
 | MariaDB Operator | 26.3.0 → 26.6.0 requires `autoUpdateDataPlane` for one complete Galera resource before the operator update | complete native `k8s.mariadb.com/v1alpha1` MariaDB JSON with Galera-only and pre-update declarations |
 | containerd | 1.7.28 → 2.0.0 removes two selected official bundled v1 runtime shims; upstream migration preserves the selected runtime type | complete, precedence-resolved native config.toml with an explicit handler and upstream/bundled-runtime declarations |
@@ -136,7 +137,7 @@ The thirty-four documented scenario examples are:
 | Prometheus | 2.55.1 → 3.1.0 removes selected Alertmanager `api_version: v1` | complete, precedence-resolved `alerting.alertmanagers` entry YAML |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Prometheus and Strimzi, and `prufyx check
+Custodian, Falco, Prometheus and Strimzi, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select

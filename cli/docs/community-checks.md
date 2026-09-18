@@ -167,6 +167,46 @@ behavior. Pinned source evidence for the existing rule is the Strimzi
 `con-api-conversion-v1.adoc` upgrade module. Whole-upgrade safety remains
 `UNKNOWN`.
 
+## Falco removed 0.40 CLI spellings
+
+The native Falco argv route decides whether one caller-declared explicit
+effective Falco argv literally contains any of `-A`, `-b`, `--print-base64`,
+`-S`, or `--snaplen`. It covers only the reviewed `0.40.0` to `0.41.0` and
+`0.40.0` to `0.42.0` transitions. It is a local usability route for the existing
+`falco.deprecated-cli-flags-removed` rules; it does not add a project, rule, or
+upgrade-pair claim.
+
+```sh
+umask 077
+cat > falco-argv.json <<'JSON'
+["falco","-c","/etc/falco/falco.yaml","--snaplen","256"]
+JSON
+chmod 600 falco-argv.json
+./prufyx check cncf --project falco \
+  --falco-argv falco-argv.json --falco-distribution official_upstream \
+  --from 0.40.0 --to 0.41.0 --now 2026-09-18T00:00:00Z
+```
+
+The caller declares the proposed distribution. An argv containing a removed
+spelling is `BLOCKED`; an argv on the reviewed `falco` executable surface
+containing none of the five spellings is a scoped `PASS` for this one removal
+constraint.
+
+The adapter models no Falco option table, because an option table that guessed
+an arity wrongly could skip a removed spelling as if it were another option's
+value. It compares every token instead, so absence is reported only when no
+token in the whole argv can be one of the five spellings. A `custom_build`
+declaration, an undeclared distribution, a wrapper or any other command surface,
+a clustered or value-attached short token such as `-Ab` or `-S256`, a bare `-`
+or `--`, unresolved templating, and an unparseable shape all remain `UNKNOWN`
+rather than a negative-presence PASS.
+
+The route never executes the argv and does not resolve a wrapper, an image
+entrypoint, environment, Helm values, defaults, or runtime behavior. Pinned
+source evidence for the existing rules is the Falco `CHANGELOG.md` and
+`userspace/falco/app/options.cpp` at commits `b94cda0b12e5`, `ce4b4408988d`, and
+`d8e430e35239`. Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
