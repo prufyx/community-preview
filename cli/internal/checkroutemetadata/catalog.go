@@ -232,7 +232,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 19)
+	result := make([]descriptor, 0, 20)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -267,6 +267,7 @@ func descriptorSet() []descriptor {
 	for _, from := range []string{"1.34.14", "1.35.13", "1.36.10", "1.37.6", "1.38.4"} {
 		result = append(result, descriptor{family: FamilyCNCF, project: "envoy", component: "pkg:github/envoyproxy/envoy", ruleID: "envoy.xds-v2-unsupported-at-1-39-1-from-" + strings.ReplaceAll(from, ".", "-"), from: from, to: "1.39.1", command: exactPair(extend(cncfBase("envoy"), file("--envoy-bootstrap"), literal("--envoy-bootstrap-selected")), from, "1.39.1"), limit: "Direct V2 transport blocker only; dynamic xDS and runtime behavior are unassessed.", nativePass: "NOT_AVAILABLE_BLOCKER_ONLY"})
 	}
+	result = append(result, descriptor{family: FamilyCNCF, project: "strimzi", component: "pkg:github/strimzi/strimzi-kafka-operator", ruleID: "strimzi.kafka-v1beta2-api-removed.1-0", from: "0.51.0", to: "1.0.0", command: exactPair(extend(cncfBase("strimzi"), file("--kafka-resource"), name("--strimzi-distribution"), literal("--target-kafka-crd-admission-required")), "0.51.0", "1.0.0"), limit: "One caller-selected rendered kind Kafka resource, or one flat v1 List of rendered resources, only; CRD installation, admission, conversion, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 	return result
 }
@@ -311,7 +312,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 19 {
+	if len(descriptors) != 20 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
