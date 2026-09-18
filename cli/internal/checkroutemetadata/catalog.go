@@ -232,7 +232,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 27)
+	result := make([]descriptor, 0, 28)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -275,6 +275,7 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "crossplane", component: "pkg:github/crossplane/crossplane", ruleID: "crossplane.composition-resources-mode-removed.1-20-2-0", from: "1.20.0", to: "2.0.0", command: exactPair(extend(cncfBase("crossplane"), file("--composition"), name("--crossplane-distribution"), literal("--crossplane-schema-validation-required")), "1.20.0", "2.0.0"), limit: "One caller-selected rendered Composition, or one flat v1 List of rendered resources, only; an omitted spec.mode, target CRD installation, admission, conversion, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "velero", component: "pkg:github/velero-io/velero", ruleID: "velero.crd-update-order.1-18", from: "1.17.0", to: "1.18.0", command: exactPair(extend(cncfBase("velero"), file("--upgrade-plan"), name("--velero-server-deployment"), literal("--velero-plan-order-declared")), "1.17.0", "1.18.0"), limit: "One caller-declared ordered upgrade plan only; the plan is a declaration, not an apply or execution receipt, and applied CRDs, plugins, node agents, backups and restores are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "velero", component: "pkg:github/velero-io/velero", ruleID: "velero.intermediate-1-17.1-18", from: "1.16.2", to: "1.18.0", command: exactPair(extend(cncfBase("velero"), file("--upgrade-plan"), name("--velero-server-deployment"), literal("--velero-plan-order-declared")), "1.16.2", "1.18.0"), limit: "The reviewed mandatory 1.17.x intermediate blocks this direct transition on the declared pair alone; no supplied plan can establish a PASS here.", nativePass: "NOT_AVAILABLE_BLOCKER_ONLY"})
+	result = append(result, descriptor{family: FamilyCNCF, project: "keda", component: "pkg:github/kedacore/keda", ruleID: "keda.external-scaler-legacy-tls-transport.2-17", from: "2.16.0", to: "2.17.0", command: exactPair(extend(cncfBase("keda"), file("--keda-scaled-object"), literal("--keda-scaled-object-complete"), boolean("--keda-legacy-tls-transport-required")), "2.16.0", "2.17.0"), limit: "One caller-selected rendered ScaledObject set only; a raw tlsCertFile metadata field never establishes reliance on the removed direct transport, and TriggerAuthentication material, scaler reachability, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "spire", component: "pkg:github/spiffe/spire", ruleID: "spire.removed-entry-ttl.1-11", from: "1.10.4", to: "1.11.0", command: exactPair(extend(cncfBase("spire"), file("--spire-entry-argv"), name("--spire-distribution")), "1.10.4", "1.11.0"), limit: "One caller-declared explicit effective spire-server entry create argv only; wrappers, entrypoints, images, environment, defaults, replacement TTL values, registration entries, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 	return result
@@ -320,7 +321,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 27 {
+	if len(descriptors) != 28 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

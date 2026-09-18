@@ -339,6 +339,65 @@ source evidence for the existing rules is the Velero `upgrade-to-1.18.md`
 upgrade guide at commit `0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8`.
 Whole-upgrade safety remains `UNKNOWN`.
 
+## KEDA External Scaler legacy TLS transport
+
+The native KEDA route derives the reviewed
+`keda.external-scaler-legacy-tls-transport.2-17` rule's facts from one
+caller-selected rendered `ScaledObject`, or one flat `v1` `List` of rendered
+resources. It covers only the reviewed `2.16.0` to `2.17.0` transition. It is a
+local usability route for that existing rule; it does not add a project, rule,
+or upgrade-pair claim.
+
+```sh
+umask 077
+cat > keda-scaled-object.json <<'JSON'
+{"apiVersion":"keda.sh/v1alpha1","kind":"ScaledObject","metadata":{"name":"orders"},
+ "spec":{"scaleTargetRef":{"name":"orders"},
+ "triggers":[{"type":"external","metadata":{"scalerAddress":"orders-scaler.svc:9090","tlsCertFile":"/etc/certs/tls.crt"}}]}}
+JSON
+chmod 600 keda-scaled-object.json
+./prufyx check cncf --project keda \
+  --keda-scaled-object keda-scaled-object.json --keda-scaled-object-complete \
+  --keda-legacy-tls-transport-required true \
+  --from 2.16.0 --to 2.17.0 --now 2026-09-18T00:00:00Z
+```
+
+The route deliberately derives less from the document than a reader might
+expect, because the reviewed condition fact says so itself: a raw `tlsCertFile`
+metadata field can still be forwarded to the external scaler and is **not**
+sufficient to establish reliance on the removed direct transport. This route
+therefore never turns the presence of `tlsCertFile` into a `BLOCKED` claim on
+its own. Presence makes the condition an explicit operator declaration
+(`--keda-legacy-tls-transport-required`), and without that declaration the
+result is `UNKNOWN`.
+
+What the route does derive natively is the rule's applicability guard: whether
+the selected `ScaledObject` set declares an `external` or `external-push`
+trigger at all. A selection with no External Scaler trigger declares that guard
+false and stops; the condition fact is never declared from it.
+
+A scoped `PASS` is available in two ways, both of which require
+`--keda-scaled-object-complete`: no selected external trigger carries
+`tlsCertFile` and none carries an `authenticationRef` that could supply it from
+a `TriggerAuthentication` this route does not read, or the caller explicitly
+declares `--keda-legacy-tls-transport-required false` for a forwarded-only
+field. Declaring `true` against a complete selection that carries neither the
+field nor an `authenticationRef` is a contradiction and stays `UNKNOWN`.
+
+An unreviewed pair, an undeclared selection scope, a `ScaledJob`,
+`TriggerAuthentication` or any unrelated object, another served `keda.sh`
+version, a paginated or typed list, a trigger with non-string metadata values,
+unresolved templating, and an unparseable shape all remain `UNKNOWN` rather
+than a negative-presence PASS. One unresolvable document keeps the whole
+selection `UNKNOWN` rather than being silently skipped.
+
+The route reads no cluster and resolves no `TriggerAuthentication`,
+`ClusterTriggerAuthentication`, secret, TLS material, scaler reachability, or
+runtime behavior. Pinned source evidence for the existing rule is
+`pkg/scalers/external_scaler.go` at commits `5c52d032931b` and `dafd9a883acc`
+and `CHANGELOG.md` at commit `dafd9a883acc`. Whole-upgrade safety remains
+`UNKNOWN`.
+
 ## SPIRE removed entry-create TTL option
 
 The native SPIRE argv route decides whether one caller-declared explicit
