@@ -307,21 +307,35 @@ func (r runtime) runRookLatestExample() (communityExampleResult, error) {
 		}
 		return []byte(fmt.Sprintf(`{"schema":"prufyx.io/operator-declared-constraint-input/v1alpha1","authority":"OPERATOR_DECLARED_MINIMIZED","current":{"components":[{"component":"pkg:github/rook/rook","version":%q,"facts":[]}]},"proposed":{"components":[%s{"component":"pkg:github/rook/rook","version":"1.20.7","facts":[]}]}}`, from, dependency))
 	}
-	var blockedCode, cleanCode, unknownCode int
-	var blockedReport, cleanReport, unknownReport map[string]any
-	for _, from := range []string{"1.15.9", "1.16.9", "1.17.9", "1.18.11", "1.19.11"} {
-		blockedCode, blockedReport, err = r.checkPrepared(work, "rook", input(from, "1.30.9"))
-		if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
-			return communityExampleResult{}, fmt.Errorf("Rook %s below-minimum Kubernetes declaration did not produce scoped BLOCKED", from)
+	// Rook documents only adjacent supported minor upgrade paths. Every
+	// non-adjacent origin therefore carries a reviewed BLOCKED
+	// direct-minor-skip claim whatever Kubernetes version is declared, so the
+	// Kubernetes-minimum matrix is only demonstrated from the adjacent origin.
+	for _, from := range []string{"1.15.9", "1.16.9", "1.17.9", "1.18.11"} {
+		// Each non-adjacent origin reports the forbidden direct skip alongside
+		// the separate Kubernetes-minimum claim for the same exact pair.
+		for _, pair := range []struct{ kubernetes, minimum string }{
+			{"1.30.9", "BLOCKED"},
+			{"1.31.0", "PASS"},
+			{"", "UNKNOWN"},
+		} {
+			skipCode, skipReport, skipErr := r.checkPrepared(work, "rook", input(from, pair.kubernetes))
+			if skipErr != nil || skipCode != ExitBlocked || !communityClaims(skipReport, "BLOCKED", pair.minimum) {
+				return communityExampleResult{}, fmt.Errorf("Rook %s direct minor skip to 1.20.7 did not produce scoped BLOCKED", from)
+			}
 		}
-		cleanCode, cleanReport, err = r.checkPrepared(work, "rook", input(from, "1.31.0"))
-		if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
-			return communityExampleResult{}, fmt.Errorf("Rook %s minimum Kubernetes declaration did not produce scoped PASS", from)
-		}
-		unknownCode, unknownReport, err = r.checkPrepared(work, "rook", input(from, ""))
-		if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
-			return communityExampleResult{}, fmt.Errorf("Rook %s missing Kubernetes declaration did not remain UNKNOWN", from)
-		}
+	}
+	blockedCode, blockedReport, err := r.checkPrepared(work, "rook", input("1.19.11", "1.30.9"))
+	if err != nil || blockedCode != ExitBlocked || !communityClaim(blockedReport, "BLOCKED") {
+		return communityExampleResult{}, fmt.Errorf("Rook 1.19.11 below-minimum Kubernetes declaration did not produce scoped BLOCKED")
+	}
+	cleanCode, cleanReport, err := r.checkPrepared(work, "rook", input("1.19.11", "1.31.0"))
+	if err != nil || cleanCode != ExitOK || !communityClaim(cleanReport, "PASS") {
+		return communityExampleResult{}, fmt.Errorf("Rook 1.19.11 minimum Kubernetes declaration did not produce scoped PASS")
+	}
+	unknownCode, unknownReport, err := r.checkPrepared(work, "rook", input("1.19.11", ""))
+	if err != nil || unknownCode != ExitUnknown || !communityClaim(unknownReport, "UNKNOWN") {
+		return communityExampleResult{}, fmt.Errorf("Rook 1.19.11 missing Kubernetes declaration did not remain UNKNOWN")
 	}
 	return communityExampleResult{Example: "cncf-rook-latest", BlockedExit: blockedCode, CleanExit: cleanCode, UnknownExit: unknownCode, Aggregate: "UNKNOWN", NetworkUsed: false, ClusterUsed: false, PrivateRetained: false, RuntimeObserved: false, ProcessExecuted: false, ScopedClaimOnly: true}, nil
 }

@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 163 || len(vectors) != 163 {
+	if len(b.pack.Entries) != 167 || len(vectors) != 167 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 863 {
+	if caseCount != 867 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -103,7 +103,7 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 				if strings.HasPrefix(vector.RuleID, "prometheus.alertmanager-api-v1.target-config.") {
 					clock = time.Date(2026, 9, 12, 9, 3, 0, 0, time.UTC)
 				}
-				if strings.HasPrefix(vector.RuleID, "etcd.direct-minor-skip.") || strings.HasPrefix(vector.RuleID, "etcd.experimental-flags-unsupported.") || vector.RuleID == "rook.minimum-kubernetes.1-20-7" {
+				if strings.HasPrefix(vector.RuleID, "etcd.direct-minor-skip.") || strings.HasPrefix(vector.RuleID, "etcd.experimental-flags-unsupported.") || strings.HasPrefix(vector.RuleID, "rook.direct-minor-skip.") || vector.RuleID == "rook.minimum-kubernetes.1-20-7" {
 					clock = time.Date(2026, 9, 12, 7, 38, 0, 0, time.UTC)
 				}
 				if strings.HasPrefix(vector.RuleID, "rook.minimum-kubernetes.1-20-7-from-") {

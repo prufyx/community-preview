@@ -12855,6 +12855,162 @@
       }
     },
     {
+      "description": "Rook documents only adjacent supported minor upgrade paths; this exact direct skip is blocked without asserting a whole upgrade result.",
+      "project": "rook",
+      "requiredFacts": [],
+      "rule": {
+        "evidence": {
+          "reviewedAt": "2026-09-12T07:37:00Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:5079398ac1d6f8d4705f1e2c3950a1b0c56a694060b380afd40c067501b96707",
+              "endLine": 20,
+              "id": "rook-1-16-9-hop",
+              "revision": "8c81f20f15b501d603acc2bcfc211e948c879a11",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/8c81f20f15b501d603acc2bcfc211e948c879a11/Documentation/Upgrade/rook-upgrade.md"
+            },
+            {
+              "contentDigest": "sha256:c873dcefa16882c383c53644126416a80d5cf2f171625f6baa5cb93eb1978fad",
+              "endLine": 28,
+              "id": "rook-1-20-7-upgrade",
+              "revision": "95a8e2a8b61cf7f8152213939f995c88a2e72ab6",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/95a8e2a8b61cf7f8152213939f995c88a2e72ab6/Documentation/Upgrade/rook-upgrade.md"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T07:37:00Z"
+        },
+        "id": "rook.direct-minor-skip.1-15-9-to-1-20-7",
+        "nextAction": "Plan a separate supported Rook 1.15x to 1.16.x transition first; the cited latest patch is an evidence endpoint, not a mandatory exact intermediate.",
+        "operator": "forbid_target_version",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.15.9",
+          "to": "1.20.7"
+        }
+      }
+    },
+    {
+      "description": "Rook documents only adjacent supported minor upgrade paths; this exact direct skip is blocked without asserting a whole upgrade result.",
+      "project": "rook",
+      "requiredFacts": [],
+      "rule": {
+        "evidence": {
+          "reviewedAt": "2026-09-12T07:37:00Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:62f961857d5da44355a555e060ae21a64f47a067b479e6baa297676641a68eb1",
+              "endLine": 20,
+              "id": "rook-1-17-9-hop",
+              "revision": "d1d0811a7686bf06a130e4a99ccc1cdeff55cd2f",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/d1d0811a7686bf06a130e4a99ccc1cdeff55cd2f/Documentation/Upgrade/rook-upgrade.md"
+            },
+            {
+              "contentDigest": "sha256:c873dcefa16882c383c53644126416a80d5cf2f171625f6baa5cb93eb1978fad",
+              "endLine": 28,
+              "id": "rook-1-20-7-upgrade",
+              "revision": "95a8e2a8b61cf7f8152213939f995c88a2e72ab6",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/95a8e2a8b61cf7f8152213939f995c88a2e72ab6/Documentation/Upgrade/rook-upgrade.md"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T07:37:00Z"
+        },
+        "id": "rook.direct-minor-skip.1-16-9-to-1-20-7",
+        "nextAction": "Plan a separate supported Rook 1.16x to 1.17.x transition first; the cited latest patch is an evidence endpoint, not a mandatory exact intermediate.",
+        "operator": "forbid_target_version",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.16.9",
+          "to": "1.20.7"
+        }
+      }
+    },
+    {
+      "description": "Rook documents only adjacent supported minor upgrade paths; this exact direct skip is blocked without asserting a whole upgrade result.",
+      "project": "rook",
+      "requiredFacts": [],
+      "rule": {
+        "evidence": {
+          "reviewedAt": "2026-09-12T07:37:00Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:a7fe324e80043627b9ed99de7e1c1659e523e40bff13c2a5e6c08c5a02d90a8f",
+              "endLine": 20,
+              "id": "rook-1-18-11-hop",
+              "revision": "8059413c805f8ed3a0992af0113c002b0250805e",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/8059413c805f8ed3a0992af0113c002b0250805e/Documentation/Upgrade/rook-upgrade.md"
+            },
+            {
+              "contentDigest": "sha256:c873dcefa16882c383c53644126416a80d5cf2f171625f6baa5cb93eb1978fad",
+              "endLine": 28,
+              "id": "rook-1-20-7-upgrade",
+              "revision": "95a8e2a8b61cf7f8152213939f995c88a2e72ab6",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/95a8e2a8b61cf7f8152213939f995c88a2e72ab6/Documentation/Upgrade/rook-upgrade.md"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T07:37:00Z"
+        },
+        "id": "rook.direct-minor-skip.1-17-9-to-1-20-7",
+        "nextAction": "Plan a separate supported Rook 1.17x to 1.18.x transition first; the cited latest patch is an evidence endpoint, not a mandatory exact intermediate.",
+        "operator": "forbid_target_version",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.17.9",
+          "to": "1.20.7"
+        }
+      }
+    },
+    {
+      "description": "Rook documents only adjacent supported minor upgrade paths; this exact direct skip is blocked without asserting a whole upgrade result.",
+      "project": "rook",
+      "requiredFacts": [],
+      "rule": {
+        "evidence": {
+          "reviewedAt": "2026-09-12T07:37:00Z",
+          "sources": [
+            {
+              "contentDigest": "sha256:3824dfb02bb1802d11268e827a79b3840e470201b1541518eb1f7cc95eff6f25",
+              "endLine": 20,
+              "id": "rook-1-19-11-hop",
+              "revision": "e6818be5fcdcc4e3752f1cb03a7c0fbcc12dbdf1",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/e6818be5fcdcc4e3752f1cb03a7c0fbcc12dbdf1/Documentation/Upgrade/rook-upgrade.md"
+            },
+            {
+              "contentDigest": "sha256:c873dcefa16882c383c53644126416a80d5cf2f171625f6baa5cb93eb1978fad",
+              "endLine": 28,
+              "id": "rook-1-20-7-upgrade",
+              "revision": "95a8e2a8b61cf7f8152213939f995c88a2e72ab6",
+              "startLine": 15,
+              "url": "https://github.com/rook/rook/blob/95a8e2a8b61cf7f8152213939f995c88a2e72ab6/Documentation/Upgrade/rook-upgrade.md"
+            }
+          ],
+          "state": "active",
+          "validUntil": "2026-12-11T07:37:00Z"
+        },
+        "id": "rook.direct-minor-skip.1-18-11-to-1-20-7",
+        "nextAction": "Plan a separate supported Rook 1.18x to 1.19.x transition first; the cited latest patch is an evidence endpoint, not a mandatory exact intermediate.",
+        "operator": "forbid_target_version",
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "subject": {
+          "component": "pkg:github/rook/rook",
+          "from": "1.18.11",
+          "to": "1.20.7"
+        }
+      }
+    },
+    {
       "project": "rook",
       "description": "Direct Rook Helm upgrade requires first reaching 1.19.5; no claim that an intermediate deployment is healthy.",
       "requiredFacts": [
