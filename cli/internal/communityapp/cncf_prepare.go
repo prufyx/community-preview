@@ -29,6 +29,8 @@ func (r runtime) prepareCNCF(args []string) int {
 	 or: prufyx prepare cncf --project envoy --envoy-bootstrap FILE --envoy-bootstrap-selected --from 1.34.14|1.35.13|1.36.10|1.37.6|1.38.4 --to 1.39.1 [--envoy-bootstrap-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project kubernetes --input FILE --from 1.31.0 --to 1.32.0 --distribution official_upstream|custom_build --target-api-apply-required --resource-scope-complete [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project strimzi --kafka-resource FILE --from 0.51.0 --to 1.0.0 --strimzi-distribution official_upstream|custom_build --target-kafka-crd-admission-required [--kafka-resource-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project falco --falco-argv FILE --from 0.40.0 --to 0.41.0|0.42.0 --falco-distribution official_upstream|custom_build [--falco-argv-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project kuma --kumactl-argv FILE --from 2.8.0 --to 2.9.0 --kuma-distribution official_upstream|custom_build [--kumactl-argv-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project metallb|contour --input FILE --from VERSION --to VERSION [--input-digest SHA256] [--format human|json|input]
@@ -192,6 +194,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	kafkaResourcePin := fs.String("kafka-resource-digest", "", "optional exact Kafka resource SHA-256")
 	strimziDistribution := fs.String("strimzi-distribution", "", "Strimzi distribution: official_upstream or custom_build")
 	targetKafkaCRDAdmissionRequired := fs.Bool("target-kafka-crd-admission-required", false, "caller declaration that the selected Kafka resources must be admitted by the target Kafka CRD")
+	falcoArgv := fs.String("falco-argv", "", "private explicit effective Falco JSON argv array")
+	falcoArgvPin := fs.String("falco-argv-digest", "", "optional exact Falco argv SHA-256")
+	falcoDistribution := fs.String("falco-distribution", "", "Falco distribution: official_upstream or custom_build")
+	kumactlArgv := fs.String("kumactl-argv", "", "private explicit effective kumactl install transparent-proxy JSON argv array")
+	kumactlArgvPin := fs.String("kumactl-argv-digest", "", "optional exact kumactl argv SHA-256")
+	kumaDistribution := fs.String("kuma-distribution", "", "Kuma distribution: official_upstream or custom_build")
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that selected rendered resource set is complete")
 	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that selected resource set is required for target API apply")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
@@ -227,6 +235,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	if *project != "strimzi" && anyFlagProvided(args, "kafka-resource", "kafka-resource-digest", "strimzi-distribution", "target-kafka-crd-admission-required") {
 		return r.usage("Strimzi Kafka resource flags require Strimzi preparation")
 	}
+	if *project != "falco" && anyFlagProvided(args, "falco-argv", "falco-argv-digest", "falco-distribution") {
+		return r.usage("Falco argv flags require Falco preparation")
+	}
+	if *project != "kuma" && anyFlagProvided(args, "kumactl-argv", "kumactl-argv-digest", "kuma-distribution") {
+		return r.usage("Kuma kumactl argv flags require Kuma preparation")
+	}
 	if *project != "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required") {
 		return r.usage("Prometheus remote-write flags require Prometheus preparation")
 	}
@@ -259,6 +273,18 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			return r.fail("STRIMZI_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		*input, *pin = *kafkaResource, *kafkaResourcePin
+	}
+	if *project == "kuma" && *kumactlArgv != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "kumactl-argv-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*kumactlArgvPin)) {
+			return r.fail("KUMA_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *kumactlArgv, *kumactlArgvPin
+	}
+	if *project == "falco" && *falcoArgv != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "falco-argv-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*falcoArgvPin)) {
+			return r.fail("FALCO_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *falcoArgv, *falcoArgvPin
 	}
 	if *project == "prometheus" && *prometheusConfig != "" {
 		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "prometheus-config-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*prometheusConfigPin)) {
@@ -296,6 +322,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "strimzi" {
 			return r.fail("STRIMZI_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "falco" {
+			return r.fail("FALCO_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "kuma" {
+			return r.fail("KUMA_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 	}
@@ -373,6 +405,14 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "strimzi":
 		if *kafkaResource == "" || (*strimziDistribution != cncfprepare.StrimziDistributionOfficial && *strimziDistribution != cncfprepare.StrimziDistributionCustom) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
 			return r.fail("STRIMZI_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "kuma":
+		if *kumactlArgv == "" || (*kumaDistribution != cncfprepare.KumaDistributionOfficial && *kumaDistribution != cncfprepare.KumaDistributionCustom) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("KUMA_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "falco":
+		if *falcoArgv == "" || (*falcoDistribution != cncfprepare.FalcoDistributionOfficial && *falcoDistribution != cncfprepare.FalcoDistributionCustom) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "resource-scope-complete") || flagProvided(args, "target-api-apply-required") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("FALCO_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "etcd":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -493,6 +533,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, *from, *to, *distribution, *targetAPIApplyRequired, *resourceScopeComplete)
 	case "strimzi":
 		prepared, err = cncfprepare.PrepareStrimziKafkaResource(raw, *from, *to, *strimziDistribution, *targetKafkaCRDAdmissionRequired)
+	case "falco":
+		prepared, err = cncfprepare.PrepareFalcoArgv(raw, *from, *to, *falcoDistribution)
+	case "kuma":
+		prepared, err = cncfprepare.PrepareKumaInstallTransparentProxyArgv(raw, *from, *to, *kumaDistribution)
 	case "etcd":
 		prepared, err = cncfprepare.PrepareEtcd(raw, *from, *to)
 	case "jaeger":
@@ -651,6 +695,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Prometheus remote-write HTTP/2"
 	} else if label == "strimzi" {
 		label = "Strimzi"
+	} else if label == "falco" {
+		label = "Falco"
+	} else if label == "kuma" {
+		label = "Kuma"
 	}
 	if _, err := fmt.Fprintf(r.stdout, "%s declaration preparation: %s\nreason: %s\nsource digest: %s\nprepared input digest: %s\nnetwork used: false\nupgrade check performed: false\n", label, prepared.State, prepared.Reason, prepared.SourceDigest, prepared.InputDigest); err != nil {
 		if concreteCNCFPreparationProject(*project) {
@@ -682,7 +730,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi" || project == "falco" || project == "kuma"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {
