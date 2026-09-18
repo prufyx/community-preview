@@ -290,6 +290,55 @@ behavior. Pinned source evidence for the existing rule is the Crossplane
 `b639502e2f93680ff83417a0f517ec459ce079cc`. Whole-upgrade safety remains
 `UNKNOWN`.
 
+## Velero CRD-before-server upgrade ordering
+
+The native upgrade-plan route evaluates where the `velero.io` target
+`CustomResourceDefinition` documents sit relative to the Velero server
+`Deployment` in one caller-selected flat `v1` `List` of rendered documents whose
+item order the caller declares to be the apply order. It covers only the
+reviewed `1.17.0` to `1.18.0` and `1.16.2` to `1.18.0` transitions. It is a
+local usability route for the existing Velero
+`velero.crd-update-order.1-18` and `velero.intermediate-1-17.1-18` rules; it
+does not add a project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > upgrade-plan.json <<'JSON'
+{"apiVersion":"v1","kind":"List","items":[
+ {"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"backups.velero.io"},"spec":{"group":"velero.io","scope":"Namespaced"}},
+ {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"velero","namespace":"velero"},"spec":{"replicas":1}}
+]}
+JSON
+chmod 600 upgrade-plan.json
+./prufyx check cncf --project velero \
+  --upgrade-plan upgrade-plan.json --velero-server-deployment velero \
+  --velero-plan-order-declared --from 1.17.0 --to 1.18.0 \
+  --now 2026-09-18T00:00:00Z
+```
+
+The caller declares that the supplied item order is the declared apply order
+and names the server `Deployment` inside the plan. A plan whose last `velero.io`
+CRD document precedes that `Deployment` is a scoped `PASS` for this one
+ordering constraint; a plan where any `velero.io` CRD document follows it is
+`BLOCKED`. An undeclared plan order, an unselected, absent or ambiguous server
+`Deployment`, **a plan containing no `velero.io` CRD document at all**,
+unresolved templating, a paginated or typed list, and a structurally unresolved
+object all remain `UNKNOWN` rather than a negative-presence PASS. Unrelated
+kinds inside the plan are ordinary install documents and do not disturb the
+observation.
+
+On the reviewed `1.16.2` to `1.18.0` pair the direct transition is `BLOCKED` by
+the mandatory `1.17.x` intermediate regardless of the supplied plan. That gate
+is not bypassable by any native input: the same plan that scores a scoped PASS
+at `1.17.0` to `1.18.0` still blocks here.
+
+The route does not apply anything, read a cluster, verify that the declared
+plan was executed, or establish plugin, node-agent, backup, or restore
+behavior: the fact is a plan declaration, not an execution receipt. Pinned
+source evidence for the existing rules is the Velero `upgrade-to-1.18.md`
+upgrade guide at commit `0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8`.
+Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing

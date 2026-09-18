@@ -32,6 +32,7 @@ func (r runtime) prepareCNCF(args []string) int {
    or: prufyx prepare cncf --project falco --falco-argv FILE --from 0.40.0 --to 0.41.0|0.42.0 --falco-distribution official_upstream|custom_build [--falco-argv-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project kuma --kumactl-argv FILE --from 2.8.0 --to 2.9.0 --kuma-distribution official_upstream|custom_build [--kumactl-argv-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project crossplane --composition FILE --from 1.20.0 --to 2.0.0 --crossplane-distribution official_upstream|custom_build --crossplane-schema-validation-required [--composition-digest SHA256] [--format human|json|input]
+   or: prufyx prepare cncf --project velero --upgrade-plan FILE --from 1.17.0|1.16.2 --to 1.18.0 --velero-server-deployment NAME --velero-plan-order-declared [--upgrade-plan-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project etcd --input FILE --from 3.5.17 --to 3.6.0 [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project jaeger --input FILE --from 1.76.0 --to 2.20.0 [--non-memory-storage-required true|false] [--official-jaeger-distribution true|false] [--input-digest SHA256] [--format human|json|input]
    or: prufyx prepare cncf --project metallb|contour --input FILE --from VERSION --to VERSION [--input-digest SHA256] [--format human|json|input]
@@ -205,6 +206,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	compositionPin := fs.String("composition-digest", "", "optional exact Composition SHA-256")
 	crossplaneDistribution := fs.String("crossplane-distribution", "", "Crossplane distribution: official_upstream or custom_build")
 	crossplaneSchemaValidationRequired := fs.Bool("crossplane-schema-validation-required", false, "caller declaration that the selected Compositions must validate against the official target CRD schema")
+	upgradePlan := fs.String("upgrade-plan", "", "private selected flat v1 List of rendered Velero upgrade documents in declared apply order")
+	upgradePlanPin := fs.String("upgrade-plan-digest", "", "optional exact upgrade plan SHA-256")
+	veleroServerDeployment := fs.String("velero-server-deployment", "", "literal metadata.name of the Velero server Deployment inside the selected plan")
+	veleroPlanOrderDeclared := fs.Bool("velero-plan-order-declared", false, "caller declaration that the supplied item order is the declared apply order")
 	resourceScopeComplete := fs.Bool("resource-scope-complete", false, "caller declaration that selected rendered resource set is complete")
 	targetAPIApplyRequired := fs.Bool("target-api-apply-required", false, "caller declaration that selected resource set is required for target API apply")
 	jaegerNonMemoryStorage := fs.String("non-memory-storage-required", "", "explicit Jaeger non-memory storage requirement: true or false")
@@ -248,6 +253,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	}
 	if *project != "crossplane" && anyFlagProvided(args, "composition", "composition-digest", "crossplane-distribution", "crossplane-schema-validation-required") {
 		return r.usage("Crossplane Composition flags require Crossplane preparation")
+	}
+	if *project != "velero" && anyFlagProvided(args, "upgrade-plan", "upgrade-plan-digest", "velero-server-deployment", "velero-plan-order-declared") {
+		return r.usage("Velero upgrade plan flags require Velero preparation")
 	}
 	if *project != "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required") {
 		return r.usage("Prometheus remote-write flags require Prometheus preparation")
@@ -300,6 +308,12 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		*input, *pin = *composition, *compositionPin
 	}
+	if *project == "velero" && *upgradePlan != "" {
+		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "upgrade-plan-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*upgradePlanPin)) {
+			return r.fail("VELERO_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		*input, *pin = *upgradePlan, *upgradePlanPin
+	}
 	if *project == "prometheus" && *prometheusConfig != "" {
 		if *input != "" || flagProvided(args, "input-digest") || (flagProvided(args, "prometheus-config-digest") && !regexp.MustCompile(`^sha256:[0-9a-f]{64}$`).MatchString(*prometheusConfigPin)) {
 			return r.fail("PROMETHEUS_REMOTE_WRITE_INPUT_INVALID", ExitUsage)
@@ -345,6 +359,9 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		}
 		if *project == "crossplane" {
 			return r.fail("CROSSPLANE_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+		if *project == "velero" {
+			return r.fail("VELERO_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 		return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
 	}
@@ -434,6 +451,10 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "crossplane":
 		if *composition == "" || (*crossplaneDistribution != cncfprepare.CrossplaneDistributionOfficial && *crossplaneDistribution != cncfprepare.CrossplaneDistributionCustom) || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
 			return r.fail("CROSSPLANE_PREPARATION_INPUT_INVALID", ExitUsage)
+		}
+	case "velero":
+		if *upgradePlan == "" || *veleroServerDeployment == "" || !*veleroPlanOrderDeclared || (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
+			return r.fail("VELERO_PREPARATION_INPUT_INVALID", ExitUsage)
 		}
 	case "etcd":
 		if (*container != "" || flagProvided(args, "container")) || flagProvided(args, "schema-validation") || flagProvided(args, "distribution") || flagProvided(args, "target-policy-crd-admission") || flagProvided(args, "requires-inherited-application-permissions") || flagProvided(args, "complete-cnp-ccnp-set") || flagProvided(args, "non-memory-storage-required") || flagProvided(args, "official-jaeger-distribution") || flagProvided(args, "operation") {
@@ -560,6 +581,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		prepared, err = cncfprepare.PrepareKumaInstallTransparentProxyArgv(raw, *from, *to, *kumaDistribution)
 	case "crossplane":
 		prepared, err = cncfprepare.PrepareCrossplaneComposition(raw, *from, *to, *crossplaneDistribution, *crossplaneSchemaValidationRequired)
+	case "velero":
+		prepared, err = cncfprepare.PrepareVeleroUpgradePlan(raw, *from, *to, *veleroServerDeployment, *veleroPlanOrderDeclared)
 	case "etcd":
 		prepared, err = cncfprepare.PrepareEtcd(raw, *from, *to)
 	case "jaeger":
@@ -724,6 +747,8 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 		label = "Kuma"
 	} else if label == "crossplane" {
 		label = "Crossplane"
+	} else if label == "velero" {
+		label = "Velero"
 	}
 	if _, err := fmt.Fprintf(r.stdout, "%s declaration preparation: %s\nreason: %s\nsource digest: %s\nprepared input digest: %s\nnetwork used: false\nupgrade check performed: false\n", label, prepared.State, prepared.Reason, prepared.SourceDigest, prepared.InputDigest); err != nil {
 		if concreteCNCFPreparationProject(*project) {
@@ -755,7 +780,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 }
 
 func concreteCNCFPreparationProject(project string) bool {
-	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi" || project == "falco" || project == "kuma" || project == "crossplane"
+	return project == "linkerd" || project == "karmada" || project == "argo-cd" || project == "cilium" || project == "coredns" || project == "envoy" || project == "kubernetes" || project == "jaeger" || project == "metallb" || project == "contour" || project == "cloudnativepg" || project == "kubevirt" || project == "emissary-ingress" || project == "harbor" || project == "openfga" || project == "opencost" || project == "cloud-custodian" || project == "fluentd" || project == "distribution" || project == "container-network-interface-cni" || project == "containerd" || project == "prometheus" || project == "strimzi" || project == "falco" || project == "kuma" || project == "crossplane" || project == "velero"
 }
 
 func cncfOptionProvided(args []string, wanted string) bool {
