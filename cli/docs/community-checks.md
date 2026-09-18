@@ -339,6 +339,52 @@ source evidence for the existing rules is the Velero `upgrade-to-1.18.md`
 upgrade guide at commit `0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8`.
 Whole-upgrade safety remains `UNKNOWN`.
 
+## SPIRE removed entry-create TTL option
+
+The native SPIRE argv route decides whether one caller-declared explicit
+effective `spire-server entry create` argv literally contains `-ttl` or
+`--ttl`. It covers only the reviewed `1.10.4` to `1.11.0` transition. It is a
+local usability route for the existing
+`spire.removed-entry-ttl.1-11` rule; it does not add a project, rule, or
+upgrade-pair claim.
+
+```sh
+umask 077
+cat > spire-entry-argv.json <<'JSON'
+["spire-server","entry","create","-spiffeID","spiffe://example.org/workload","-ttl","3600"]
+JSON
+chmod 600 spire-entry-argv.json
+./prufyx check cncf --project spire \
+  --spire-entry-argv spire-entry-argv.json --spire-distribution official_upstream \
+  --from 1.10.4 --to 1.11.0 --now 2026-09-18T00:00:00Z
+```
+
+The caller declares the proposed distribution. An argv containing either
+removed spelling is `BLOCKED`; an argv on the reviewed
+`spire-server entry create` surface containing neither is a scoped `PASS` for
+this one removal constraint.
+
+The adapter models no SPIRE option table, because an option table that guessed
+an arity wrongly could skip a removed spelling as if it were another option's
+value. It compares every token instead, so absence is reported only when no
+token in the whole argv can be one of the two spellings. Both removed spellings
+are multi-character option names, so neither can hide inside a clustered short
+token; single-dash option names such as `-spiffeID` are therefore resolvable
+rather than ambiguous. A `custom_build` declaration, an undeclared
+distribution, another `spire-server` subcommand, `spire-agent`, a wrapper, a
+word placed between the executable and the subcommand, a bare `-` or `--`,
+unresolved templating, and an unparseable shape all remain `UNKNOWN` rather
+than a negative-presence PASS.
+
+The route never executes the argv and does not resolve a wrapper, an image
+entrypoint, environment, Helm values, defaults, existing registration entries,
+or runtime behavior. It does not validate any replacement TTL option or its
+value; only the two removed spellings are decided. Pinned source evidence for
+the existing rule is `cmd/spire-server/util/util.go` and
+`cmd/spire-server/cli/entry/create.go` at commits `9c4d83a3b44d` and
+`ca35234a30a2` and `CHANGELOG.md` at commit `ca35234a30a2`. Whole-upgrade
+safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
