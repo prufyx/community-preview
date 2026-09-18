@@ -14,6 +14,45 @@ refresh. The build identity reports `trustRootDigest: UNPINNED` and
 `candidateOnly: true`; those fields do not turn local reports into signed
 Prufyx compatibility evidence.
 
+## Offline release statement signature
+
+`prufyx-maintainer release sign` binds a finalized release output to an
+offline Ed25519 signature over a canonical release statement. The statement
+records the version, source revision, selected-source digest, release manifest
+digest, Go version, build epoch, expiry, the pinned trust-root digest, and the
+exact SHA-256 and size of every published asset including `SHA256SUMS`. It is
+signed only after `release verify` re-derives the whole output from the exact
+checkout, so an output that does not derive cannot be signed.
+
+```sh
+# One-time: create an offline key and its single-key trust root.
+prufyx-maintainer release-sign init \
+  --key-dir /absolute/private/dir/outside/any/checkout/prufyx-release-keys \
+  --expires 2027-09-18T00:00:00Z
+
+# Per release, after `release finalize`.
+prufyx-maintainer release sign "$VERSION" "$OUTPUT_DIR" \
+  /absolute/.../release-trust-root.json /absolute/.../release.key.pem
+
+# Verification, against an independently established trust-root digest.
+prufyx-maintainer release verify-signature "$VERSION" "$OUTPUT_DIR" \
+  /absolute/.../release-trust-root.json "sha256:<independently-verified>"
+```
+
+Verification fails closed on an unknown signer, a substituted or expired trust
+root, an expired statement, a changed asset, a missing covered asset, or an
+unsigned file that appeared in the output directory. A verified statement
+proves integrity and signer identity only. It asserts nothing about
+compatibility: the result always reports `compatibilityAuthority: none`.
+
+Two limits are deliberate and not closed by this tooling. The signing key is a
+passphrase-protected local file, not hardware-backed custody, and the trust
+root is distributed out of band rather than through a rotation-capable TUF
+repository. Until both are resolved, treat the signature as a maintainer
+integrity control, not as published supply-chain provenance. `trustRootDigest`
+in the build identity stays `UNPINNED`, because the binary is built before the
+statement that would pin a root exists.
+
 ## Verify a supplied archive
 
 Use GitHub CLI with artifact attestation support. The following example uses the
@@ -84,6 +123,13 @@ See [Community source authority](../release/COMMUNITY-SOURCE-GATE.md) for
 receipt generation, verification and tests. Published binaries target native
 Linux amd64 and Linux arm64. Selected source variants additionally cover
 Darwin arm64. The SPDX inventory describes Prufyx, its Go runtime/standard
-library; it is not a
-file-level inventory of the entire build environment. `LICENSES` and
+library, and every vendored Go module bound by the shipping policy. It also
+carries an analyzed file inventory for the published archives: each
+distributable `.tar.gz` appears as an SPDX file with its SHA-1 and SHA-256, and
+the described package carries `filesAnalyzed: true` with an SPDX 2.3 package
+verification code. `SBOM.spdx.json` and `SHA256SUMS` are deliberately outside
+that inventory because both are derived from the archives it describes.
+
+The inventory is not a file-level inventory of the entire build environment,
+and it carries no vulnerability-scan or provenance attestation. `LICENSES` and
 `THIRD-PARTY.md` preserve the included notices.

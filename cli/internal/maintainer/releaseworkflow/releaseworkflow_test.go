@@ -2,6 +2,8 @@ package releaseworkflow
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/releasesign"
 )
 
 func TestVersionAndTargetAdmission(t *testing.T) {
@@ -228,5 +231,159 @@ func TestCanonicalArchiveIsStable(t *testing.T) {
 	bd, _ := os.ReadFile(b)
 	if string(ad) != string(bd) {
 		t.Fatal("archive bytes differ")
+	}
+}
+
+func TestDistributableArchivesExcludeDerivedAssets(t *testing.T) {
+	got := distributableArchives("v1.2.3")
+	want := []string{
+		"prufyx-cli_1.2.3_linux_amd64.tar.gz",
+		"prufyx-cli_1.2.3_linux_arm64.tar.gz",
+		"prufyx-cli_1.2.3_source.tar.gz",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("distributable archive count=%d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("distributable archive %d=%q, want %q", i, got[i], want[i])
+		}
+	}
+	// A document cannot record its own digest, so the SBOM and SHA256SUMS must
+	// never appear in the set the SBOM analyzes.
+	for _, name := range got {
+		if name == "SBOM.spdx.json" || name == "SHA256SUMS" {
+			t.Fatalf("SBOM would be asked to describe itself via %q", name)
+		}
+	}
+}
+
+func TestSignedCoveredAssetsCoverEveryPublishedAsset(t *testing.T) {
+	covered := signedCoveredAssets("v1.2.3")
+	present := map[string]bool{}
+	for _, name := range covered {
+		present[name] = true
+	}
+	for _, name := range append([]string{"SHA256SUMS"}, releaseAssets("v1.2.3")...) {
+		if !present[name] {
+			t.Fatalf("release statement would not cover %q", name)
+		}
+	}
+	// The statement and its envelope must stay outside their own coverage.
+	if present[releasesign.StatementName] || present[releasesign.EnvelopeName] {
+		t.Fatal("release statement must not cover itself or its envelope")
+	}
+	for i := 1; i < len(covered); i++ {
+		if covered[i-1] >= covered[i] {
+			t.Fatalf("covered asset set is not sorted and unique at %d", i)
+		}
+	}
+}
+
+func TestRunRejectsMalformedSigningInvocations(t *testing.T) {
+	var out, errOut bytes.Buffer
+	for _, args := range [][]string{
+		{"sign"},
+		{"sign", "v1.2.3"},
+		{"sign", "v1.2.3", "/tmp/out", "/tmp/root"},
+		{"verify-signature"},
+		{"verify-signature", "v1.2.3", "/tmp/out", "/tmp/root"},
+		{"verify-signature", "v1.2.3", "/tmp/out", "/tmp/root", "digest", "extra"},
+	} {
+		if err := Run(args, &out, &errOut); err == nil {
+			t.Fatalf("accepted malformed invocation %v", args)
+		}
+	}
+}
+
+func TestVerifySignatureRejectsBadVersionBeforeTouchingDisk(t *testing.T) {
+	var out bytes.Buffer
+	if err := verifySignature("1.2.3", t.TempDir(), "/nonexistent-root", "sha256:"+strings.Repeat("a", 64), &out); err == nil {
+		t.Fatal("accepted a non-SemVer version")
+	}
+	if out.Len() != 0 {
+		t.Fatal("a rejected verification must not emit a result line")
+	}
+}
+
+func TestDefaultPassphraseReaderRefusesSigning(t *testing.T) {
+	// The workflow package owns no terminal. Without the command layer's
+	// installed prompt, signing must fail rather than proceed keyless.
+	reader := ReadSigningPassphrase
+	t.Cleanup(func() { ReadSigningPassphrase = reader })
+	ReadSigningPassphrase = func(io.Writer) ([]byte, error) {
+		return nil, errors.New("no reader")
+	}
+	var out, errOut bytes.Buffer
+	// The file content is irrelevant: the passphrase reader is consulted before
+	// the key is ever parsed. Community source must never contain key-shaped
+	// bytes, so this fixture deliberately holds none.
+	key := filepath.Join(t.TempDir(), "key.pem")
+	if err := os.WriteFile(key, []byte("not key material\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run([]string{"sign", "v1.2.3", t.TempDir(), "/tmp/root", key}, &out, &errOut); err == nil {
+		t.Fatal("signing proceeded without a passphrase reader")
+	}
+}
+
+func TestSignRefusesUnverifiedOutput(t *testing.T) {
+	// sign() runs the full derivation check first. Outside a clean checkout of
+	// the exact release revision it must refuse rather than sign whatever is
+	// sitting in the output directory.
+	var out bytes.Buffer
+	err := sign("v1.2.3", t.TempDir(), "/nonexistent-root", []byte("key"), []byte("passphrase"), &out)
+	if err == nil {
+		t.Fatal("signed an output that release verify would reject")
+	}
+	if out.Len() != 0 {
+		t.Fatal("a refused signing must not emit a result line")
+	}
+}
+
+func TestSignWipesPassphraseOnRefusal(t *testing.T) {
+	passphrase := []byte("operator passphrase 123")
+	var out bytes.Buffer
+	_ = sign("v1.2.3", t.TempDir(), "/nonexistent-root", []byte("key"), passphrase, &out)
+	for _, b := range passphrase {
+		if b != 0 {
+			t.Fatal("a refused signing left the passphrase in memory")
+		}
+	}
+}
+
+func TestReadBoundedReleaseRejectsUnsafeInput(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "asset")
+	if err := os.WriteFile(path, []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readBoundedRelease(path, 4); err == nil {
+		t.Fatal("accepted a file beyond its bound")
+	}
+	if got, err := readBoundedRelease(path, 64); err != nil || string(got) != "0123456789" {
+		t.Fatalf("bounded read failed: %q %v", got, err)
+	}
+	if _, err := readBoundedRelease(filepath.Join(dir, "absent"), 64); err == nil {
+		t.Fatal("accepted a missing file")
+	}
+	if err := os.Symlink(path, filepath.Join(dir, "link")); err == nil {
+		if _, err := readBoundedRelease(filepath.Join(dir, "link"), 64); err == nil {
+			t.Fatal("followed a symlink")
+		}
+	}
+}
+
+func TestWriteNewReleaseNeverOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	if err := writeNewRelease(dir, "STATEMENT", []byte("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeNewRelease(dir, "STATEMENT", []byte("second")); err == nil {
+		t.Fatal("overwrote an existing release asset")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "STATEMENT"))
+	if err != nil || string(raw) != "first" {
+		t.Fatalf("existing asset was modified: %q %v", raw, err)
 	}
 }

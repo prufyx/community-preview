@@ -15,6 +15,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepublish"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgesign"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/releaseworkflow"
 	"golang.org/x/sys/unix"
 )
 
@@ -705,5 +706,43 @@ func TestMaintainerCLI_RotatedPackageRouteAllowsOnlySuccessorRepetition(t *testi
 	err = run([]string{"knowledge-publish", "finalize-rotated-package", "--successor-root", "one", "--successor-root=two"}, &out, &errOut)
 	if err == nil || err.Error() == "prufyx-maintainer: duplicate option rejected" || out.Len() != 0 || errOut.Len() != 0 {
 		t.Fatalf("repeatable successor rejected by global duplicate guard: out=%q err=%v stderr=%q", out.String(), err, errOut.String())
+	}
+}
+
+func TestReleaseSignRejectsMalformedInvocations(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	for _, args := range [][]string{
+		{"release-sign"},
+		{"release-sign", "unknown"},
+		{"release-sign", "init"},
+		{"release-sign", "init", "--key-dir", "relative/path", "--expires", "2099-01-01T00:00:00Z"},
+		{"release-sign", "init", "--key-dir", "/tmp/prufyx-release-keys", "--expires", "not-a-time"},
+		{"release-sign", "init", "--key-dir", "/tmp/prufyx-release-keys", "--expires", "2099-01-01T00:00:00Z", "extra"},
+	} {
+		if err := run(args, &stdout, &stderr); err == nil {
+			t.Fatalf("accepted malformed invocation %v", args)
+		}
+	}
+}
+
+func TestReleaseSignHelpIsAvailableWithoutTerminal(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"release-sign", "help"}, &stdout, &stderr); err != nil {
+		t.Fatalf("release-sign help: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "release-sign init") {
+		t.Fatalf("release-sign help did not describe init: %q", stdout.String())
+	}
+}
+
+func TestReleaseSigningPassphraseReaderIsInstalled(t *testing.T) {
+	// The workflow package must receive a real prompt from the command layer,
+	// not keep its refusing default.
+	if releaseworkflow.ReadSigningPassphrase == nil {
+		t.Fatal("no release signing passphrase reader was installed")
+	}
+	// Without a terminal on stdin the installed reader must refuse.
+	if _, err := releaseworkflow.ReadSigningPassphrase(io.Discard); err == nil {
+		t.Fatal("release signing passphrase was read without a terminal")
 	}
 }
