@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The thirty-six documented scenario examples are:
+The thirty-nine documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -134,11 +134,14 @@ The thirty-six documented scenario examples are:
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 removes the selected `logging` exporter | complete, precedence-resolved native Collector YAML with declared official distribution |
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 checks the target internal-metrics localhost default against an explicit non-loopback scrape requirement when no metrics override is configured | complete, precedence-resolved native Collector YAML plus declared official distribution, effective feature gate, and scrape requirement |
 | Strimzi | 0.51.0 → 1.0.0 removes the `kafka.strimzi.io/v1beta2` served version for `kind: Kafka` | one rendered Kafka resource, or one flat `v1` List, plus declared distribution and target-CRD admission intent |
+| Crossplane | 1.20.0 → 2.0.0 removes the `Resources` Composition mode from the official target CRD schema | one rendered `Composition`, or one flat `v1` List, plus declared distribution and target-schema validation intent |
 | Prometheus | 2.55.1 → 3.1.0 renames selected `scrape_classic_histograms` | complete, precedence-resolved scrape-config YAML |
 | Prometheus | 2.55.1 → 3.1.0 removes selected Alertmanager `api_version: v1` | complete, precedence-resolved `alerting.alertmanagers` entry YAML |
+| Velero | 1.17.0 → 1.18.0 requires the target CRDs to be updated before the server deployment | one flat `v1` List of rendered upgrade documents in declared apply order, plus the literal server Deployment name |
+| Velero | 1.16.2 → 1.18.0 is outside the documented upgrade path and requires the 1.17.x intermediate first | the same declared upgrade plan; the reviewed pair alone blocks the direct transition |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Falco, Kuma, Prometheus and Strimzi, and `prufyx check
+Custodian, Crossplane, Falco, Kuma, Prometheus, Strimzi and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select

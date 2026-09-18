@@ -248,6 +248,97 @@ evidence for the existing rule is `app/kumactl/cmd/install/install_transparent_p
 at commits `1110a0305eec` and `948e6a439163` and `UPGRADE.md` at commit
 `948e6a439163`. Whole-upgrade safety remains `UNKNOWN`.
 
+## Crossplane Composition Resources-mode removal
+
+The native Composition route evaluates which mode one caller-selected rendered
+`kind: Composition` resource, or one flat `v1` `List` of rendered resources,
+literally declares in `spec.mode`. It covers only the reviewed `1.20.0` to
+`2.0.0` transition. It is a local usability route for the existing Crossplane
+`crossplane.composition-resources-mode-removed.1-20-2-0` rule; it does not add a
+project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > composition.json <<'JSON'
+{"apiVersion":"apiextensions.crossplane.io/v1","kind":"Composition","metadata":{"name":"example"},"spec":{"mode":"Resources"}}
+JSON
+chmod 600 composition.json
+./prufyx check cncf --project crossplane \
+  --composition composition.json --crossplane-distribution official_upstream \
+  --crossplane-schema-validation-required --from 1.20.0 --to 2.0.0 \
+  --now 2026-09-18T00:00:00Z
+```
+
+The caller declares the proposed distribution and that the selected resources
+must validate against the official target CRD schema. Any selected
+`Composition` whose `spec.mode` is the literal `Resources` is `BLOCKED`; a
+selection whose `Composition` documents all declare the literal `Pipeline` is a
+scoped `PASS` for this one enum constraint. A `custom_build` declaration, an
+undeclared schema-validation intent, an **omitted or unreviewed `spec.mode`**,
+other `apiextensions.crossplane.io` kinds, another served Composition version,
+unresolved templating, a paginated or typed list, and a structurally unresolved
+object all remain `UNKNOWN` rather than a negative-presence PASS.
+
+An omitted `spec.mode` is deliberately never resolved to any historical default:
+doing so would author a compatibility claim this route does not hold.
+
+The route does not install or read a CRD, run API admission or conversion,
+inspect stored objects, or establish composition, reconciliation, or provider
+behavior. Pinned source evidence for the existing rule is the Crossplane
+`apiextensions.crossplane.io_compositions.yaml` mode enum block at commits
+`2efdb03ae80fc27f4b6b9b0cebc96a462233cf17` and
+`b639502e2f93680ff83417a0f517ec459ce079cc`. Whole-upgrade safety remains
+`UNKNOWN`.
+
+## Velero CRD-before-server upgrade ordering
+
+The native upgrade-plan route evaluates where the `velero.io` target
+`CustomResourceDefinition` documents sit relative to the Velero server
+`Deployment` in one caller-selected flat `v1` `List` of rendered documents whose
+item order the caller declares to be the apply order. It covers only the
+reviewed `1.17.0` to `1.18.0` and `1.16.2` to `1.18.0` transitions. It is a
+local usability route for the existing Velero
+`velero.crd-update-order.1-18` and `velero.intermediate-1-17.1-18` rules; it
+does not add a project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > upgrade-plan.json <<'JSON'
+{"apiVersion":"v1","kind":"List","items":[
+ {"apiVersion":"apiextensions.k8s.io/v1","kind":"CustomResourceDefinition","metadata":{"name":"backups.velero.io"},"spec":{"group":"velero.io","scope":"Namespaced"}},
+ {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"velero","namespace":"velero"},"spec":{"replicas":1}}
+]}
+JSON
+chmod 600 upgrade-plan.json
+./prufyx check cncf --project velero \
+  --upgrade-plan upgrade-plan.json --velero-server-deployment velero \
+  --velero-plan-order-declared --from 1.17.0 --to 1.18.0 \
+  --now 2026-09-18T00:00:00Z
+```
+
+The caller declares that the supplied item order is the declared apply order
+and names the server `Deployment` inside the plan. A plan whose last `velero.io`
+CRD document precedes that `Deployment` is a scoped `PASS` for this one
+ordering constraint; a plan where any `velero.io` CRD document follows it is
+`BLOCKED`. An undeclared plan order, an unselected, absent or ambiguous server
+`Deployment`, **a plan containing no `velero.io` CRD document at all**,
+unresolved templating, a paginated or typed list, and a structurally unresolved
+object all remain `UNKNOWN` rather than a negative-presence PASS. Unrelated
+kinds inside the plan are ordinary install documents and do not disturb the
+observation.
+
+On the reviewed `1.16.2` to `1.18.0` pair the direct transition is `BLOCKED` by
+the mandatory `1.17.x` intermediate regardless of the supplied plan. That gate
+is not bypassable by any native input: the same plan that scores a scoped PASS
+at `1.17.0` to `1.18.0` still blocks here.
+
+The route does not apply anything, read a cluster, verify that the declared
+plan was executed, or establish plugin, node-agent, backup, or restore
+behavior: the fact is a plan declaration, not an execution receipt. Pinned
+source evidence for the existing rules is the Velero `upgrade-to-1.18.md`
+upgrade guide at commit `0b7eaaf4e6bb6bf7719b27443f8da0ae4a3ef2f8`.
+Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
