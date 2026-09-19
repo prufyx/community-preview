@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 124)
+	result := make([]descriptor, 0, 136)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -303,6 +303,30 @@ func descriptorSet() []descriptor {
 	}
 	for _, pair := range kyvernoLatestReportsChunkSizePairs {
 		result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: pair.id, from: pair.from, to: "1.19.1", command: exactPair(kyvernoNativeBase, pair.from, "1.19.1"), limit: "Target-only Kyverno 1.19.1 reportsChunkSize constraint for one caller-selected container's explicitly declared official-upstream bare reports-controller invocation; it does not identify when removal occurred, establish image provenance, inspect wrappers, or prove controller runtime or whole-upgrade safety."})
+	}
+	jaegerNativeBase := extend(cncfBase("jaeger"), file("--jaeger-argv"), boolean("--non-memory-storage-required"), boolean("--official-jaeger-distribution"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "jaeger", component: "pkg:github/jaegertracing/jaeger", ruleID: "jaeger.explicit-config-required-for-non-memory.1-76-2-20", from: "1.76.0", to: "2.20.0", command: exactPair(jaegerNativeBase, "1.76.0", "2.20.0"), limit: "One caller-declared direct Jaeger v2 invocation only; declared non-memory storage requirement and official distribution are operator declarations, not inferred, and config content, backend, credentials, and runtime remain unverified."})
+	jaegerTargetPairs := []struct{ from, id string }{
+		{"2.15.1", "jaeger.explicit-config-required-for-non-memory.target.2-15-to-2-20"},
+		{"2.16.0", "jaeger.explicit-config-required-for-non-memory.target.2-16-to-2-20"},
+		{"2.17.0", "jaeger.explicit-config-required-for-non-memory.target.2-17-to-2-20"},
+		{"2.18.0", "jaeger.explicit-config-required-for-non-memory.target.2-18-to-2-20"},
+		{"2.19.0", "jaeger.explicit-config-required-for-non-memory.target.2-19-to-2-20"},
+	}
+	for _, pair := range jaegerTargetPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "jaeger", component: "pkg:github/jaegertracing/jaeger", ruleID: pair.id, from: pair.from, to: "2.20.0", command: exactPair(jaegerNativeBase, pair.from, "2.20.0"), limit: "Target-only Jaeger 2.20 explicit-config constraint for one caller-declared direct v2 invocation; declared non-memory storage requirement and official distribution are operator declarations, not inferred, and config content, backend, credentials, and runtime remain unverified."})
+	}
+	harborNativeBase := extend(cncfBase("harbor"), file("--native-resource"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "harbor", component: "pkg:github/goharbor/harbor", ruleID: "harbor.installer-with-chartmuseum-flag-removed.2-8", from: "2.7.0", to: "2.8.0", command: exactPair(harborNativeBase, "2.7.0", "2.8.0"), limit: "One caller-declared complete literal make/install.sh argv only; the installer is never executed, and wrapper, environment, response-file, chart, and database state are unassessed."})
+	harborChartMuseumPairs := []struct{ from, id string }{
+		{"2.10.3", "harbor.installer-with-chartmuseum-flag-removed.2-10-to-2-15"},
+		{"2.11.2", "harbor.installer-with-chartmuseum-flag-removed.2-11-to-2-15"},
+		{"2.12.4", "harbor.installer-with-chartmuseum-flag-removed.2-12-to-2-15"},
+		{"2.13.5", "harbor.installer-with-chartmuseum-flag-removed.2-13-to-2-15"},
+		{"2.14.4", "harbor.installer-with-chartmuseum-flag-removed.2-14-to-2-15"},
+	}
+	for _, pair := range harborChartMuseumPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "harbor", component: "pkg:github/goharbor/harbor", ruleID: pair.id, from: pair.from, to: "2.15.2", command: exactPair(harborNativeBase, pair.from, "2.15.2"), limit: "One caller-declared complete literal make/install.sh argv only; the installer is never executed, and wrapper, environment, response-file, chart, and database state are unassessed."})
 	}
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
@@ -528,7 +552,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 124 {
+	if len(descriptors) != 136 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
