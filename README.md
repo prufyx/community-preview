@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The forty-two documented scenario examples are:
+The forty-four documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -106,14 +106,16 @@ The forty-two documented scenario examples are:
 | Cloud Custodian | 0.9.50 → 0.9.51 removes the selected IAM access-key `json-diff` policy filter | private policy JSON |
 | CloudNativePG | 1.29.0 → 1.30.0 cluster reference must remain immutable | paired Kubernetes JSON objects |
 | MetalLB | 0.12.1 → 0.13.2 legacy ConfigMap configuration is removed | ConfigMap or reviewed CR JSON |
-| NATS | 2.10.0 → 2.11.0 rejects ASCII spaces in supplied selected names | native JSON configuration subset |
+| NATS | 2.10.0 → 2.11.0 and five exact origins → 2.14.6 reject ASCII spaces in supplied selected names | native JSON configuration subset |
 | Contour | 1.19.0 → 1.20.0 selected `networking.x-k8s.io/v1alpha1` resources need explicit migration | Kubernetes resource JSON |
 | CNI | spec 0.4.0 → 1.0.0 removes non-List configuration | plugin configuration JSON |
 | Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON |
-| CoreDNS | 1.13.2 → 1.14.7 rejects the removed `federation` directive | complete Corefile with declared official distribution |
+| CoreDNS | 1.6.9 → 1.7.0 and five exact origins → 1.14.7 reject the removed `federation` directive | complete Corefile with declared official distribution |
+| Flux | 2.6.4 → 2.7.0 and five exact origins → 2.9.5 detect removed beta CRD API versions | native rendered resource JSON object, or one flat `v1` List, with an explicit selected-scope-complete declaration |
 | Envoy | 1.38.4 → 1.39.1 blocks direct V2 xDS transport API versions at the selected ADS, LDS, or CDS paths | directly loaded JSON bootstrap selected by the caller; this route has no native PASS |
 | Falco | 0.40.0 → 0.41.0 and 0.40.0 → 0.42.0 remove five deprecated 0.40 CLI spellings for the `falco` executable | caller-declared explicit effective Falco argv JSON with declared distribution |
 | Prometheus | 2.55.1 → 3.14.0 checks one selected `remote_write` entry's direct `enable_http2` setting or reviewed omitted default against an explicit endpoint requirement | complete, precedence-resolved native Prometheus YAML with a unique literal entry name |
+| Cortex | 1.17.2 and four exact origins → 1.21.1 remove the `querier.at-modifier-enabled` flag | native exact-image `apps/v1` Deployment, StatefulSet, or DaemonSet JSON with one explicitly named `cortex` container |
 | Kuma | 2.8.0 → 2.9.0 removes two deprecated `kumactl install transparent-proxy` UID exclusion flags | caller-declared explicit effective `kumactl install transparent-proxy` argv JSON with declared distribution |
 | SPIRE | 1.10.4 → 1.11.0 removes the `spire-server entry create` `-ttl` and `--ttl` options | caller-declared explicit effective `spire-server entry create` argv JSON with declared distribution |
 | KEDA | 2.16.0 → 2.17.0 removes the direct External Scaler `tlsCertFile` TLS transport; a forwarded metadata field alone never establishes reliance | complete caller-selected rendered `keda.sh/v1alpha1` ScaledObject JSON with an explicit reliance declaration when `tlsCertFile` is present |
