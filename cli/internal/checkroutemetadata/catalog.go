@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 149)
+	result := make([]descriptor, 0, 164)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -347,6 +347,22 @@ func descriptorSet() []descriptor {
 	for _, from := range opencostLatestOrigins {
 		result = append(result, descriptor{family: FamilyCNCF, project: "opencost", component: "pkg:github/opencost/opencost", ruleID: "opencost.cloud-cost-source-migration." + strings.ReplaceAll(from, ".", "-") + "-to-1-121-2", from: from, to: "1.121.2", command: exactPair(opencostNativeBase, from, "1.121.2"), limit: "One caller-declared current and proposed cloud-cost source selection only; file contents, credentials, provider access, and runtime behavior are unassessed."})
 	}
+	// Cloud Custodian: PrepareCloudCustodian already has a working single-step
+	// native input route (wired here); it already handled all six reviewed
+	// rule pairs via the two-step prepare/check flow before this route existed.
+	cloudCustodianNativeBase := extend(cncfBase("cloud-custodian"), file("--native-resource"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "cloud-custodian", component: "pkg:github/cloud-custodian/cloud-custodian", ruleID: "cloud-custodian.iam-access-key-json-diff-removed.0-9-50-to-0-9-51", from: "0.9.50", to: "0.9.51", command: exactPair(cloudCustodianNativeBase, "0.9.50", "0.9.51"), limit: "One caller-selected complete JSON policy document with exactly one iam-access-key resource-typed policy only; variables, includes, dynamic resource selection, AWS API execution, and whole-upgrade compatibility are unassessed."})
+	cloudCustodianLatestOriginPairs := []struct{ from, id string }{
+		{"0.9.47", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-47-to-0-9-52"},
+		{"0.9.48", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-48-to-0-9-52"},
+		{"0.9.49", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-49-to-0-9-52"},
+		{"0.9.50", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-50-to-0-9-52"},
+		{"0.9.51", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-51-to-0-9-52"},
+	}
+	for _, pair := range cloudCustodianLatestOriginPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "cloud-custodian", component: "pkg:github/cloud-custodian/cloud-custodian", ruleID: pair.id, from: pair.from, to: "0.9.52", command: exactPair(cloudCustodianNativeBase, pair.from, "0.9.52"), limit: "One caller-selected complete JSON policy document with exactly one iam-access-key resource-typed policy only; variables, includes, dynamic resource selection, AWS API execution, and whole-upgrade compatibility are unassessed."})
+	}
+
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
 	grafanaBase := extend(projectBase("grafana"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"))
@@ -495,6 +511,22 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: "argo-cd.required-rbac-inheritance.3-0", from: "2.14.0", to: "3.0.0", command: exactPair(extend(cncfBase("argo-cd"), file("--config-map"), boolean("--requires-inherited-application-permissions")), "2.14.0", "3.0.0"), limit: "One caller-selected ConfigMap plus an explicit inherited-application-permissions intent only; user authorization and the whole RBAC policy are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: "argo-cd.resource-exclusions-v2-visibility-preservation.3-0", from: "2.14.0", to: "3.0.0", command: exactPair(extend(cncfBase("argo-cd"), file("--resource-exclusions-config-map"), literal("--resource-exclusions-config-complete"), literal("--resource-exclusions-precedence-resolved"), boolean("--requires-v2-visibility-of-v3-default-excluded-resources")), "2.14.0", "3.0.0"), limit: "One complete, precedence-resolved argocd-cm ConfigMap plus an explicit v2-visibility-preservation intent only; resource existence, watches, UI, reconciliation, and runtime behavior are unassessed."})
 
+	// Argo CD: PrepareArgoCDLatestRepository already has a working single-step
+	// native input route (wired here); it already handled all five reviewed
+	// 3.5.2 latest-target origins via the two-step prepare/check flow before
+	// this route existed.
+	argoCDLatestBase := extend(cncfBase("argo-cd"), file("--repository-secret"), name("--repository-distribution"), boolean("--repository-settings-resolved"), boolean("--repository-uses-plain-http"))
+	argoCDLatestOriginPairs := []struct{ from, id string }{
+		{"3.0.23", "argo-cd.plain-http-oci-repository-helm4.3-0-23-to-3-5-2"},
+		{"3.1.16", "argo-cd.plain-http-oci-repository-helm4.3-1-16-to-3-5-2"},
+		{"3.2.12", "argo-cd.plain-http-oci-repository-helm4.3-2-12-to-3-5-2"},
+		{"3.3.14", "argo-cd.plain-http-oci-repository-helm4.3-3-14-to-3-5-2"},
+		{"3.4.8", "argo-cd.plain-http-oci-repository-helm4.3-4-8-to-3-5-2"},
+	}
+	for _, pair := range argoCDLatestOriginPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: pair.id, from: pair.from, to: "3.5.2", command: exactPair(argoCDLatestBase, pair.from, "3.5.2"), limit: "One caller-selected pre-apply repository Secret using stringData, plus explicit distribution, settings-resolved, and plain-HTTP declarations only; Secret values, names, URLs, credentials, repository connectivity, Helm execution, and whole-upgrade compatibility are unassessed."})
+	}
+
 	// 17 already-routed singleton projects: each has exactly one reviewed rule
 	// with a working preparer and CLI dispatch already wired, verified against
 	// current main rather than assumed from the survey.
@@ -504,6 +536,26 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "cloudnativepg", component: "pkg:github/cloudnative-pg/cloudnative-pg", ruleID: "cloudnativepg.cluster-reference-immutable.1-29-to-1-30", from: "1.29.0", to: "1.30.0", command: exactPair(extend(cncfBase("cloudnativepg"), file("--current-resource"), file("--resource")), "1.29.0", "1.30.0"), limit: "One caller-supplied current/proposed resource pair with matching identity only; admission, controller, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "kubernetes", component: "pkg:github/kubernetes/kubernetes", ruleID: "kubernetes.flowcontrol-v1beta3-removed.1-31-0-to-1-32-0", from: "1.31.0", to: "1.32.0", command: exactPair(extend(cncfBase("kubernetes"), file("--native-resource"), name("--distribution"), literal("--target-api-apply-required"), literal("--resource-scope-complete")), "1.31.0", "1.32.0"), limit: "One caller-selected complete rendered apply-set, bound to the official upstream distribution and target-apply intent only; general manifest schema, CRDs, persisted objects, runtime clients, and API server configuration are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.cluster-name-invalid.1-16-19-to-1-17-18", from: "1.16.19", to: "1.17.18", command: exactPair(extend(cncfBase("cilium"), file("--cilium-config-map"), name("--cilium-distribution"), literal("--cilium-config-complete"), literal("--cilium-config-precedence-resolved")), "1.16.19", "1.17.18"), limit: "One caller-selected complete, precedence-resolved official-upstream ConfigMap only; ClusterMesh, networking, name-collision, runtime, and whole-upgrade safety are unassessed."})
+
+	// Linkerd: PrepareLinkerd already has a working single-step native input
+	// route (wired here); it already evaluated the 2.13.7 -> 2.14.0 pair via
+	// the two-step prepare/check flow before this route existed.
+	result = append(result, descriptor{family: FamilyCNCF, project: "linkerd", component: "pkg:github/linkerd/linkerd2", ruleID: "linkerd.mtls-identity-selector-minitems.2-13-2-14", from: "2.13.7", to: "2.14.0", command: exactPair(extend(cncfBase("linkerd"), file("--linkerd-resource"), name("--linkerd-distribution"), name("--schema-validation")), "2.13.7", "2.14.0"), limit: "One caller-selected proposed MeshTLSAuthentication resource, plus explicit distribution and schema-validation declarations only; selector cardinality is derived from the resource, but CRD schema validation, cluster admission, and whole-upgrade compatibility are unassessed."})
+
+	// Karmada: PrepareKarmada already has a working single-step native input
+	// route (wired here); it already evaluated the 1.18.3 -> 1.19.0 pair via
+	// the two-step prepare/check flow before this route existed.
+	result = append(result, descriptor{family: FamilyCNCF, project: "karmada", component: "pkg:github/karmada-io/karmada", ruleID: "karmada.application-purge-mode-legacy-values-removed.1-19", from: "1.18.3", to: "1.19.0", command: exactPair(extend(cncfBase("karmada"), file("--karmada-resource"), name("--karmada-distribution"), name("--target-policy-crd-admission")), "1.18.3", "1.19.0"), limit: "One caller-selected proposed PropagationPolicy or ClusterPropagationPolicy resource, plus explicit distribution and target-policy-CRD-admission declarations only; a legacy witness is conclusive, but absence across all proposed resources is never proven, and CRD schema, cluster admission, and whole-upgrade compatibility are unassessed."})
+
+	// Cilium: PrepareCilium already has a working single-step native input
+	// route (wired here) for the reviewed nonempty fromRequires/toRequires
+	// removal; it already evaluated both reviewed pairs via the two-step
+	// prepare/check flow before this route existed. A completeSet declaration
+	// can only ever project an absent witness; it never discovers set
+	// completeness from a cluster.
+	ciliumNonemptyBase := extend(cncfBase("cilium"), file("--cilium-policy"), boolean("--complete-cnp-ccnp-set"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.nonempty-requires-rejected.1-19", from: "1.18.6", to: "1.19.0", command: exactPair(ciliumNonemptyBase, "1.18.6", "1.19.0"), limit: "One caller-selected CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy, or flat list, plus an explicit CNP/CCNP policy-set completeness declaration only; a nonempty fromRequires/toRequires witness is conclusive, but an absence result requires the declared complete set, pagination is never assumed complete, and whole-upgrade compatibility is unassessed."})
+	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7", from: "1.18.13", to: "1.19.7", command: exactPair(ciliumNonemptyBase, "1.18.13", "1.19.7"), limit: "One caller-selected CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy, or flat list, plus an explicit CNP/CCNP policy-set completeness declaration only; a nonempty fromRequires/toRequires witness is conclusive, but an absence result requires the declared complete set, pagination is never assumed complete, and whole-upgrade compatibility is unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cri-o", component: "pkg:github/cri-o/cri-o", ruleID: "cri-o.artifact-short-name-rejected.1-35", from: "1.34.0", to: "1.35.0", command: exactPair(extend(cncfBase("cri-o"), file("--image-status-request"), literal("--artifact-operation"), literal("named-reference-resolution")), "1.34.0", "1.35.0"), limit: "One explicitly declared named-reference resolution plan only; store contents, caller branch, ordinary images, and runtime remain unverified."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cubefs", component: "pkg:github/cubefs/cubefs", ruleID: "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2", from: "3.2.1", to: "3.3.2", command: exactPair(extend(cncfBase("cubefs"), file("--metanode-config"), literal("--phase"), literal("metanode-upgrade")), "3.2.1", "3.3.2"), limit: "One caller-supplied MetaNode configuration and planned-phase guard only; peers, the running CubeFS cluster, and whole-upgrade safety are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "the-update-framework-tuf", component: "pkg:github/theupdateframework/python-tuf", ruleID: "tuf.updater-bootstrap-keyword.6-to-7", from: "6.0.0", to: "7.0.0", command: exactPair(extend(cncfBase("the-update-framework-tuf"), file("--python-source")), "6.0.0", "7.0.0"), limit: "One conservatively bound direct tuf.ngclient.Updater call in caller-supplied Python source only; aliases, rebinding, dynamic calls, and source outside this grammar remain UNKNOWN."})
@@ -571,7 +623,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 149 {
+	if len(descriptors) != 164 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
