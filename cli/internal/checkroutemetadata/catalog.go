@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 164)
+	result := make([]descriptor, 0, 165)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -556,6 +556,14 @@ func descriptorSet() []descriptor {
 	ciliumNonemptyBase := extend(cncfBase("cilium"), file("--cilium-policy"), boolean("--complete-cnp-ccnp-set"))
 	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.nonempty-requires-rejected.1-19", from: "1.18.6", to: "1.19.0", command: exactPair(ciliumNonemptyBase, "1.18.6", "1.19.0"), limit: "One caller-selected CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy, or flat list, plus an explicit CNP/CCNP policy-set completeness declaration only; a nonempty fromRequires/toRequires witness is conclusive, but an absence result requires the declared complete set, pagination is never assumed complete, and whole-upgrade compatibility is unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7", from: "1.18.13", to: "1.19.7", command: exactPair(ciliumNonemptyBase, "1.18.13", "1.19.7"), limit: "One caller-selected CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy, or flat list, plus an explicit CNP/CCNP policy-set completeness declaration only; a nonempty fromRequires/toRequires witness is conclusive, but an absence result requires the declared complete set, pagination is never assumed complete, and whole-upgrade compatibility is unassessed."})
+
+	// KubeEdge: the reviewed rule's own fact description states the whole
+	// selector grammar this route decides, and the pinned v1.18 install path,
+	// v1.18 --profile flag help, v1.19 install path and v1.19 release note
+	// establish each form. The route derives only which of the two reviewed
+	// forms one caller-declared argv literally uses; no --profile values file
+	// is ever opened.
+	result = append(result, descriptor{family: FamilyCNCF, project: "kubeedge", component: "pkg:github/kubeedge/kubeedge", ruleID: "kubeedge.keadm-init-profile-version-selector.1-18-to-1-19", from: "1.18.0", to: "1.19.0", command: exactPair(extend(cncfBase("kubeedge"), file("--keadm-init-argv"), name("--kubeedge-distribution"), boolean("--keadm-argv-complete")), "1.18.0", "1.19.0"), limit: "One caller-declared effective keadm init argv, plus explicit distribution and argv-completeness declarations only; a literal --profile version= selector is conclusive and an explicit --kubeedge-version=v1.19.0 with no --profile is a scoped PASS, while an external --profile values file, both selectors together, neither selector, shorthand spellings, option delimiters, and unresolved rendering stay UNKNOWN. The argv is never executed, no values file is opened, and wrappers, Helm values, chart defaults, runtime behavior and whole-upgrade compatibility are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cri-o", component: "pkg:github/cri-o/cri-o", ruleID: "cri-o.artifact-short-name-rejected.1-35", from: "1.34.0", to: "1.35.0", command: exactPair(extend(cncfBase("cri-o"), file("--image-status-request"), literal("--artifact-operation"), literal("named-reference-resolution")), "1.34.0", "1.35.0"), limit: "One explicitly declared named-reference resolution plan only; store contents, caller branch, ordinary images, and runtime remain unverified."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cubefs", component: "pkg:github/cubefs/cubefs", ruleID: "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2", from: "3.2.1", to: "3.3.2", command: exactPair(extend(cncfBase("cubefs"), file("--metanode-config"), literal("--phase"), literal("metanode-upgrade")), "3.2.1", "3.3.2"), limit: "One caller-supplied MetaNode configuration and planned-phase guard only; peers, the running CubeFS cluster, and whole-upgrade safety are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "the-update-framework-tuf", component: "pkg:github/theupdateframework/python-tuf", ruleID: "tuf.updater-bootstrap-keyword.6-to-7", from: "6.0.0", to: "7.0.0", command: exactPair(extend(cncfBase("the-update-framework-tuf"), file("--python-source")), "6.0.0", "7.0.0"), limit: "One conservatively bound direct tuf.ngclient.Updater call in caller-supplied Python source only; aliases, rebinding, dynamic calls, and source outside this grammar remain UNKNOWN."})
@@ -623,7 +631,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 164 {
+	if len(descriptors) != 165 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
