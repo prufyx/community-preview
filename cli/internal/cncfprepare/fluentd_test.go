@@ -133,6 +133,85 @@ func TestPrepareFluentDLiteralRejectsMissingAndWrongOuterShape(t *testing.T) {
 	}
 }
 
+func TestPrepareFluentDRubyTargetOutcomes(t *testing.T) {
+	tests := []struct {
+		name, distribution, rubyVersion string
+		includeRuby                     bool
+		state                           State
+		reason                          Reason
+	}{
+		{"official with old ruby is prepared but blocks at check time", "official_upstream", "3.1.0", true, StatePrepared, ReasonFluentDRubyTargetDeclared},
+		{"official with new ruby is prepared", "official_upstream", "3.2.0", true, StatePrepared, ReasonFluentDRubyTargetDeclared},
+		{"custom build is prepared but the rule's appliesWhen leaves it unknown at check time", "custom_build", "3.2.0", true, StatePrepared, ReasonFluentDRubyTargetDeclared},
+		{"missing ruby stays unknown", "official_upstream", "", false, StateUnknown, ReasonFluentDRubyTargetUnsupported},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			raw := []byte(`{"distribution":"` + test.distribution + `"}`)
+			if test.includeRuby {
+				raw = []byte(`{"distribution":"` + test.distribution + `","rubyVersion":"` + test.rubyVersion + `"}`)
+			}
+			prepared, err := PrepareFluentDRubyTarget(raw, "1.18.0", "1.19.3")
+			if err != nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			if prepared.State != test.state || prepared.Reason != test.reason {
+				t.Fatalf("state=%s reason=%s", prepared.State, prepared.Reason)
+			}
+			if !strings.Contains(string(prepared.CanonicalInputJSON), `"component":"pkg:github/fluent/fluentd","version":"1.19.3"`) {
+				t.Fatalf("canonical missing target component: %s", prepared.CanonicalInputJSON)
+			}
+			if test.includeRuby != strings.Contains(string(prepared.CanonicalInputJSON), `"component":"pkg:generic/ruby"`) {
+				t.Fatalf("canonical ruby-component presence mismatch: %s", prepared.CanonicalInputJSON)
+			}
+		})
+	}
+}
+
+func TestPrepareFluentDRubyTargetEmptyDeclarationStaysUnknown(t *testing.T) {
+	prepared, err := PrepareFluentDRubyTarget([]byte(`{}`), "1.18.0", "1.19.3")
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prepared.State != StateUnknown || prepared.Reason != ReasonFluentDRubyTargetUnsupported {
+		t.Fatalf("state=%s reason=%s", prepared.State, prepared.Reason)
+	}
+	if strings.Contains(string(prepared.CanonicalInputJSON), `"component":"pkg:generic/ruby"`) {
+		t.Fatal("ruby component should be absent when undeclared")
+	}
+}
+
+func TestPrepareFluentDRubyTargetRejectsMalformed(t *testing.T) {
+	for _, raw := range [][]byte{
+		[]byte(``),
+		[]byte(`{"distribution":1}`),
+		[]byte(`{"rubyVersion":1}`),
+		[]byte(`{"distribution":"official_upstream","extra":true}`),
+		[]byte(`{"distribution":"official_upstream","rubyVersion":"3.2.0","current":"{}"}`),
+		[]byte(`"scalar"`),
+	} {
+		if _, err := PrepareFluentDRubyTarget(raw, "1.18.0", "1.19.3"); err == nil {
+			t.Fatalf("accepted malformed input %s", raw)
+		}
+	}
+}
+
+func TestPrepareFluentDDispatchesByShape(t *testing.T) {
+	rubyRaw := []byte(`{"distribution":"official_upstream","rubyVersion":"3.2.0"}`)
+	prepared, err := PrepareFluentD(rubyRaw, "1.18.0", "1.19.3")
+	if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluentDRubyTargetDeclared {
+		t.Fatalf("ruby-target dispatch: prepared=%#v err=%v", prepared, err)
+	}
+	literalRaw := fluentdInput(`{"path":"plain"}`, `{"path":"plain"}`, true, true, true)
+	prepared, err = PrepareFluentD(literalRaw, FluentDFrom, FluentDTo)
+	if err != nil || prepared.State != StatePrepared || prepared.Reason != ReasonFluentDPass {
+		t.Fatalf("literal dispatch: prepared=%#v err=%v", prepared, err)
+	}
+	if _, err := PrepareFluentD([]byte(`{"unexpected":true}`), FluentDFrom, FluentDTo); err == nil {
+		t.Fatal("accepted unrecognized shape")
+	}
+}
+
 func TestPrepareFluentDLiteralRejectsMalformedSelectedJSON(t *testing.T) {
 	for _, current := range []string{`{"a":1,"a":2}`, `{"a":"#{x"}`, "{\n\"a\":1}", `{"a":"#{x\\y}"}`, `{"a":"#{x}","b":"#{y"}`, `"scalar"`} {
 		prepared, err := PrepareFluentDLiteral(fluentdInput(current, current, true, true, true), FluentDFrom, FluentDTo)

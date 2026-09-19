@@ -671,7 +671,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "cloud-custodian":
 		prepared, err = cncfprepare.PrepareCloudCustodian(raw, *from, *to)
 	case "fluentd":
-		prepared, err = cncfprepare.PrepareFluentDLiteral(raw, *from, *to)
+		prepared, err = cncfprepare.PrepareFluentD(raw, *from, *to)
 	}
 	if err != nil {
 		if *project == "linkerd" {

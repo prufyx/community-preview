@@ -69,6 +69,46 @@ for the exact single-quote wrapper around the unchanged current literal.
 This does not parse a Fluentd file, Ruby, interpolation, plugins, or runtime
 behavior. Use the private-copy walkthrough in
 [`examples/cncf/fluentd-literal-treatment`](../examples/cncf/fluentd-literal-treatment/README.md).
+It is also reachable as a one-step native route (see "Fluentd Ruby minimum
+version" below), which dispatches the same `current`/`proposed` literal
+declaration by shape without a separate `prepare` step.
+
+## Fluentd Ruby minimum version
+
+The native Fluentd route decides whether one caller-declared proposed
+distribution and proposed Ruby version target satisfy the reviewed minimum
+Ruby requirement. It covers the reviewed `1.16.0` to `1.17.0` transition
+(Ruby `2.7.0` or newer) and, separately, the target-only `1.19.3` constraint
+(Ruby `3.2.0` or newer) from the five reviewed `1.14.6`, `1.15.3`, `1.16.11`,
+`1.17.1`, and `1.18.0` origins. It is a local usability route for the
+existing `fluentd.ruby-minimum.1-16-to-1-17` and
+`fluentd.ruby-minimum-target.*` rules; it does not add a project, rule, or
+upgrade-pair claim.
+
+```sh
+umask 077
+cat > fluentd-ruby.json <<'JSON'
+{"distribution":"official_upstream","rubyVersion":"3.2.0"}
+JSON
+chmod 600 fluentd-ruby.json
+./prufyx check cncf --project fluentd \
+  --native-resource fluentd-ruby.json \
+  --from 1.18.0 --to 1.19.3 --now 2026-09-19T00:00:00Z
+```
+
+Both the distribution and the Ruby version are separate caller declarations;
+the Ruby version is never observed from an installed interpreter, package, or
+plugin. A declared official-upstream distribution whose declared Ruby version
+is below the reviewed minimum is `BLOCKED`; a declared Ruby version at or
+above the minimum is a scoped `PASS` for this one requirement. An undeclared
+Ruby version, a `custom_build` distribution, or an unreviewed version pair all
+remain `UNKNOWN` rather than a negative-presence `PASS`.
+
+The route never installs or executes Ruby and does not resolve custom
+packaging, plugin compatibility, or runtime behavior. Pinned source evidence
+is `fluentd.gemspec` at commits `43c860907e3d`, `206b46b91560`, and
+`e763c0761c44`, and `CHANGELOG.md` at commit `e763c0761c44`. Whole-upgrade
+safety remains `UNKNOWN`.
 
 ## Harbor installer argv
 
@@ -730,6 +770,50 @@ The route never executes the installer and does not resolve a wrapper,
 environment variable, response file, chart state, or database migration.
 Pinned source evidence is `make/install.sh` at commits `6113469a5676` and
 `89ef156d09a6`. Whole-upgrade safety remains `UNKNOWN`.
+
+## OpenCost cloud-cost source selection
+
+The native OpenCost route decides whether an enabled cloud-cost migration
+away from a complete, provider-derived current source selection has a
+complete target selection with a declared-present cloud-integration
+configuration source. It covers the reviewed `1.119.0` to `1.120.0`
+transition and, separately, the target-only `1.121.2` constraint from the
+five reviewed `1.116.0`, `1.117.6`, `1.118.0`, `1.119.2`, and `1.120.4`
+origins. It is a local usability route for the existing
+`opencost.cloud-cost-source-migration.*` rules; it does not add a project,
+rule, or upgrade-pair claim. The `PrepareOpenCostCloudSource` adapter already
+existed and evaluated every one of these six pairs before this route was
+wired; only the one-step dispatch and catalog registration were added.
+
+```sh
+umask 077
+cat > opencost-source.json <<'JSON'
+{"schema":"prufyx.io/opencost-cloud-cost-source-selection/v1alpha1","current":{"cloudCostEnabled":true,"sourceSelectionComplete":true,"selectedSource":"provider_derived"},"proposed":{"cloudCostEnabled":true,"sourceSelectionComplete":true,"selectedSource":"cloud_integration","cloudIntegrationConfigSource":"present"}}
+JSON
+chmod 600 opencost-source.json
+./prufyx check cncf --project opencost \
+  --native-resource opencost-source.json \
+  --from 1.119.0 --to 1.120.0 --now 2026-09-19T00:00:00Z
+```
+
+Cloud-cost enablement, source-selection completeness, and the selected
+source kind are all separate caller declarations for both the current and
+proposed side; a declared `cloudIntegrationConfigSource: present` is not a
+filesystem observation. A complete current provider-derived selection with an
+enabled, complete proposed selection that stays `provider_derived` (declared
+config absent) is `BLOCKED`; the same shape with a declared, present
+cloud-integration file is a scoped `PASS` for this one source-kind
+constraint. Disabled collection, incomplete selections, an ambiguous
+`api_managed` source, or an unreviewed version pair all remain `UNKNOWN`
+rather than a negative-presence `PASS`.
+
+The route never opens the declared configuration file and does not resolve
+its schema, credentials, provider access, startup, or runtime behavior.
+Pinned source evidence is `pkg/cmd/costmodel/costmodel.go`,
+`pkg/costmodel/router.go`, and `pkg/cloud/config/watcher.go` at commits
+`75253e9ce35a`, `22da667c0477`, `050ce5a64364`, `faff1c39d11a`,
+`37e08c6365d0`, `8572a23ed7d9`, `1741baaf3682`, and `e22df84a4fb1`.
+Whole-upgrade safety remains `UNKNOWN`.
 
 ## Envoy direct V2 transport blocker
 

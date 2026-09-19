@@ -16,6 +16,11 @@ const (
 	FluentDCompleteFact = "component.fluentd.selected_value_complete"
 	FluentDDefaultFact  = "component.fluentd.current_default_used"
 	FluentDPreserveFact = "component.fluentd.preserve_literal_treatment"
+
+	FluentDRubyComponent        = "pkg:generic/ruby"
+	FluentDDistributionFact     = "component.fluentd.distribution"
+	FluentDDistributionOfficial = "official_upstream"
+	FluentDDistributionCustom   = "custom_build"
 )
 
 const (
@@ -24,7 +29,108 @@ const (
 	ReasonFluentDIncomplete  Reason = "FLUENTD_LITERAL_DECLARATION_INCOMPLETE"
 	ReasonFluentDUnsupported Reason = "FLUENTD_LITERAL_DECLARATION_UNSUPPORTED"
 	ReasonFluentDPair        Reason = "FLUENTD_UNSUPPORTED_VERSION_PAIR"
+
+	ReasonFluentDRubyTargetDeclared    Reason = "FLUENTD_RUBY_TARGET_DECLARED"
+	ReasonFluentDRubyTargetUnsupported Reason = "FLUENTD_RUBY_TARGET_UNSUPPORTED"
 )
+
+// PrepareFluentD dispatches a raw caller declaration to the matching Fluentd
+// adapter by input shape. The literal-treatment declaration always carries
+// "current"/"proposed" keys; the Ruby-minimum-target declaration only ever
+// carries "distribution" and/or "rubyVersion".
+func PrepareFluentD(raw []byte, from, to string) (Prepared, error) {
+	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) {
+		return Prepared{}, ErrInvalid
+	}
+	value, err := decodeStrict(raw)
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return Prepared{}, ErrInvalid
+	}
+	_, hasCurrent := object["current"]
+	_, hasProposed := object["proposed"]
+	_, hasDistribution := object["distribution"]
+	_, hasRubyVersion := object["rubyVersion"]
+	if !hasCurrent && !hasProposed && (hasDistribution || hasRubyVersion) {
+		return PrepareFluentDRubyTarget(raw, from, to)
+	}
+	return PrepareFluentDLiteral(raw, from, to)
+}
+
+// PrepareFluentDRubyTarget accepts a caller declaration of the proposed
+// Fluentd distribution and the operator's own proposed Ruby version target.
+// It does not observe an installed Ruby interpreter, package, or plugin; the
+// Ruby version is an operator declaration for the already-reviewed minimum
+// Ruby requirement rules, never inferred from any environment or runtime.
+func PrepareFluentDRubyTarget(raw []byte, from, to string) (Prepared, error) {
+	if len(raw) == 0 || len(raw) > maxInputBytes || !utf8.Valid(raw) || !validVersionSyntax(from) || !validVersionSyntax(to) || from == to {
+		return Prepared{}, ErrInvalid
+	}
+	value, err := decodeStrict(raw)
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	object, ok := value.(map[string]any)
+	if !ok || allowFields(object, map[string]bool{"distribution": true, "rubyVersion": true}) != nil {
+		return Prepared{}, ErrInvalid
+	}
+	distribution, distributionPresent := "", false
+	if v, exists := object["distribution"]; exists {
+		text, ok := v.(string)
+		if !ok {
+			return Prepared{}, ErrInvalid
+		}
+		distribution, distributionPresent = text, true
+	}
+	rubyVersion, rubyPresent := "", false
+	if v, exists := object["rubyVersion"]; exists {
+		text, ok := v.(string)
+		if !ok {
+			return Prepared{}, ErrInvalid
+		}
+		rubyVersion, rubyPresent = text, true
+	}
+	validDistribution := distributionPresent && (distribution == FluentDDistributionOfficial || distribution == FluentDDistributionCustom)
+	validRuby := rubyPresent && validVersionSyntax(rubyVersion)
+	fact := inputFact{ID: FluentDDistributionFact, State: "unsupported"}
+	if validDistribution {
+		fact = inputFact{ID: FluentDDistributionFact, State: "declared", EnumValue: distribution}
+	}
+	proposed := make([]inputComponent, 0, 2)
+	if validRuby {
+		proposed = append(proposed, inputComponent{Component: FluentDRubyComponent, Version: rubyVersion, Facts: []inputFact{}})
+	}
+	proposed = append(proposed, inputComponent{Component: FluentDComponent, Version: to, Facts: []inputFact{fact}})
+	state, reason := StateUnknown, ReasonFluentDRubyTargetUnsupported
+	if validDistribution && validRuby {
+		state, reason = StatePrepared, ReasonFluentDRubyTargetDeclared
+	}
+	canonical, err := marshalFluentDRubyTarget(from, proposed)
+	if err != nil {
+		return Prepared{}, ErrInvalid
+	}
+	return Prepared{CanonicalInputJSON: canonical, SourceDigest: digestBytes(raw), InputDigest: digestBytes(canonical), State: state, Reason: reason, Omissions: []string{
+		"RUBY_VERSION_IS_CALLER_DECLARED_NOT_OBSERVED",
+		"CUSTOM_PACKAGING_PLUGINS_AND_RUNTIME_BEHAVIOR_NOT_VERIFIED",
+	}}, nil
+}
+
+func marshalFluentDRubyTarget(from string, proposed []inputComponent) ([]byte, error) {
+	input := inputEnvelope{
+		Schema:    InputSchema,
+		Authority: InputAuthority,
+		Current:   inputSide{Components: []inputComponent{{Component: FluentDComponent, Version: from, Facts: []inputFact{}}}},
+		Proposed:  inputSide{Components: proposed},
+	}
+	compact, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	return append(compact, '\n'), nil
+}
 
 // PrepareFluentDLiteral accepts a deliberately small declaration around two
 // selected classic-config literal values. It does not parse a Fluentd file or
