@@ -815,6 +815,187 @@ Pinned source evidence is `pkg/cmd/costmodel/costmodel.go`,
 `37e08c6365d0`, `8572a23ed7d9`, `1741baaf3682`, and `e22df84a4fb1`.
 Whole-upgrade safety remains `UNKNOWN`.
 
+## Cloud Custodian removed IAM access-key json-diff filter
+
+The native Cloud Custodian route decides whether one caller-selected,
+complete policy document containing exactly one `iam-access-key`-resource
+policy directly declares the removed `json-diff` revision filter. It covers
+the reviewed `0.9.50` to `0.9.51` transition and, separately, the
+target-only `0.9.52` constraint from the five reviewed `0.9.47`, `0.9.48`,
+`0.9.49`, `0.9.50`, and `0.9.51` origins. It is a local usability route for
+the existing `cloud-custodian.iam-access-key-json-diff-*` rules; it does not
+add a project, rule, or upgrade-pair claim. The `PrepareCloudCustodian`
+adapter already existed and evaluated every one of these six pairs via the
+two-step `prepare`/`check` path before this route was wired; only the
+one-step dispatch and catalog registration were added.
+
+```sh
+umask 077
+cat > cloud-custodian-policy.json <<'JSON'
+{"policies":[{"name":"private-policy","resource":"iam-access-key","filters":[{"type":"json-diff","selector":"previous"}]}]}
+JSON
+chmod 600 cloud-custodian-policy.json
+./prufyx check cncf --project cloud-custodian \
+  --native-resource cloud-custodian-policy.json \
+  --from 0.9.50 --to 0.9.51 --now 2026-09-19T00:00:00Z
+```
+
+A policy whose single filters list contains exactly one recognized
+`json-diff` filter is `BLOCKED`; an empty filters list on the same
+resource-typed policy is a scoped `PASS`. Root-level variables or includes,
+any other filter, multiple policies, or an unreviewed version pair all
+remain `UNKNOWN` rather than a negative-presence `PASS`. The route never
+resolves variables, includes, dynamic resource selection, or AWS API
+execution. Pinned source evidence is `c7n/resources/iam.py` and
+`c7n/filters/revisions.py`. Whole-upgrade safety remains `UNKNOWN`.
+
+## Argo CD Helm 4 plain-HTTP OCI repository
+
+The native Argo CD repository route decides whether one caller-selected,
+pre-apply `stringData` repository `Secret` with `type: helm` and
+`enableOCI: "true"` is unusable under the reviewed Helm 4 plain-HTTP
+boundary: an insecure OCI registry needs an explicit `insecureOCIForceHttp`
+declaration, and Helm 4 now also honors `insecure`. It covers the five
+reviewed `3.0.23`, `3.1.16`, `3.2.12`, `3.3.14`, and `3.4.8` origins to
+`3.5.2`. It is a local usability route for the existing
+`argo-cd.plain-http-oci-repository-helm4.*` rules; it does not add a
+project, rule, or upgrade-pair claim. The `PrepareArgoCDLatestRepository`
+adapter already existed and evaluated all five origins via the two-step
+`prepare`/`check` path before this route was wired; only the one-step
+dispatch and catalog registration were added.
+
+```sh
+umask 077
+cat > argocd-repository-secret.json <<'JSON'
+{"apiVersion":"v1","kind":"Secret","metadata":{"name":"private-repository","labels":{"argocd.argoproj.io/secret-type":"repository"}},"stringData":{"type":"helm","enableOCI":"true","url":"charts.example.invalid/team","insecureOCIForceHttp":"false","insecure":"false"}}
+JSON
+chmod 600 argocd-repository-secret.json
+./prufyx check cncf --project argo-cd \
+  --repository-secret argocd-repository-secret.json \
+  --from 3.4.8 --to 3.5.2 \
+  --repository-distribution official_upstream --repository-settings-resolved true --repository-uses-plain-http true \
+  --now 2026-09-19T00:00:00Z
+```
+
+Distribution, settings-resolved, and plain-HTTP are all separate operator
+declarations; a scoped result additionally requires the official
+distribution, resolved settings, and a declared plain-HTTP selection. A
+`type: helm` repository with OCI enabled and neither `insecureOCIForceHttp`
+nor `insecure` set to permit plain HTTP is `BLOCKED`; the same repository
+with `insecureOCIForceHttp: "true"` is a scoped `PASS`. A non-`helm` type,
+disabled OCI, a missing guard declaration, or an unreviewed origin all
+remain `UNKNOWN` rather than a negative-presence `PASS`. The route never
+resolves Secret values, names, URLs, credentials, repository connectivity,
+or Helm execution. Pinned source evidence is `util/helm/client.go`,
+`pkg/apis/application/v1alpha1/repository_types.go`,
+`util/db/repository_secrets.go`, and `util/db/secrets.go`. Whole-upgrade
+safety remains `UNKNOWN`.
+
+## Linkerd mTLS identity-selector cardinality
+
+The native Linkerd route derives whether a proposed
+`policy.linkerd.io/v1alpha1` `MeshTLSAuthentication` resource declares an
+empty `identities` or `identityRefs` selector for the reviewed `2.13.7` to
+`2.14.0` transition. It is a local usability route for the existing
+`linkerd.mtls-identity-selector-minitems.2-13-2-14` rule; it does not add a
+project, rule, or upgrade-pair claim. The `PrepareLinkerd` adapter already
+existed and evaluated this pair via the two-step `prepare`/`check` path
+before this route was wired; only the one-step dispatch and catalog
+registration were added.
+
+```sh
+umask 077
+cat > linkerd-meshtls.json <<'JSON'
+{"apiVersion":"policy.linkerd.io/v1alpha1","kind":"MeshTLSAuthentication","metadata":{"name":"private","namespace":"private"},"spec":{"identities":[]}}
+JSON
+chmod 600 linkerd-meshtls.json
+./prufyx check cncf --project linkerd \
+  --linkerd-resource linkerd-meshtls.json \
+  --from 2.13.7 --to 2.14.0 \
+  --linkerd-distribution official_upstream --schema-validation required \
+  --now 2026-09-19T00:00:00Z
+```
+
+An empty `identities` (or `identityRefs`) array is `BLOCKED`; a nonempty
+array is a scoped `PASS`. Both selectors declared together, neither
+selector present, or an unreviewed version pair all remain `UNKNOWN` rather
+than a negative-presence `PASS`. The route never parses a CRD schema, calls
+API admission, or inspects stored objects. Pinned source evidence is
+`charts/linkerd-crds/templates/policy/meshtls-authentication.yaml`.
+Whole-upgrade safety remains `UNKNOWN`.
+
+## Karmada removed legacy application purgeMode values
+
+The native Karmada route witnesses a removed legacy `purgeMode` value
+(`Immediately` or `Graciously`) at
+`spec.failover.application.purgeMode` on one proposed `PropagationPolicy` or
+`ClusterPropagationPolicy` resource for the reviewed `1.18.3` to `1.19.0`
+transition. It is a local usability route for the existing
+`karmada.application-purge-mode-legacy-values-removed.1-19` rule; it does
+not add a project, rule, or upgrade-pair claim. The `PrepareKarmada` adapter
+already existed and evaluated this pair via the two-step `prepare`/`check`
+path before this route was wired; only the one-step dispatch and catalog
+registration were added.
+
+```sh
+umask 077
+cat > karmada-policy.json <<'JSON'
+{"apiVersion":"policy.karmada.io/v1alpha1","kind":"PropagationPolicy","metadata":{"name":"private"},"spec":{"failover":{"application":{"purgeMode":"Immediately"}}}}
+JSON
+chmod 600 karmada-policy.json
+./prufyx check cncf --project karmada \
+  --karmada-resource karmada-policy.json \
+  --from 1.18.3 --to 1.19.0 \
+  --karmada-distribution official_upstream --target-policy-crd-admission required \
+  --now 2026-09-19T00:00:00Z
+```
+
+`Immediately` or `Graciously` is a conclusive `BLOCKED` witness. Every other
+observed value, a missing `purgeMode`, or an unreviewed version pair remains
+`UNKNOWN`: the adapter can witness a legacy value but never proves its
+absence across every proposed resource, so this route never emits `PASS`.
+The route never validates a CRD schema, calls API admission, or inspects
+stored objects. Pinned source evidence is
+`pkg/apis/policy/v1alpha1/propagation_types.go` and
+`pkg/util/validation/validation.go`. Whole-upgrade safety remains `UNKNOWN`.
+
+## Cilium nonempty fromRequires/toRequires removal
+
+The native Cilium policy route witnesses a nonempty `fromRequires` or
+`toRequires` selector on one proposed `CiliumNetworkPolicy`,
+`CiliumClusterwideNetworkPolicy`, or flat `v1`/typed list, for the reviewed
+`1.18.6` to `1.19.0` legacy pair and, separately, the target-only `1.19.7`
+constraint from the `1.18.13` origin. It is a local usability route for the
+existing `cilium.nonempty-requires-rejected.1-19` and
+`cilium.nonempty-requires-crd-maxitems.1-18-13-to-1-19-7` rules; it does not
+add a project, rule, or upgrade-pair claim. The `PrepareCilium` adapter
+already existed and evaluated both pairs via the two-step `prepare`/`check`
+path before this route was wired; only the one-step dispatch and catalog
+registration were added.
+
+```sh
+umask 077
+cat > cilium-policy.json <<'JSON'
+{"apiVersion":"cilium.io/v2","kind":"CiliumNetworkPolicy","metadata":{"name":"private"},"spec":{"ingress":[{"fromRequires":[{}]}]}}
+JSON
+chmod 600 cilium-policy.json
+./prufyx check cncf --project cilium \
+  --cilium-policy cilium-policy.json \
+  --from 1.18.6 --to 1.19.0 \
+  --now 2026-09-19T00:00:00Z
+```
+
+A nonempty `fromRequires`/`toRequires` entry anywhere in the selected
+document is a conclusive `BLOCKED` witness. An empty selector is a scoped
+`PASS` only when the caller also declares `--complete-cnp-ccnp-set true`
+for the one selected CNP/CCNP set; without that declaration, or with a
+partial `List` (a `continue` token or positive `remainingItemCount`), the
+result stays `UNKNOWN` rather than a negative-presence `PASS`. The adapter
+never discovers set completeness from a cluster; that declaration is always
+an operator guard. Pinned source evidence is
+`Documentation/operations/upgrade.rst`. Whole-upgrade safety remains
+`UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing

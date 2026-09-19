@@ -96,20 +96,22 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The fifty-five documented scenario examples are:
+The fifty-seven documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
 | Argo Workflows | 3.5.0 → 3.6.0 and five exact origins → 4.1.3 check the server `--basehref` to `--base-href` rename | native exact-image Kubernetes Deployment JSON with complete selected argv |
 | Argo CD | 2.14.0 → 3.0.0 preserves declared v2 visibility; five exact origins → 3.5.2 check one selected Helm OCI repository | complete, precedence-resolved private ConfigMap or pre-apply repository Secret with explicit plain-HTTP intent and route guards |
 | Ceph | Quincy 17.2.7 → Reef 18.2.0 rejects a selected current FileStore OSD | private native per-OSD metadata JSON output |
-| Cloud Custodian | 0.9.50 → 0.9.51 removes the selected IAM access-key `json-diff` policy filter | private policy JSON |
+| Cloud Custodian | 0.9.50 → 0.9.51 and five exact origins → 0.9.52 remove the selected IAM access-key `json-diff` policy filter | private policy JSON |
 | CloudNativePG | 1.29.0 → 1.30.0 cluster reference must remain immutable | paired Kubernetes JSON objects |
 | MetalLB | 0.12.1 → 0.13.2 legacy ConfigMap configuration is removed | ConfigMap or reviewed CR JSON |
 | NATS | 2.10.0 → 2.11.0 and five exact origins → 2.14.6 reject ASCII spaces in supplied selected names | native JSON configuration subset |
 | Contour | 1.19.0 → 1.20.0 selected `networking.x-k8s.io/v1alpha1` resources need explicit migration | Kubernetes resource JSON |
 | CNI | spec 0.4.0 → 1.0.0 removes non-List configuration | plugin configuration JSON |
-| Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON |
+| Cilium | 1.16.19 → 1.17.18 rejects an invalid effective ConfigMap cluster name; 1.18.6 → 1.19.0 and 1.18.13 → 1.19.7 witness a nonempty `fromRequires`/`toRequires` selector | complete, precedence-resolved official-upstream v1 ConfigMap YAML or JSON, or one selected CiliumNetworkPolicy/CiliumClusterwideNetworkPolicy (or flat list) with an explicit policy-set completeness declaration |
+| Linkerd | 2.13.7 → 2.14.0 derives empty-selector state for a proposed MeshTLSAuthentication | proposed MeshTLSAuthentication JSON with declared distribution and schema-validation intent |
+| Karmada | 1.18.3 → 1.19.0 witnesses a removed legacy `purgeMode` value on a proposed policy | proposed PropagationPolicy/ClusterPropagationPolicy JSON with declared distribution and target-policy-CRD-admission intent |
 | CoreDNS | 1.6.9 → 1.7.0 and five exact origins → 1.14.7 reject the removed `federation` directive | complete Corefile with declared official distribution |
 | Flux | 2.6.4 → 2.7.0 and five exact origins → 2.9.5 detect removed beta CRD API versions | native rendered resource JSON object, or one flat `v1` List, with an explicit selected-scope-complete declaration |
 | Envoy | 1.38.4 → 1.39.1 blocks direct V2 xDS transport API versions at the selected ADS, LDS, or CDS paths | directly loaded JSON bootstrap selected by the caller; this route has no native PASS |
@@ -157,7 +159,7 @@ The fifty-five documented scenario examples are:
 | Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, KEDA, Kuma, Kyverno, OpenCost, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
+Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, Karmada, KEDA, Kuma, Kyverno, Linkerd, OpenCost, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
