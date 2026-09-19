@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 136)
+	result := make([]descriptor, 0, 143)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -327,6 +327,19 @@ func descriptorSet() []descriptor {
 	}
 	for _, pair := range harborChartMuseumPairs {
 		result = append(result, descriptor{family: FamilyCNCF, project: "harbor", component: "pkg:github/goharbor/harbor", ruleID: pair.id, from: pair.from, to: "2.15.2", command: exactPair(harborNativeBase, pair.from, "2.15.2"), limit: "One caller-declared complete literal make/install.sh argv only; the installer is never executed, and wrapper, environment, response-file, chart, and database state are unassessed."})
+	}
+	fluentDNativeBase := extend(cncfBase("fluentd"), file("--native-resource"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "fluentd", component: "pkg:github/fluent/fluentd", ruleID: "fluentd.z-literal-treatment.1-17-1-to-1-18-0", from: "1.17.1", to: "1.18.0", command: exactPair(fluentDNativeBase, "1.17.1", "1.18.0"), limit: "One paired current/proposed selected classic-config literal declaration with completeness, current-default, and preservation guards only; Ruby, interpolation, plugins, and runtime behavior are unassessed."})
+	result = append(result, descriptor{family: FamilyCNCF, project: "fluentd", component: "pkg:github/fluent/fluentd", ruleID: "fluentd.ruby-minimum.1-16-to-1-17", from: "1.16.0", to: "1.17.0", command: exactPair(fluentDNativeBase, "1.16.0", "1.17.0"), limit: "One caller-declared proposed distribution and proposed Ruby version target only; no Ruby interpreter, package, plugin, or runtime is observed."})
+	fluentDRubyTargetPairs := []struct{ from, id string }{
+		{"1.14.6", "fluentd.ruby-minimum-target.1-14-6-to-1-19-3"},
+		{"1.15.3", "fluentd.ruby-minimum-target.1-15-3-to-1-19-3"},
+		{"1.16.11", "fluentd.ruby-minimum-target.1-16-11-to-1-19-3"},
+		{"1.17.1", "fluentd.ruby-minimum-target.1-17-1-to-1-19-3"},
+		{"1.18.0", "fluentd.ruby-minimum-target.1-18-0-to-1-19-3"},
+	}
+	for _, pair := range fluentDRubyTargetPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "fluentd", component: "pkg:github/fluent/fluentd", ruleID: pair.id, from: pair.from, to: "1.19.3", command: exactPair(fluentDNativeBase, pair.from, "1.19.3"), limit: "One caller-declared proposed distribution and proposed Ruby version target only; no Ruby interpreter, package, plugin, or runtime is observed."})
 	}
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
@@ -552,7 +565,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 136 {
+	if len(descriptors) != 143 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

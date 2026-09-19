@@ -69,6 +69,46 @@ for the exact single-quote wrapper around the unchanged current literal.
 This does not parse a Fluentd file, Ruby, interpolation, plugins, or runtime
 behavior. Use the private-copy walkthrough in
 [`examples/cncf/fluentd-literal-treatment`](../examples/cncf/fluentd-literal-treatment/README.md).
+It is also reachable as a one-step native route (see "Fluentd Ruby minimum
+version" below), which dispatches the same `current`/`proposed` literal
+declaration by shape without a separate `prepare` step.
+
+## Fluentd Ruby minimum version
+
+The native Fluentd route decides whether one caller-declared proposed
+distribution and proposed Ruby version target satisfy the reviewed minimum
+Ruby requirement. It covers the reviewed `1.16.0` to `1.17.0` transition
+(Ruby `2.7.0` or newer) and, separately, the target-only `1.19.3` constraint
+(Ruby `3.2.0` or newer) from the five reviewed `1.14.6`, `1.15.3`, `1.16.11`,
+`1.17.1`, and `1.18.0` origins. It is a local usability route for the
+existing `fluentd.ruby-minimum.1-16-to-1-17` and
+`fluentd.ruby-minimum-target.*` rules; it does not add a project, rule, or
+upgrade-pair claim.
+
+```sh
+umask 077
+cat > fluentd-ruby.json <<'JSON'
+{"distribution":"official_upstream","rubyVersion":"3.2.0"}
+JSON
+chmod 600 fluentd-ruby.json
+./prufyx check cncf --project fluentd \
+  --native-resource fluentd-ruby.json \
+  --from 1.18.0 --to 1.19.3 --now 2026-09-19T00:00:00Z
+```
+
+Both the distribution and the Ruby version are separate caller declarations;
+the Ruby version is never observed from an installed interpreter, package, or
+plugin. A declared official-upstream distribution whose declared Ruby version
+is below the reviewed minimum is `BLOCKED`; a declared Ruby version at or
+above the minimum is a scoped `PASS` for this one requirement. An undeclared
+Ruby version, a `custom_build` distribution, or an unreviewed version pair all
+remain `UNKNOWN` rather than a negative-presence `PASS`.
+
+The route never installs or executes Ruby and does not resolve custom
+packaging, plugin compatibility, or runtime behavior. Pinned source evidence
+is `fluentd.gemspec` at commits `43c860907e3d`, `206b46b91560`, and
+`e763c0761c44`, and `CHANGELOG.md` at commit `e763c0761c44`. Whole-upgrade
+safety remains `UNKNOWN`.
 
 ## Harbor installer argv
 

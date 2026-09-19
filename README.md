@@ -128,7 +128,7 @@ The fifty-five documented scenario examples are:
 | Distribution | 2.8.3 → 3.0.0 removes schema 1 manifests | manifest JSON |
 | Emissary-Ingress | 3.10.0 → 4.0.1 removes `diagd --metrics-endpoint` | caller-selected argv JSON |
 | Fluent Bit | 3.2.0 → 4.0.0 requires an intended OpenTelemetry HTTP/2 setting to stay enabled | complete classic configuration plus current-default and preservation declarations |
-| Fluentd | 1.17.1 → 1.18.0 changes treatment of one selected unquoted interpolation marker | paired literal JSON declaration with completeness, current-default, and preservation guards |
+| Fluentd | 1.17.1 → 1.18.0 changes treatment of one selected unquoted interpolation marker; 1.16.0 → 1.17.0 and five exact origins → 1.19.3 require a declared minimum Ruby version for the official package | paired literal JSON declaration with completeness, current-default, and preservation guards, or a declared proposed distribution and proposed Ruby version target |
 | Grafana | 10.4.0 → 11.0.0 rejects explicit legacy alerting enablement | complete, precedence-resolved `grafana.ini` |
 | Harbor | 2.7.0 → 2.8.0 removes the installer `--with-chartmuseum` option | caller-declared complete literal installer argv JSON |
 | Kibana | 8.18.0 → 9.0.0 removes `xpack.reporting.roles.allow` | complete, precedence-resolved `kibana.yml` |
@@ -157,7 +157,7 @@ The fifty-five documented scenario examples are:
 | Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, etcd, Falco, Harbor, Jaeger, KEDA, Kuma, Kyverno, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
+Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, KEDA, Kuma, Kyverno, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
