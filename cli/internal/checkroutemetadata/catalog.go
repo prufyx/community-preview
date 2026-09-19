@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 149)
+	result := make([]descriptor, 0, 155)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -347,6 +347,22 @@ func descriptorSet() []descriptor {
 	for _, from := range opencostLatestOrigins {
 		result = append(result, descriptor{family: FamilyCNCF, project: "opencost", component: "pkg:github/opencost/opencost", ruleID: "opencost.cloud-cost-source-migration." + strings.ReplaceAll(from, ".", "-") + "-to-1-121-2", from: from, to: "1.121.2", command: exactPair(opencostNativeBase, from, "1.121.2"), limit: "One caller-declared current and proposed cloud-cost source selection only; file contents, credentials, provider access, and runtime behavior are unassessed."})
 	}
+	// Cloud Custodian: PrepareCloudCustodian already has a working single-step
+	// native input route (wired here); it already handled all six reviewed
+	// rule pairs via the two-step prepare/check flow before this route existed.
+	cloudCustodianNativeBase := extend(cncfBase("cloud-custodian"), file("--native-resource"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "cloud-custodian", component: "pkg:github/cloud-custodian/cloud-custodian", ruleID: "cloud-custodian.iam-access-key-json-diff-removed.0-9-50-to-0-9-51", from: "0.9.50", to: "0.9.51", command: exactPair(cloudCustodianNativeBase, "0.9.50", "0.9.51"), limit: "One caller-selected complete JSON policy document with exactly one iam-access-key resource-typed policy only; variables, includes, dynamic resource selection, AWS API execution, and whole-upgrade compatibility are unassessed."})
+	cloudCustodianLatestOriginPairs := []struct{ from, id string }{
+		{"0.9.47", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-47-to-0-9-52"},
+		{"0.9.48", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-48-to-0-9-52"},
+		{"0.9.49", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-49-to-0-9-52"},
+		{"0.9.50", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-50-to-0-9-52"},
+		{"0.9.51", "cloud-custodian.iam-access-key-json-diff-rejected.0-9-51-to-0-9-52"},
+	}
+	for _, pair := range cloudCustodianLatestOriginPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "cloud-custodian", component: "pkg:github/cloud-custodian/cloud-custodian", ruleID: pair.id, from: pair.from, to: "0.9.52", command: exactPair(cloudCustodianNativeBase, pair.from, "0.9.52"), limit: "One caller-selected complete JSON policy document with exactly one iam-access-key resource-typed policy only; variables, includes, dynamic resource selection, AWS API execution, and whole-upgrade compatibility are unassessed."})
+	}
+
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
 	grafanaBase := extend(projectBase("grafana"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"))
@@ -571,7 +587,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 149 {
+	if len(descriptors) != 155 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
