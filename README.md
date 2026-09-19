@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The fifty-eight documented scenario examples are:
+The fifty-nine documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -122,6 +122,7 @@ The fifty-eight documented scenario examples are:
 | SPIRE | 1.10.4 → 1.11.0 removes the `spire-server entry create` `-ttl` and `--ttl` options | caller-declared explicit effective `spire-server entry create` argv JSON with declared distribution |
 | etcd | 3.5.17 → 3.6.0 removes eight v2/proxy options; five exact origins → 3.7.1 reject the finite documented 3.7-removed experimental flag names | caller-declared, complete, direct effective etcd argv JSON in strict `--name=value` form |
 | Kyverno | 1.12.5 → 1.13.0 removes `reportsChunkSize`; five exact origins → 1.19.1 check the same target-only constraint | one caller-selected container's bare literal `reports-controller` command with declared distribution |
+| Tekton Pipelines | 1.9.0 → 1.10.0 requires the new `metrics-protocol: prometheus` key once the removed OpenCensus `metrics.backend-destination` key is no longer parsed | complete effective `config-observability` v1 ConfigMap YAML or JSON with declared distribution, system namespace, and Prometheus-retention intent |
 | KubeEdge | 1.18.0 → 1.19.0 replaces the legacy `keadm init --profile version=<version>` selector with `--kubeedge-version` | caller-declared explicit effective `keadm init` argv JSON with declared distribution and argv-completeness |
 | Jaeger | 1.76.0 → 2.20.0 and five exact origins → 2.20.0 require an explicit `--config` selection when non-memory storage and the official distribution are both declared | caller-declared direct Jaeger v2 invocation JSON with an explicit `--config=value` argv and declared storage/distribution facts |
 | Harbor | 2.7.0 → 2.8.0 and five exact origins → 2.15.2 reject the removed docker-compose installer `--with-chartmuseum` option | caller-declared, complete, literal `make/install.sh` argv JSON with a declared-effective flag |
@@ -160,7 +161,7 @@ The fifty-eight documented scenario examples are:
 | Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, Karmada, KEDA, KubeEdge, Kuma, Kyverno, Linkerd, OpenCost, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
+Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, Karmada, KEDA, KubeEdge, Kuma, Kyverno, Linkerd, OpenCost, Prometheus, SPIRE, Strimzi, Tekton, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
