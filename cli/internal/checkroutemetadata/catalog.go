@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 161)
+	result := make([]descriptor, 0, 162)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -541,6 +541,11 @@ func descriptorSet() []descriptor {
 	// route (wired here); it already evaluated the 2.13.7 -> 2.14.0 pair via
 	// the two-step prepare/check flow before this route existed.
 	result = append(result, descriptor{family: FamilyCNCF, project: "linkerd", component: "pkg:github/linkerd/linkerd2", ruleID: "linkerd.mtls-identity-selector-minitems.2-13-2-14", from: "2.13.7", to: "2.14.0", command: exactPair(extend(cncfBase("linkerd"), file("--linkerd-resource"), name("--linkerd-distribution"), name("--schema-validation")), "2.13.7", "2.14.0"), limit: "One caller-selected proposed MeshTLSAuthentication resource, plus explicit distribution and schema-validation declarations only; selector cardinality is derived from the resource, but CRD schema validation, cluster admission, and whole-upgrade compatibility are unassessed."})
+
+	// Karmada: PrepareKarmada already has a working single-step native input
+	// route (wired here); it already evaluated the 1.18.3 -> 1.19.0 pair via
+	// the two-step prepare/check flow before this route existed.
+	result = append(result, descriptor{family: FamilyCNCF, project: "karmada", component: "pkg:github/karmada-io/karmada", ruleID: "karmada.application-purge-mode-legacy-values-removed.1-19", from: "1.18.3", to: "1.19.0", command: exactPair(extend(cncfBase("karmada"), file("--karmada-resource"), name("--karmada-distribution"), name("--target-policy-crd-admission")), "1.18.3", "1.19.0"), limit: "One caller-selected proposed PropagationPolicy or ClusterPropagationPolicy resource, plus explicit distribution and target-policy-CRD-admission declarations only; a legacy witness is conclusive, but absence across all proposed resources is never proven, and CRD schema, cluster admission, and whole-upgrade compatibility are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cri-o", component: "pkg:github/cri-o/cri-o", ruleID: "cri-o.artifact-short-name-rejected.1-35", from: "1.34.0", to: "1.35.0", command: exactPair(extend(cncfBase("cri-o"), file("--image-status-request"), literal("--artifact-operation"), literal("named-reference-resolution")), "1.34.0", "1.35.0"), limit: "One explicitly declared named-reference resolution plan only; store contents, caller branch, ordinary images, and runtime remain unverified."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cubefs", component: "pkg:github/cubefs/cubefs", ruleID: "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2", from: "3.2.1", to: "3.3.2", command: exactPair(extend(cncfBase("cubefs"), file("--metanode-config"), literal("--phase"), literal("metanode-upgrade")), "3.2.1", "3.3.2"), limit: "One caller-supplied MetaNode configuration and planned-phase guard only; peers, the running CubeFS cluster, and whole-upgrade safety are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "the-update-framework-tuf", component: "pkg:github/theupdateframework/python-tuf", ruleID: "tuf.updater-bootstrap-keyword.6-to-7", from: "6.0.0", to: "7.0.0", command: exactPair(extend(cncfBase("the-update-framework-tuf"), file("--python-source")), "6.0.0", "7.0.0"), limit: "One conservatively bound direct tuf.ngclient.Updater call in caller-supplied Python source only; aliases, rebinding, dynamic calls, and source outside this grammar remain UNKNOWN."})
@@ -608,7 +613,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 161 {
+	if len(descriptors) != 162 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
