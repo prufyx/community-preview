@@ -694,6 +694,43 @@ evidence is `cmd/jaeger/internal/command.go` and
 `cmd/jaeger/internal/all-in-one.yaml` at commit `798e4b0fcf22`, and `go.mod`
 at the same commit. Whole-upgrade safety remains `UNKNOWN`.
 
+## Harbor removed installer --with-chartmuseum flag
+
+The native Harbor route decides whether one caller-declared, complete,
+literal `make/install.sh` argv contains the removed docker-compose installer
+`--with-chartmuseum` option. It covers the reviewed `2.7.0` to `2.8.0`
+transition and, separately, the target-only `2.15.2` constraint from the
+five reviewed `2.10.3`, `2.11.2`, `2.12.4`, `2.13.5`, and `2.14.4` origins.
+It is a local usability route for the existing
+`harbor.installer-with-chartmuseum-flag-removed.*` rules; it does not add a
+project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > harbor-argv.json <<'JSON'
+{"apiVersion":"prufyx.io/harbor-installer-argv/v1alpha1","kind":"HarborInstallerArguments","effectiveArgvDeclared":true,"argv":["--with-chartmuseum"]}
+JSON
+chmod 600 harbor-argv.json
+./prufyx check cncf --project harbor \
+  --native-resource harbor-argv.json \
+  --from 2.7.0 --to 2.8.0 --now 2026-09-18T00:00:00Z
+```
+
+The adapter models no Harbor option table: it recognizes only the finite
+reviewed no-value literal installer options (`--with-trivy`, and, only for
+the exact target of each pair, `--with-notary` and `--with-clair`) plus
+`--with-chartmuseum`, and otherwise treats every other flag-shaped argument,
+`--help`, a duplicate option, or `effectiveArgvDeclared: false` as
+unsupported rather than guessing its behavior. A fully modeled argv without
+`--with-chartmuseum` is a scoped `PASS`; the installer is never executed, so
+this witness always comes from the complete declared argv, never from an
+unreviewed absence.
+
+The route never executes the installer and does not resolve a wrapper,
+environment variable, response file, chart state, or database migration.
+Pinned source evidence is `make/install.sh` at commits `6113469a5676` and
+`89ef156d09a6`. Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
