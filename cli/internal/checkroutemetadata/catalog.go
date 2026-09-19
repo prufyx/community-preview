@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 160)
+	result := make([]descriptor, 0, 161)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -536,6 +536,11 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "cloudnativepg", component: "pkg:github/cloudnative-pg/cloudnative-pg", ruleID: "cloudnativepg.cluster-reference-immutable.1-29-to-1-30", from: "1.29.0", to: "1.30.0", command: exactPair(extend(cncfBase("cloudnativepg"), file("--current-resource"), file("--resource")), "1.29.0", "1.30.0"), limit: "One caller-supplied current/proposed resource pair with matching identity only; admission, controller, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "kubernetes", component: "pkg:github/kubernetes/kubernetes", ruleID: "kubernetes.flowcontrol-v1beta3-removed.1-31-0-to-1-32-0", from: "1.31.0", to: "1.32.0", command: exactPair(extend(cncfBase("kubernetes"), file("--native-resource"), name("--distribution"), literal("--target-api-apply-required"), literal("--resource-scope-complete")), "1.31.0", "1.32.0"), limit: "One caller-selected complete rendered apply-set, bound to the official upstream distribution and target-apply intent only; general manifest schema, CRDs, persisted objects, runtime clients, and API server configuration are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cilium", component: "pkg:github/cilium/cilium", ruleID: "cilium.cluster-name-invalid.1-16-19-to-1-17-18", from: "1.16.19", to: "1.17.18", command: exactPair(extend(cncfBase("cilium"), file("--cilium-config-map"), name("--cilium-distribution"), literal("--cilium-config-complete"), literal("--cilium-config-precedence-resolved")), "1.16.19", "1.17.18"), limit: "One caller-selected complete, precedence-resolved official-upstream ConfigMap only; ClusterMesh, networking, name-collision, runtime, and whole-upgrade safety are unassessed."})
+
+	// Linkerd: PrepareLinkerd already has a working single-step native input
+	// route (wired here); it already evaluated the 2.13.7 -> 2.14.0 pair via
+	// the two-step prepare/check flow before this route existed.
+	result = append(result, descriptor{family: FamilyCNCF, project: "linkerd", component: "pkg:github/linkerd/linkerd2", ruleID: "linkerd.mtls-identity-selector-minitems.2-13-2-14", from: "2.13.7", to: "2.14.0", command: exactPair(extend(cncfBase("linkerd"), file("--linkerd-resource"), name("--linkerd-distribution"), name("--schema-validation")), "2.13.7", "2.14.0"), limit: "One caller-selected proposed MeshTLSAuthentication resource, plus explicit distribution and schema-validation declarations only; selector cardinality is derived from the resource, but CRD schema validation, cluster admission, and whole-upgrade compatibility are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cri-o", component: "pkg:github/cri-o/cri-o", ruleID: "cri-o.artifact-short-name-rejected.1-35", from: "1.34.0", to: "1.35.0", command: exactPair(extend(cncfBase("cri-o"), file("--image-status-request"), literal("--artifact-operation"), literal("named-reference-resolution")), "1.34.0", "1.35.0"), limit: "One explicitly declared named-reference resolution plan only; store contents, caller branch, ordinary images, and runtime remain unverified."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "cubefs", component: "pkg:github/cubefs/cubefs", ruleID: "cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2", from: "3.2.1", to: "3.3.2", command: exactPair(extend(cncfBase("cubefs"), file("--metanode-config"), literal("--phase"), literal("metanode-upgrade")), "3.2.1", "3.3.2"), limit: "One caller-supplied MetaNode configuration and planned-phase guard only; peers, the running CubeFS cluster, and whole-upgrade safety are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "the-update-framework-tuf", component: "pkg:github/theupdateframework/python-tuf", ruleID: "tuf.updater-bootstrap-keyword.6-to-7", from: "6.0.0", to: "7.0.0", command: exactPair(extend(cncfBase("the-update-framework-tuf"), file("--python-source")), "6.0.0", "7.0.0"), limit: "One conservatively bound direct tuf.ngclient.Updater call in caller-supplied Python source only; aliases, rebinding, dynamic calls, and source outside this grammar remain UNKNOWN."})
@@ -603,7 +608,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 160 {
+	if len(descriptors) != 161 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
