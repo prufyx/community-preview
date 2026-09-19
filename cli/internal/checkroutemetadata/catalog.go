@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 118)
+	result := make([]descriptor, 0, 124)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -291,6 +291,18 @@ func descriptorSet() []descriptor {
 	}
 	for _, pair := range etcdExperimentalFlagPairs {
 		result = append(result, descriptor{family: FamilyCNCF, project: "etcd", component: "pkg:github/etcd-io/etcd", ruleID: pair.id, from: pair.from, to: "3.7.1", command: exactPair(extend(cncfBase("etcd"), file("--native-resource")), pair.from, "3.7.1"), limit: "etcd 3.7 rejects only the finite reviewed removed experimental flag names, checked against one caller-declared complete direct proposed argv; unknown experimental names, indirect configuration, and the separate mandatory minor-version-skip blocker are unassessed by this route."})
+	}
+	kyvernoNativeBase := extend(cncfBase("kyverno"), file("--kyverno-resource"), name("--container"), name("--kyverno-distribution"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: "kyverno.reports-chunk-size-removed.1-13", from: "1.12.5", to: "1.13.0", command: exactPair(kyvernoNativeBase, "1.12.5", "1.13.0"), limit: "One caller-selected container's explicitly declared official-upstream bare literal reports-controller command only; image provenance, wrappers, other command surfaces, controller behavior, and whole-upgrade compatibility are unverified."})
+	kyvernoLatestReportsChunkSizePairs := []struct{ from, id string }{
+		{"1.14.5", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-14-5"},
+		{"1.15.3", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-15-3"},
+		{"1.16.4", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-16-4"},
+		{"1.17.2", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-17-2"},
+		{"1.18.2", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-18-2"},
+	}
+	for _, pair := range kyvernoLatestReportsChunkSizePairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: pair.id, from: pair.from, to: "1.19.1", command: exactPair(kyvernoNativeBase, pair.from, "1.19.1"), limit: "Target-only Kyverno 1.19.1 reportsChunkSize constraint for one caller-selected container's explicitly declared official-upstream bare reports-controller invocation; it does not identify when removal occurred, establish image provenance, inspect wrappers, or prove controller runtime or whole-upgrade safety."})
 	}
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
@@ -516,7 +528,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 118 {
+	if len(descriptors) != 124 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

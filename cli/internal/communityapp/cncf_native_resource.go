@@ -52,7 +52,7 @@ func prometheusNativeRuleID(from, to string, alertmanager bool) string {
 // making an operator save a canonical Prufyx envelope. The supplied resources
 // remain private source data; only their minimized canonical observation is
 // evaluated or persisted in a report.
-func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, kubernetesDistribution string, targetAPIApplyRequired bool, ciliumDistribution, requestedRuleID, otelGate, otelRemote string, args []string, prometheusHTTP2Required *bool) int {
+func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, currentPath, currentPin, proposedPath, proposedPin, selectedJob string, complete, precedenceResolved bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string, resourceScopeComplete bool, kubernetesDistribution string, targetAPIApplyRequired bool, ciliumDistribution, requestedRuleID, otelGate, otelRemote string, args []string, prometheusHTTP2Required *bool, kyvernoContainer string) int {
 	allowed := []string{"native-resource", "native-resource-digest"}
 	prometheusAlertmanagerMode := project == "prometheus" && anyFlagProvided(args, "alertmanager-config", "alertmanager-config-digest", "alertmanager-config-complete", "alertmanager-config-precedence-resolved")
 	prometheusRemoteWriteMode := project == "prometheus" && anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required")
@@ -94,6 +94,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		}
 	} else if project == "opentelemetry" {
 		allowed = []string{"otel-collector-config", "otel-collector-config-digest", "otel-distribution", "otel-config-complete", "otel-config-precedence-resolved", "otel-rule", "otel-metrics-localhost-default", "otel-metrics-remote-scrape-required"}
+	} else if project == "kyverno" {
+		allowed = []string{"kyverno-resource", "kyverno-resource-digest", "container", "kyverno-distribution"}
 	}
 	if from == "" || to == "" || cncfUnexpectedModeFlag(args, allowed...) {
 		return r.usage("invalid native CNCF resource check arguments; use --help")
@@ -104,12 +106,15 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry", "etcd":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry", "etcd", "kyverno":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
 		if project == "prometheus" && !prometheusAlertmanagerMode && !prometheusRemoteWriteMode && selectedJob == "" {
 			return r.usage("invalid Prometheus selected scrape configuration arguments; use --help")
+		}
+		if project == "kyverno" && kyvernoContainer == "" {
+			return r.usage("invalid Kyverno selected container arguments; use --help")
 		}
 		raw, readErr := readCNCFPrivate(nativePath, 1<<20)
 		if readErr != nil {
@@ -184,6 +189,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareEnvoyBootstrap(raw, from, to, complete)
 		} else if project == "etcd" {
 			prepared, err = cncfprepare.PrepareEtcd(raw, from, to)
+		} else if project == "kyverno" {
+			if selectedJob != "" && selectedJob != cncfprepare.KyvernoDistributionOfficial && selectedJob != cncfprepare.KyvernoDistributionCustom {
+				return r.usage("invalid Kyverno distribution; use --help")
+			}
+			prepared, err = cncfprepare.PrepareKyvernoScoped(raw, kyvernoContainer, from, to, selectedJob)
 		} else if prometheusRemoteWriteMode {
 			prepared, err = cncfprepare.PreparePrometheusRemoteWriteConfig(raw, selectedJob, from, to, complete, precedenceResolved, prometheusHTTP2Required)
 			selectedRuleID = cncfprepare.PrometheusRemoteWriteHTTP2RuleID

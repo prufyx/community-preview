@@ -610,6 +610,50 @@ Pinned source evidence is `server/etcdmain/config.go` and
 etcd 3.6 and 3.7 upgrade guides and `server/embed/config.go` at commit
 `5e7fd0de9a57`. Whole-upgrade safety remains `UNKNOWN`.
 
+## Kyverno removed reportsChunkSize flag
+
+The native Kyverno route decides whether one caller-selected container's
+explicitly declared official-upstream bare literal `reports-controller`
+command literally contains the `reportsChunkSize` option. It covers the
+reviewed `1.12.5` to `1.13.0` removal and, separately, the target-only
+`1.19.1` constraint from the five reviewed `1.14.5`, `1.15.3`, `1.16.4`,
+`1.17.2`, and `1.18.2` origins. It is a local usability route for the
+existing `kyverno.reports-chunk-size-removed.1-13` and
+`kyverno.reports-chunk-size-unsupported-at-1-19-1-from-*` rules; it does not
+add a project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > kyverno-workload.json <<'JSON'
+{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"reports-controller","namespace":"kyverno"},"spec":{"template":{"spec":{"containers":[{"name":"reports-controller","image":"ghcr.io/kyverno/reports-controller:v1.12.5","command":["reports-controller"],"args":["--reportsChunkSize=16"]}]}}}}
+JSON
+chmod 600 kyverno-workload.json
+./prufyx check cncf --project kyverno \
+  --kyverno-resource kyverno-workload.json --container reports-controller \
+  --kyverno-distribution official_upstream \
+  --from 1.12.5 --to 1.13.0 --now 2026-09-18T00:00:00Z
+```
+
+The caller selects exactly one container by name and declares the proposed
+distribution. A selected container whose command is the bare literal
+`reports-controller` and whose arguments contain `reportsChunkSize` is
+`BLOCKED`; the same surface without that option is a scoped `PASS` for this
+one removal constraint.
+
+The adapter models no Kyverno option table: it recognizes only the
+`reportsChunkSize` option name in `-name`, `--name`, `-name=value`, or
+`--name=value` form and otherwise treats every other flag-shaped argument as
+unsupported rather than guessing its arity. An ambiguous or duplicate
+container selection, an image-only entrypoint, any command other than the
+bare literal `reports-controller`, an unreviewed version pair, a
+`custom_build` or undeclared distribution, an argument after `--`, and an
+unparseable shape all remain `UNKNOWN` rather than a negative-presence PASS.
+
+The route never executes the command and does not resolve image provenance,
+a wrapper, another command surface, controller runtime behavior, or when the
+option was actually removed for the five 1.19.1 origins. Whole-upgrade safety
+remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing

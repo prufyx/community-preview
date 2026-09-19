@@ -334,6 +334,10 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	alertmanagerConfigPin := fs.String("alertmanager-config-digest", "", "optional exact selected Alertmanager config SHA-256")
 	alertmanagerConfigComplete := fs.Bool("alertmanager-config-complete", false, "caller declaration that the selected Alertmanager mapping is complete")
 	alertmanagerConfigPrecedenceResolved := fs.Bool("alertmanager-config-precedence-resolved", false, "caller declaration that Alertmanager API-version precedence is resolved")
+	kyvernoResource := fs.String("kyverno-resource", "", "private selected native Kubernetes Pod or Deployment JSON resource")
+	kyvernoResourcePin := fs.String("kyverno-resource-digest", "", "optional exact Kyverno resource SHA-256")
+	container := fs.String("container", "", "explicit selected Kyverno container name")
+	kyvernoDistribution := fs.String("kyverno-distribution", "", "Kyverno distribution: official_upstream or custom_build")
 	currentResource := fs.String("current-resource", "", "private current native Kubernetes JSON resource")
 	currentResourcePin := fs.String("current-resource-digest", "", "optional exact current resource SHA-256")
 	resource := fs.String("resource", "", "private proposed native Kubernetes JSON resource")
@@ -349,7 +353,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	knowledgeTrustReceiptDigest := fs.String("knowledge-trust-receipt-digest", "", "optional exact trust receipt digest")
 	format := fs.String("format", "human", "human or json")
 	digestRE := regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "cilium-config-map-digest") && !digestRE.MatchString(*ciliumConfigMapPin)) || (flagProvided(args, "coredns-corefile-digest") && !digestRE.MatchString(*corednsCorefilePin)) || (flagProvided(args, "envoy-bootstrap-digest") && !digestRE.MatchString(*envoyBootstrapPin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "kafka-resource-digest") && !digestRE.MatchString(*kafkaResourcePin)) || (flagProvided(args, "falco-argv-digest") && !digestRE.MatchString(*falcoArgvPin)) || (flagProvided(args, "kumactl-argv-digest") && !digestRE.MatchString(*kumactlArgvPin)) || (flagProvided(args, "composition-digest") && !digestRE.MatchString(*compositionPin)) || (flagProvided(args, "upgrade-plan-digest") && !digestRE.MatchString(*upgradePlanPin)) || (flagProvided(args, "spire-entry-argv-digest") && !digestRE.MatchString(*spireEntryArgvPin)) || (flagProvided(args, "keda-scaled-object-digest") && !digestRE.MatchString(*kedaScaledObjectPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "prometheus-config-digest") && !digestRE.MatchString(*prometheusConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "containerd-config-digest") && !digestRE.MatchString(*containerdConfigPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
+	if duplicateFlags(args) || fs.Parse(args) != nil || fs.NArg() != 0 || *project == "" || (*format != "human" && *format != "json") || (flagProvided(args, "input-digest") && !digestRE.MatchString(*pin)) || (flagProvided(args, "config-map-digest") && !digestRE.MatchString(*configMapPin)) || (flagProvided(args, "resource-exclusions-config-map-digest") && !digestRE.MatchString(*resourceExclusionsConfigMapPin)) || (flagProvided(args, "service-digest") && !digestRE.MatchString(*servicePin)) || (flagProvided(args, "current-lifecycle-config-digest") && !digestRE.MatchString(*currentLifecyclePin)) || (flagProvided(args, "proposed-lifecycle-config-digest") && !digestRE.MatchString(*proposedLifecyclePin)) || (flagProvided(args, "in-toto-run-argv-digest") && !digestRE.MatchString(*inTotoRunArgvPin)) || (flagProvided(args, "python-source-digest") && !digestRE.MatchString(*pythonSourcePin)) || (flagProvided(args, "metanode-config-digest") && !digestRE.MatchString(*metanodeConfigPin)) || (flagProvided(args, "image-status-request-digest") && !digestRE.MatchString(*imageStatusRequestPin)) || (flagProvided(args, "native-resource-digest") && !digestRE.MatchString(*nativeResourcePin)) || (flagProvided(args, "cilium-config-map-digest") && !digestRE.MatchString(*ciliumConfigMapPin)) || (flagProvided(args, "coredns-corefile-digest") && !digestRE.MatchString(*corednsCorefilePin)) || (flagProvided(args, "envoy-bootstrap-digest") && !digestRE.MatchString(*envoyBootstrapPin)) || (flagProvided(args, "nats-config-digest") && !digestRE.MatchString(*natsConfigPin)) || (flagProvided(args, "kafka-resource-digest") && !digestRE.MatchString(*kafkaResourcePin)) || (flagProvided(args, "falco-argv-digest") && !digestRE.MatchString(*falcoArgvPin)) || (flagProvided(args, "kumactl-argv-digest") && !digestRE.MatchString(*kumactlArgvPin)) || (flagProvided(args, "composition-digest") && !digestRE.MatchString(*compositionPin)) || (flagProvided(args, "upgrade-plan-digest") && !digestRE.MatchString(*upgradePlanPin)) || (flagProvided(args, "spire-entry-argv-digest") && !digestRE.MatchString(*spireEntryArgvPin)) || (flagProvided(args, "keda-scaled-object-digest") && !digestRE.MatchString(*kedaScaledObjectPin)) || (flagProvided(args, "otel-collector-config-digest") && !digestRE.MatchString(*otelCollectorConfigPin)) || (flagProvided(args, "scrape-config-digest") && !digestRE.MatchString(*scrapeConfigPin)) || (flagProvided(args, "prometheus-config-digest") && !digestRE.MatchString(*prometheusConfigPin)) || (flagProvided(args, "alertmanager-config-digest") && !digestRE.MatchString(*alertmanagerConfigPin)) || (flagProvided(args, "kyverno-resource-digest") && !digestRE.MatchString(*kyvernoResourcePin)) || (flagProvided(args, "current-resource-digest") && !digestRE.MatchString(*currentResourcePin)) || (flagProvided(args, "resource-digest") && !digestRE.MatchString(*resourcePin)) || (flagProvided(args, "image-manifest-digest") && !digestRE.MatchString(*imageManifestPin)) || (flagProvided(args, "cni-configuration-digest") && !digestRE.MatchString(*cniConfigurationPin)) || (flagProvided(args, "containerd-config-digest") && !digestRE.MatchString(*containerdConfigPin)) || (flagProvided(args, "diagd-argv-digest") && !digestRE.MatchString(*diagdArgvPin)) || (flagProvided(args, "effective-config-digest") && !digestRE.MatchString(*effectiveConfigPin)) || (flagProvided(args, "replay-report") && *replay == "") {
 		return r.usage("invalid CNCF check arguments; use --help")
 	}
 	for _, name := range []string{"knowledge-db", "knowledge-revision", "knowledge-bundle-digest", "knowledge-trust-receipt-digest"} {
@@ -380,14 +384,24 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 	prometheusRemoteWriteFlags := anyFlagProvided(args, "prometheus-config", "prometheus-config-digest", "prometheus-config-complete", "prometheus-config-precedence-resolved", "prometheus-rule", "prometheus-remote-write-name", "prometheus-remote-write-http2-required")
 	nativeProject := *project == "metallb" || *project == "contour" || *project == "kubevirt" || *project == "thanos" || *project == "cortex" || *project == "cloudnativepg" || *project == "flux" || *project == "kubernetes" || *project == "cilium" || *project == "etcd"
 	containerdFlags := anyFlagProvided(args, "containerd-config", "containerd-config-digest", "runtime-handler", "containerd-config-complete", "containerd-config-precedence-resolved", "containerd-official-upstream", "containerd-official-bundled-runtimes-only")
+	kyvernoFlags := anyFlagProvided(args, "kyverno-resource", "kyverno-resource-digest", "container", "kyverno-distribution")
 	if (nativeFlags || flagProvided(args, "resource-scope-complete") || flagProvided(args, "distribution") || flagProvided(args, "target-api-apply-required") || ciliumNativeRequested) && !nativeProject {
 		return r.usage("native resource flags require metallb, contour, kubevirt, thanos, cortex, cloudnativepg, flux, kubernetes, cilium, or etcd; use --help")
 	}
 	if nativeProject && (nativeFlags || fluxNativeRequested || kubernetesNativeRequested) {
-		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, *distribution, *targetAPIApplyRequired, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *nativeResource, *nativeResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, *resourceScopeComplete, *distribution, *targetAPIApplyRequired, "", "", "", "", args, nil, "")
+	}
+	if kyvernoFlags && *project != "kyverno" {
+		return r.usage("Kyverno resource flags require project kyverno; use --help")
+	}
+	if kyvernoFlags {
+		if *kyvernoResource == "" || *container == "" || (*kyvernoDistribution != "" && *kyvernoDistribution != cncfprepare.KyvernoDistributionOfficial && *kyvernoDistribution != cncfprepare.KyvernoDistributionCustom) || cncfUnexpectedModeFlag(args, "kyverno-resource", "kyverno-resource-digest", "container", "kyverno-distribution") {
+			return r.usage("invalid Kyverno resource arguments; use --help")
+		}
+		return r.cncfNativeResourceCheck(*project, *kyvernoResource, *kyvernoResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *kyvernoDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, *container)
 	}
 	if ciliumNativeRequested {
-		return r.cncfNativeResourceCheck(*project, *ciliumConfigMap, *ciliumConfigMapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *ciliumConfigComplete, *ciliumConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, *ciliumDistribution, "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *ciliumConfigMap, *ciliumConfigMapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *ciliumConfigComplete, *ciliumConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, *ciliumDistribution, "", "", "", args, nil, "")
 	}
 	if anyFlagProvided(args, "coredns-corefile", "coredns-corefile-digest", "coredns-corefile-complete", "coredns-distribution") && *project != "coredns" {
 		return r.usage("CoreDNS Corefile flags require project coredns; use --help")
@@ -396,13 +410,13 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		return r.usage("invalid CoreDNS distribution; use --help")
 	}
 	if corednsNativeRequested {
-		return r.cncfNativeResourceCheck(*project, *corednsCorefile, *corednsCorefilePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *corednsDistribution, *corednsCorefileComplete, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *corednsCorefile, *corednsCorefilePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *corednsDistribution, *corednsCorefileComplete, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if anyFlagProvided(args, "envoy-bootstrap", "envoy-bootstrap-digest", "envoy-bootstrap-selected") && *project != "envoy" {
 		return r.usage("Envoy bootstrap flags require project envoy; use --help")
 	}
 	if envoyNativeRequested {
-		return r.cncfNativeResourceCheck(*project, *envoyBootstrap, *envoyBootstrapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *envoyBootstrapSelected, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *envoyBootstrap, *envoyBootstrapPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *envoyBootstrapSelected, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if strimziFlags && *project != "strimzi" {
 		return r.usage("Strimzi Kafka resource flags require project strimzi; use --help")
@@ -411,7 +425,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *kafkaResource == "" || (*strimziDistribution != "" && *strimziDistribution != cncfprepare.StrimziDistributionOfficial && *strimziDistribution != cncfprepare.StrimziDistributionCustom) || cncfUnexpectedModeFlag(args, "kafka-resource", "kafka-resource-digest", "strimzi-distribution", "target-kafka-crd-admission-required") {
 			return r.usage("invalid Strimzi Kafka resource arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *kafkaResource, *kafkaResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *strimziDistribution, *targetKafkaCRDAdmissionRequired, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *kafkaResource, *kafkaResourcePin, *currentResource, *currentResourcePin, *resource, *resourcePin, *strimziDistribution, *targetKafkaCRDAdmissionRequired, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if falcoFlags && *project != "falco" {
 		return r.usage("Falco argv flags require project falco; use --help")
@@ -420,7 +434,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *falcoArgv == "" || (*falcoDistribution != "" && *falcoDistribution != cncfprepare.FalcoDistributionOfficial && *falcoDistribution != cncfprepare.FalcoDistributionCustom) || cncfUnexpectedModeFlag(args, "falco-argv", "falco-argv-digest", "falco-distribution") {
 			return r.usage("invalid Falco argv arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *falcoArgv, *falcoArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *falcoDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *falcoArgv, *falcoArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *falcoDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if kumaFlags && *project != "kuma" {
 		return r.usage("Kuma kumactl argv flags require project kuma; use --help")
@@ -429,7 +443,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *kumactlArgv == "" || (*kumaDistribution != "" && *kumaDistribution != cncfprepare.KumaDistributionOfficial && *kumaDistribution != cncfprepare.KumaDistributionCustom) || cncfUnexpectedModeFlag(args, "kumactl-argv", "kumactl-argv-digest", "kuma-distribution") {
 			return r.usage("invalid Kuma kumactl argv arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *kumactlArgv, *kumactlArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *kumaDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *kumactlArgv, *kumactlArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *kumaDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if crossplaneFlags && *project != "crossplane" {
 		return r.usage("Crossplane Composition flags require project crossplane; use --help")
@@ -438,7 +452,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *composition == "" || (*crossplaneDistribution != "" && *crossplaneDistribution != cncfprepare.CrossplaneDistributionOfficial && *crossplaneDistribution != cncfprepare.CrossplaneDistributionCustom) || cncfUnexpectedModeFlag(args, "composition", "composition-digest", "crossplane-distribution", "crossplane-schema-validation-required") {
 			return r.usage("invalid Crossplane Composition arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *composition, *compositionPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *crossplaneDistribution, *crossplaneSchemaValidationRequired, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *composition, *compositionPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *crossplaneDistribution, *crossplaneSchemaValidationRequired, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if veleroFlags && *project != "velero" {
 		return r.usage("Velero upgrade plan flags require project velero; use --help")
@@ -447,7 +461,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *upgradePlan == "" || cncfUnexpectedModeFlag(args, "upgrade-plan", "upgrade-plan-digest", "velero-server-deployment", "velero-plan-order-declared") {
 			return r.usage("invalid Velero upgrade plan arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *upgradePlan, *upgradePlanPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *veleroServerDeployment, *veleroPlanOrderDeclared, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *upgradePlan, *upgradePlanPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *veleroServerDeployment, *veleroPlanOrderDeclared, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if kedaFlags && *project != "keda" {
 		return r.usage("KEDA ScaledObject flags require project keda; use --help")
@@ -456,7 +470,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *kedaScaledObject == "" || (*kedaLegacyTransport != "" && *kedaLegacyTransport != cncfprepare.KEDADeclarationRequired && *kedaLegacyTransport != cncfprepare.KEDADeclarationNotRequired) || cncfUnexpectedModeFlag(args, "keda-scaled-object", "keda-scaled-object-digest", "keda-scaled-object-complete", "keda-legacy-tls-transport-required") {
 			return r.usage("invalid KEDA ScaledObject arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *kedaScaledObject, *kedaScaledObjectPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *kedaLegacyTransport, *kedaScaledObjectComplete, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *kedaScaledObject, *kedaScaledObjectPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *kedaLegacyTransport, *kedaScaledObjectComplete, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if spireFlags && *project != "spire" {
 		return r.usage("SPIRE argv flags require project spire; use --help")
@@ -465,13 +479,13 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 		if *spireEntryArgv == "" || (*spireDistribution != "" && *spireDistribution != cncfprepare.SpireDistributionOfficial && *spireDistribution != cncfprepare.SpireDistributionCustom) || cncfUnexpectedModeFlag(args, "spire-entry-argv", "spire-entry-argv-digest", "spire-distribution") {
 			return r.usage("invalid SPIRE argv arguments; use --help")
 		}
-		return r.cncfNativeResourceCheck(*project, *spireEntryArgv, *spireEntryArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *spireDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *spireEntryArgv, *spireEntryArgvPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *spireDistribution, false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if natsFlags && *project != "nats" {
 		return r.usage("NATS configuration flags require project nats; use --help")
 	}
 	if *project == "nats" && natsFlags {
-		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *natsConfig, *natsConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", false, false, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if otelFlags && *project != "opentelemetry" {
 		return r.usage("OpenTelemetry Collector configuration flags require project opentelemetry; use --help")
@@ -487,7 +501,7 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 				return r.usage("invalid OpenTelemetry rule selector; use --help")
 			}
 		}
-		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", *otelRule, *otelMetricsLocalhostDefault, *otelMetricsRemoteScrapeRequired, args, nil)
+		return r.cncfNativeResourceCheck(*project, *otelCollectorConfig, *otelCollectorConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *otelDistribution, *otelConfigComplete, *otelConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", *otelRule, *otelMetricsLocalhostDefault, *otelMetricsRemoteScrapeRequired, args, nil, "")
 	}
 	if prometheusRemoteWriteFlags && *project != "prometheus" {
 		return r.usage("Prometheus remote-write configuration flags require project prometheus; use --help")
@@ -501,19 +515,19 @@ Whole-upgrade compatibility remains UNKNOWN in every case.`)
 			value := *prometheusRemoteWriteHTTP2Required == "true"
 			required = &value
 		}
-		return r.cncfNativeResourceCheck(*project, *prometheusConfig, *prometheusConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *prometheusRemoteWriteName, *prometheusConfigComplete, *prometheusConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, required)
+		return r.cncfNativeResourceCheck(*project, *prometheusConfig, *prometheusConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *prometheusRemoteWriteName, *prometheusConfigComplete, *prometheusConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, required, "")
 	}
 	if prometheusScrapeFlags && *project != "prometheus" {
 		return r.usage("Prometheus scrape configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusScrapeFlags {
-		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *scrapeConfig, *scrapeConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, *scrapeJob, *scrapeConfigComplete, *scrapeConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if prometheusAlertmanagerFlags && *project != "prometheus" {
 		return r.usage("Prometheus Alertmanager configuration flags require project prometheus; use --help")
 	}
 	if *project == "prometheus" && prometheusAlertmanagerFlags {
-		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil)
+		return r.cncfNativeResourceCheck(*project, *alertmanagerConfig, *alertmanagerConfigPin, *currentResource, *currentResourcePin, *resource, *resourcePin, "", *alertmanagerConfigComplete, *alertmanagerConfigPrecedenceResolved, *from, *to, *nowText, *knowledgeDB, *knowledgeRevision, *knowledgeBundleDigest, *knowledgeTrustReceiptDigest, *replay, *format, false, "", false, "", "", "", "", args, nil, "")
 	}
 	if containerdFlags && *project != "containerd" {
 		return r.usage("containerd configuration flags require project containerd; use --help")
