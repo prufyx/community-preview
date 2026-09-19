@@ -44,6 +44,19 @@ Ceph, and Argo Workflows community-project routes are documented in
 [Community project checks](community-project-checks.md) and are discoverable
 the same way with `--project PROJECT`.
 
+KubeVirt `1.8.4` to `1.9.0`, MetalLB `0.12.1` to `0.13.2`, Contour `1.19.0` to
+`1.20.0`, Kubernetes `1.31.0` to `1.32.0` (the `flowcontrol.apiserver.k8s.io/v1beta3`
+removal), and Cilium `1.16.19` to `1.17.18` (the effective ConfigMap
+`cluster-name` guard) are also bound native `check cncf --project PROJECT
+--native-resource FILE` routes (Kubernetes additionally needs `--distribution`,
+`--target-api-apply-required`, and `--resource-scope-complete`; Cilium uses
+`--cilium-config-map`, `--cilium-distribution`, `--cilium-config-complete`, and
+`--cilium-config-precedence-resolved` instead). CloudNativePG `1.29.0` to
+`1.30.0` needs a paired `--current-resource` and `--resource` instead of one
+`--native-resource`. See
+[`examples/cncf/native-resources`](../examples/cncf/native-resources/README.md)
+for a runnable BLOCKED/PASS/UNKNOWN walkthrough of each.
+
 ## Fluentd selected-literal treatment
 
 For Fluentd `1.17.1` to `1.18.0`, `prepare cncf --project fluentd` accepts a
@@ -585,6 +598,82 @@ resources, network behavior, server behavior, runtime state, and distribution
 identity are outside this route. The `1.39.1` target evidence is Envoy commit
 `b579d07d3ad7ee11d32b105e91a5a39ad24718d7`: bootstrap proto lines 61-90,
 ConfigSource proto lines 25-75 and 182-227, and `utility.h` lines 138-155.
+
+## OpenTelemetry Collector logging exporter and internal-metrics bind
+
+For the reviewed `0.110.0` to `0.111.0` transition, `check cncf --project
+opentelemetry` has two native routes over the same complete,
+precedence-resolved Collector YAML with declared official distribution: the
+default route checks the selected `logging` exporter
+(`opentelemetry.logging-exporter-removed.0-111`), and `--otel-rule
+internal-telemetry-default-bind` checks the target internal-metrics
+localhost-default bind against explicit `--otel-metrics-localhost-default`
+and `--otel-metrics-remote-scrape-required` declarations
+(`opentelemetry.internal-telemetry-default-bind.0-110-to-0-111`). See
+[`examples/cncf/opentelemetry-collector`](../examples/cncf/opentelemetry-collector/README.md).
+
+## Argo CD required RBAC inheritance and resource-exclusions visibility
+
+For the reviewed `2.14.0` to `3.0.0` transition, `check cncf --project
+argo-cd` has two native routes: `--config-map FILE` checks the
+`server.rbac.disableApplicationFineGrainedRBACInheritance` setting against an
+explicit `--requires-inherited-application-permissions` intent
+(`argo-cd.required-rbac-inheritance.3-0`), and
+`--resource-exclusions-config-map FILE
+--resource-exclusions-config-complete --resource-exclusions-precedence-resolved`
+checks the `resource.exclusions` target default against an explicit
+`--requires-v2-visibility-of-v3-default-excluded-resources` intent
+(`argo-cd.resource-exclusions-v2-visibility-preservation.3-0`). Neither route
+infers RBAC intent or resource existence from a cluster.
+
+## CRI-O, CubeFS, TUF, in-toto, Knative, Kubeflow, Buildpacks, OpenFGA, Distribution, and CNI native routes
+
+Each of these has one reviewed rule with a working single-step native CLI
+route under `check cncf --project PROJECT`, discoverable the same way as the
+routes above:
+
+- CRI-O `1.34.0` to `1.35.0`: `--image-status-request FILE
+  --artifact-operation named-reference-resolution`
+  (`cri-o.artifact-short-name-rejected.1-35`); see
+  [`examples/cncf/crio-image-status-request`](../examples/cncf/crio-image-status-request/).
+- CubeFS `3.2.1` to `3.3.2`: `--metanode-config FILE [--phase
+  metanode-upgrade]` (`cubefs.metanode-raft-snapshot-format.3-2-1-to-3-3-2`);
+  see [`examples/cncf/cubefs-metanode`](../examples/cncf/cubefs-metanode/).
+- python-tuf (`--project the-update-framework-tuf`) `6.0.0` to `7.0.0`:
+  `--python-source FILE` (`tuf.updater-bootstrap-keyword.6-to-7`); see
+  [`examples/cncf/tuf-updater`](../examples/cncf/tuf-updater/).
+- in-toto `2.2.0` to `3.0.0`: `--in-toto-run-argv FILE`
+  (`in-toto.run-legacy-key-argument-removed.2-2-to-3-0`); see
+  [`examples/cncf/in-toto-run`](../examples/cncf/in-toto-run/).
+- Knative Serving `1.22.0` to `1.23.0`: `--service FILE`
+  (`knative.serving-startup-http-named-port.1-22-to-1-23`); see
+  [`examples/cncf/proposed-knative-serving-service.json`](../examples/cncf/proposed-knative-serving-service.json).
+- Kubeflow Pipelines SDK `1.8.22` to `2.0.0`: `--python-source FILE`
+  (`kubeflow.kfp-create-component-from-func-removed.1-8-22-to-2-0-0`); see
+  [`examples/cncf/kubeflow-kfp`](../examples/cncf/kubeflow-kfp/).
+- Buildpacks Lifecycle `0.16.5` to `0.17.7`: `--current-lifecycle-config FILE
+  --proposed-lifecycle-config FILE --current-platform-api 0.11
+  --proposed-platform-api 0.12|0.13`
+  (`buildpacks.lifecycle-platform-api-support.0-16-5-to-0-17-7`); see
+  [`examples/cncf/buildpacks`](../examples/cncf/buildpacks/).
+- OpenFGA `1.17.1` to `1.18.0`: `--effective-config FILE
+  [--effective-config-complete]` (`openfga.oidc-required-fields.1-17-1-to-1-18-0`);
+  see [`examples/cncf/openfga-oidc-upgrade`](../examples/cncf/openfga-oidc-upgrade/README.md).
+- Distribution `2.8.3` to `3.0.0`: `--image-manifest FILE`
+  (`distribution.schema1-manifest-removed.2-8-3-to-3-0-0`); see
+  [`examples/cncf/distribution-manifest`](../examples/cncf/distribution-manifest/).
+- CNI spec (`--project container-network-interface-cni`) `0.4.0` to `1.0.0`:
+  `--cni-configuration FILE [--operation configuration-spec-migration]`
+  (`cni-spec.non-list-configuration-removed.0-4-0-to-1-0-0`); see
+  [`examples/cncf/cni-spec`](../examples/cncf/cni-spec/).
+
+Emissary-Ingress `3.10.0` to `4.0.1` (`--diagd-argv FILE`,
+`emissary-ingress.metrics-endpoint-removed.3-10-to-4-0`) uses the same
+pattern; see
+[`examples/cncf/emissary-ingress`](../examples/cncf/emissary-ingress/README.md).
+Every one of these routes reads only the caller-supplied private file; it
+does not run the target project, inspect a cluster, or resolve wrappers,
+environment, or precedence on the operator's behalf.
 
 ## cert-manager removed monitor values
 
