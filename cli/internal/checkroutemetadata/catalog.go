@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 143)
+	result := make([]descriptor, 0, 149)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -340,6 +340,12 @@ func descriptorSet() []descriptor {
 	}
 	for _, pair := range fluentDRubyTargetPairs {
 		result = append(result, descriptor{family: FamilyCNCF, project: "fluentd", component: "pkg:github/fluent/fluentd", ruleID: pair.id, from: pair.from, to: "1.19.3", command: exactPair(fluentDNativeBase, pair.from, "1.19.3"), limit: "One caller-declared proposed distribution and proposed Ruby version target only; no Ruby interpreter, package, plugin, or runtime is observed."})
+	}
+	opencostNativeBase := extend(cncfBase("opencost"), file("--native-resource"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "opencost", component: "pkg:github/opencost/opencost", ruleID: "opencost.cloud-cost-source-migration.1-119-to-1-120", from: "1.119.0", to: "1.120.0", command: exactPair(opencostNativeBase, "1.119.0", "1.120.0"), limit: "One caller-declared current and proposed cloud-cost source selection only; file contents, credentials, provider access, and runtime behavior are unassessed."})
+	opencostLatestOrigins := []string{"1.116.0", "1.117.6", "1.118.0", "1.119.2", "1.120.4"}
+	for _, from := range opencostLatestOrigins {
+		result = append(result, descriptor{family: FamilyCNCF, project: "opencost", component: "pkg:github/opencost/opencost", ruleID: "opencost.cloud-cost-source-migration." + strings.ReplaceAll(from, ".", "-") + "-to-1-121-2", from: from, to: "1.121.2", command: exactPair(opencostNativeBase, from, "1.121.2"), limit: "One caller-declared current and proposed cloud-cost source selection only; file contents, credentials, provider access, and runtime behavior are unassessed."})
 	}
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
@@ -565,7 +571,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 143 {
+	if len(descriptors) != 149 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

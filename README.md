@@ -137,7 +137,7 @@ The fifty-five documented scenario examples are:
 | Grafana Loki | 2.9.8 → 3.0.0 removes legacy compactor shared-store settings | complete, precedence-resolved native Loki YAML |
 | Grafana Loki | 2.9.8 → 3.0.0 requires `store: tsdb` and `schema: v13` when structured metadata is enabled | complete, precedence-resolved native Loki schema configuration YAML |
 | MariaDB | 10.11.8 → 11.4.2 cannot preserve the removed upstream InnoDB defragmentation behavior; the old option is accepted only as an ignored compatibility input | complete, precedence-resolved native option file with explicit upstream-distribution and behavior-requirement declarations |
-| OpenCost | 1.119.0 → 1.120.0 moves enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
+| OpenCost | 1.119.0 → 1.120.0 and five exact origins → 1.121.2 move enabled cloud-cost collection from provider-derived configuration to an explicitly selected cloud-integration file | operator-declared source selection JSON |
 | OpenFGA | 1.17.1 → 1.18.0 requires OIDC issuer and audience when effective config is complete | effective-config JSON |
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 removes the selected `logging` exporter | complete, precedence-resolved native Collector YAML with declared official distribution |
 | OpenTelemetry Collector | 0.110.0 → 0.111.0 checks the target internal-metrics localhost default against an explicit non-loopback scrape requirement when no metrics override is configured | complete, precedence-resolved native Collector YAML plus declared official distribution, effective feature gate, and scrape requirement |
@@ -157,7 +157,7 @@ The fifty-five documented scenario examples are:
 | Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, KEDA, Kuma, Kyverno, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
+Custodian, Crossplane, etcd, Falco, Fluentd, Harbor, Jaeger, KEDA, Kuma, Kyverno, OpenCost, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select

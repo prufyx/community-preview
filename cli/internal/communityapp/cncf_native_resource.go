@@ -106,7 +106,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry", "etcd", "kyverno", "harbor", "fluentd":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry", "etcd", "kyverno", "harbor", "fluentd", "opencost":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -193,6 +193,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareHarbor(raw, from, to)
 		} else if project == "fluentd" {
 			prepared, err = cncfprepare.PrepareFluentD(raw, from, to)
+		} else if project == "opencost" {
+			prepared, err = cncfprepare.PrepareOpenCostCloudSource(raw, from, to)
 		} else if project == "kyverno" {
 			if selectedJob != "" && selectedJob != cncfprepare.KyvernoDistributionOfficial && selectedJob != cncfprepare.KyvernoDistributionCustom {
 				return r.usage("invalid Kyverno distribution; use --help")
