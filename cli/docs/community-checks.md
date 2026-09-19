@@ -136,6 +136,104 @@ release note at commit `f59c03d09c3a3a12f571ad1087b979325f3dae30` and the
 BLOCKED, PASS, and UNKNOWN walkthrough in
 [`examples/cncf/coredns-corefile`](../examples/cncf/coredns-corefile/README.md).
 
+## Flux beta CRD API removal
+
+The native rendered-resource route evaluates one caller-selected JSON object,
+or one flat `v1` List of rendered resources, for a direct witness of a
+removed beta API version. It covers the reviewed `2.6.4` to `2.7.0`
+transition and, for the wider `2.8` and `2.9` removals, the `2.4.0`, `2.5.1`,
+`2.6.4`, `2.7.5`, or `2.8.8` to `2.9.5` transitions. It is a local usability
+route for the existing Flux `flux.beta-api-removal.2-7` and
+`flux.latest-beta-api-removal.*` rules; it does not add a project, rule, or
+upgrade-pair claim.
+
+```sh
+umask 077
+cat > resource.json <<'JSON'
+{"apiVersion":"source.toolkit.fluxcd.io/v1beta1","kind":"GitRepository","metadata":{"name":"app"}}
+JSON
+chmod 600 resource.json
+./prufyx check cncf --project flux \
+  --native-resource resource.json --resource-scope-complete \
+  --from 2.6.4 --to 2.7.0 --now 2026-09-19T00:00:00Z
+```
+
+A direct witness of a removed beta `apiVersion` on the selected object (or any
+item of a selected `v1` List) is a scoped `BLOCKED` regardless of the
+`--resource-scope-complete` declaration. A `PASS` additionally requires the
+caller to declare the selected resource set complete, with no `continue`
+pagination token on a supplied List. Stored CRD versions, a cluster
+inventory, reconciliation, and runtime behavior stay outside the result. The
+`2.9.5` target additionally removes `v1beta2` API versions across five
+toolkit controllers; that wider removal is checked only for the five
+reviewed `2.4.0`, `2.5.1`, `2.6.4`, `2.7.5`, and `2.8.8` origins.
+
+## NATS selected name ASCII-space rejection
+
+The native configuration route evaluates one caller-selected standalone
+JSON-like NATS configuration object for a literal ASCII space in the direct
+`server_name`, `cluster.name`, or `gateway.name` values. It covers the
+reviewed `2.10.0` to `2.11.0` transition and, for the later `2.11`
+strictness, the `2.8.4`, `2.9.25`, `2.10.29`, `2.11.17`, or `2.12.15` to
+`2.14.6` transitions. It is a local usability route for the existing NATS
+`nats.names-with-ascii-spaces-rejected.*` rules; it does not add a project,
+rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > nats-config.json <<'JSON'
+{"server_name":"edge node","cluster":{"name":"cluster"}}
+JSON
+chmod 600 nats-config.json
+./prufyx check cncf --project nats \
+  --nats-config nats-config.json --from 2.10.0 --to 2.11.0 \
+  --now 2026-09-19T00:00:00Z
+```
+
+A literal ASCII space in any selected name is `BLOCKED`; a config with all
+three supported names present and none containing a space is a scoped
+`PASS`. The upstream parser lowercases these keys, so a case-colliding
+duplicate key returns `UNKNOWN`. `include` directives, environment-variable
+references, dotted descendant paths, and any other classic-syntax block
+remain `UNKNOWN` rather than a negative-presence PASS. The route does not
+parse a full NATS configuration file, resolve includes or environment
+values, or read cluster or gateway runtime state.
+
+## Cortex removed at-modifier querier flag
+
+The native workload route evaluates one caller-selected `apps/v1` Deployment,
+StatefulSet, or DaemonSet JSON object for the removed
+`-querier.at-modifier-enabled` (or `--querier.at-modifier-enabled`) flag on
+one explicitly named `cortex` container. It covers the reviewed `1.16.1`,
+`1.17.2`, `1.18.1`, `1.19.1`, or `1.20.1` to `1.21.1` transitions. It is a
+local usability route for the existing Cortex
+`cortex.querier-at-modifier-flag-removed.1-21` and
+`cortex.querier-at-modifier-flag-target-argv.*` rules; it does not add a
+project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > workload.json <<'JSON'
+{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"cortex","namespace":"observability"},
+ "spec":{"template":{"spec":{"containers":[
+   {"name":"cortex","image":"quay.io/cortexproject/cortex:v1.21.1","command":["/bin/cortex"],"args":["-querier.at-modifier-enabled"]}
+ ]}}}}
+JSON
+chmod 600 workload.json
+./prufyx check cncf --project cortex \
+  --native-resource workload.json --from 1.17.2 --to 1.21.1 \
+  --now 2026-09-19T00:00:00Z
+```
+
+The selected container must use the exact reviewed target image tag and may
+explicitly declare `command:["/bin/cortex"]`, or omit `command` and rely on
+the exact admitted image's source-derived entrypoint. Its `args` are limited
+to an empty list, self-contained `-name=value` options, and the exact removed
+option spelling; a shell wrapper, custom image, delimiter, positional token,
+dynamic token, or ambiguous multi-container selection remains `UNKNOWN`
+rather than a negative-presence PASS. Generated arguments, query behavior,
+storage, tenancy, and runtime state stay outside the result.
+
 ## Strimzi Kafka v1beta2 API removal
 
 The native Kafka resource route evaluates which `kafka.strimzi.io` API version

@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 67)
+	result := make([]descriptor, 0, 90)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -368,6 +368,53 @@ func descriptorSet() []descriptor {
 		result = append(result, descriptor{family: FamilyCNCF, project: "thanos", component: "pkg:github/thanos-io/thanos", ruleID: pair.id, from: pair.from, to: pair.to, command: exactPair(thanosBase, pair.from, pair.to), limit: "One caller-supplied Kubernetes workload object's single named thanos container args only; generated arguments, image provenance, Query, storage, compaction, and whole-upgrade safety remain unassessed."})
 	}
 
+	// Flux: existing beta-API removal rules already have a working single-step
+	// native input route (PrepareFlux). This registers that already-working
+	// route; it authors no new compatibility claim or evaluation logic.
+	result = append(result, descriptor{family: FamilyCNCF, project: "flux", component: "pkg:github/fluxcd/flux2", ruleID: "flux.beta-api-removal.2-7", from: "2.6.4", to: "2.7.0", command: exactPair(extend(cncfBase("flux"), file("--native-resource"), literal("--resource-scope-complete")), "2.6.4", "2.7.0"), limit: "One caller-selected rendered resource JSON object, or one flat v1 List of rendered resources, only; a positive removed beta-API witness is conclusive alone, but a clear result also requires the declared complete scope with no pagination. Stored CRD versions, cluster inventory, reconciliation, and runtime behavior are unassessed."})
+	for _, from := range []string{"2.4.0", "2.5.1", "2.6.4", "2.7.5", "2.8.8"} {
+		result = append(result, descriptor{family: FamilyCNCF, project: "flux", component: "pkg:github/fluxcd/flux2", ruleID: "flux.latest-beta-api-removal." + from + "-to-2-9", from: from, to: "2.9.5", command: exactPair(extend(cncfBase("flux"), file("--native-resource"), literal("--resource-scope-complete")), from, "2.9.5"), limit: "Limited to the five reviewed origins 2.4.0, 2.5.1, 2.6.4, 2.7.5, and 2.8.8; other origins are unsupported. One caller-selected rendered resource JSON object, or one flat v1 List of rendered resources, only; stored CRD versions, cluster inventory, reconciliation, and runtime behavior are unassessed."})
+	}
+
+	// CoreDNS: existing federation-directive rules already have a working
+	// single-step native input route (PrepareCoreDNSCorefile).
+	result = append(result, descriptor{family: FamilyCNCF, project: "coredns", component: "pkg:github/coredns/coredns", ruleID: "coredns.federation-removed.1-7", from: "1.6.9", to: "1.7.0", command: exactPair(extend(cncfBase("coredns"), file("--coredns-corefile"), name("--coredns-distribution"), literal("--coredns-corefile-complete")), "1.6.9", "1.7.0"), limit: "Checks only a literal federation directive directly in one caller-selected local Corefile server block; imports, snippets, substitutions, and escaped syntax remain UNKNOWN. Distribution and completeness are caller declarations."})
+	for _, from := range []string{"1.9.4", "1.10.1", "1.11.4", "1.12.4", "1.13.2"} {
+		result = append(result, descriptor{family: FamilyCNCF, project: "coredns", component: "pkg:github/coredns/coredns", ruleID: "coredns.official-federation-absent-at-1-14-7-from-" + strings.ReplaceAll(from, ".", "-"), from: from, to: "1.14.7", command: exactPair(extend(cncfBase("coredns"), file("--coredns-corefile"), name("--coredns-distribution"), literal("--coredns-corefile-complete")), from, "1.14.7"), limit: "Limited to the five reviewed origins 1.9.4, 1.10.1, 1.11.4, 1.12.4, and 1.13.2; other origins are unsupported. Checks only a literal federation directive directly in one caller-selected local Corefile server block; imports, snippets, substitutions, and escaped syntax remain UNKNOWN."})
+	}
+
+	// NATS: existing ASCII-space-in-name rules already have a working
+	// single-step native input route (PrepareNATS); it does not gate on origin.
+	for _, pair := range []struct{ from, to string }{
+		{"2.10.0", "2.11.0"},
+		{"2.8.4", "2.14.6"},
+		{"2.9.25", "2.14.6"},
+		{"2.10.29", "2.14.6"},
+		{"2.11.17", "2.14.6"},
+		{"2.12.15", "2.14.6"},
+	} {
+		result = append(result, descriptor{family: FamilyCNCF, project: "nats", component: "pkg:github/nats-io/nats-server", ruleID: "nats.names-with-ascii-spaces-rejected." + strings.ReplaceAll(pair.from, ".", "-") + "-to-" + strings.ReplaceAll(pair.to, ".", "-"), from: pair.from, to: pair.to, command: exactPair(extend(cncfBase("nats"), file("--nats-config")), pair.from, pair.to), limit: "One caller-selected standalone JSON-like NATS configuration object only; classic blocks, includes, environment references, dotted descendant paths, duplicates, and unsupported parent shapes remain UNKNOWN."})
+	}
+
+	// Cortex: existing removed-flag rules already have a working single-step
+	// native input route (PrepareCortex).
+	result = append(result, descriptor{family: FamilyCNCF, project: "cortex", component: "pkg:github/cortexproject/cortex", ruleID: "cortex.querier-at-modifier-flag-removed.1-21", from: "1.17.2", to: "1.21.1", command: exactPair(extend(cncfBase("cortex"), file("--native-resource")), "1.17.2", "1.21.1"), limit: "Limited to the five reviewed origins 1.16.1, 1.17.2, 1.18.1, 1.19.1, and 1.20.1; other origins are unsupported. One caller-selected apps/v1 Deployment, StatefulSet, or DaemonSet with one explicitly named cortex container only; generated arguments, query behavior, storage, tenancy, and runtime state remain unassessed."})
+	for _, from := range []string{"1.16.1", "1.18.1", "1.19.1", "1.20.1"} {
+		result = append(result, descriptor{family: FamilyCNCF, project: "cortex", component: "pkg:github/cortexproject/cortex", ruleID: "cortex.querier-at-modifier-flag-target-argv." + strings.ReplaceAll(from, ".", "-") + "-to-1-21-1", from: from, to: "1.21.1", command: exactPair(extend(cncfBase("cortex"), file("--native-resource")), from, "1.21.1"), limit: "Limited to the five reviewed origins 1.16.1, 1.17.2, 1.18.1, 1.19.1, and 1.20.1; other origins are unsupported. One caller-selected apps/v1 Deployment, StatefulSet, or DaemonSet with one explicitly named cortex container only; generated arguments, query behavior, storage, tenancy, and runtime state remain unassessed."})
+	}
+
+	// NOTE: prometheus.alertmanager-api-v1-removed.2-55-1-to-3-14-0 and
+	// prometheus.scrape-classic-histograms-key-renamed.2-55-1-to-3-14-0 are
+	// deliberately NOT registered here. Verification showed
+	// prometheusReviewedTransition (internal/cncfprepare/prometheus.go) does
+	// not admit the (2.55.1, 3.14.0) origin/target pair for either the
+	// alertmanager or scrape-config preparer, so no working native route
+	// exists for these two rule identities today, contradicting the survey.
+	// TestDiscoverExactPairExcludesCrossMode in catalog_test.go independently
+	// asserts that only prometheus.remote-write-http2-default.2-55-1-to-3-14-0
+	// is bound for that pair, confirming this gap. Registering these two would
+	// require adding new dispatch/evaluation logic, which is out of scope for
+	// pure route registration.
 	return result
 }
 
@@ -411,7 +458,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 67 {
+	if len(descriptors) != 90 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
