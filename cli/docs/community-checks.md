@@ -654,6 +654,46 @@ a wrapper, another command surface, controller runtime behavior, or when the
 option was actually removed for the five 1.19.1 origins. Whole-upgrade safety
 remains `UNKNOWN`.
 
+## Jaeger explicit --config requirement for non-memory storage
+
+The native Jaeger route decides whether one caller-declared, direct Jaeger v2
+invocation JSON has exactly one known non-empty literal `--config=value`
+selection. It covers the reviewed `1.76.0` to `2.20.0` transition and,
+separately, the target-only `2.20.0` constraint from the five reviewed
+`2.15.1`, `2.16.0`, `2.17.0`, `2.18.0`, and `2.19.0` origins. It is a local
+usability route for the existing
+`jaeger.explicit-config-required-for-non-memory.1-76-2-20` and
+`jaeger.explicit-config-required-for-non-memory.target.*` rules; it does not
+add a project, rule, or upgrade-pair claim.
+
+```sh
+umask 077
+cat > jaeger-argv.json <<'JSON'
+{"authority":"OPERATOR_DECLARED_DIRECT_OFFICIAL_JAEGER_V2_ARGUMENTS_ONLY","argv":["--config=/etc/jaeger/config.yaml"]}
+JSON
+chmod 600 jaeger-argv.json
+./prufyx check cncf --project jaeger \
+  --jaeger-argv jaeger-argv.json \
+  --non-memory-storage-required true --official-jaeger-distribution true \
+  --from 1.76.0 --to 2.20.0 --now 2026-09-18T00:00:00Z
+```
+
+Non-memory storage requirement and official distribution are separate
+caller declarations; they are never inferred from the argv or any runtime
+state. The rule only forbids the predicate when both are declared `true` and
+`--config` is definitely absent, so this route can only ever reach a genuine
+positive-witness `PASS` (an explicit, unambiguous `--config` selection) or
+`UNKNOWN` — it never emits a negative-presence PASS from a merely absent or
+ambiguous selection. Zero, multiple, split, empty, wrapped, expanded, or
+remote `--config` forms, and declarations left unset, all keep the claim
+`UNKNOWN`.
+
+The route never reads the referenced config location and does not resolve
+its content, storage backend, credentials, or runtime. Pinned source
+evidence is `cmd/jaeger/internal/command.go` and
+`cmd/jaeger/internal/all-in-one.yaml` at commit `798e4b0fcf22`, and `go.mod`
+at the same commit. Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing
