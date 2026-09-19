@@ -1203,6 +1203,129 @@ The new command exits 0 only when the agent-mode preservation claim is `PASS`;
 `community-preview validate-prometheus-mode` route retains its aggregate exit
 11 behavior.
 
+## Tekton Pipelines metrics-protocol migration
+
+The native Tekton route decides whether one caller-selected proposed
+`config-observability` ConfigMap has exactly one functional
+`metrics-protocol` value of `prometheus`, for the reviewed `1.9.0` to
+`1.10.0` transition. It is a local usability route for the existing
+`tekton.metrics-protocol-prometheus.1-10` rule; it does not add a project,
+rule, or upgrade-pair claim. Each accepted outcome is established by the
+pinned evidence: the `v1.10` `config/config-observability.yaml` sets
+`metrics-protocol: prometheus` in its `data` block under `apiVersion: v1`,
+`kind: ConfigMap`, `name: config-observability`; the `v1.10`
+`knative.dev/pkg/observability/metrics/config.go` declares the protocol
+tokens `grpc`, `http/protobuf`, `prometheus` and `none`, parses only the flat
+`metrics-protocol` key, and its `DefaultConfig` returns `ProtocolNone`; and
+the `v1.10` legacy note together with the `v1.9`
+`knative.dev/pkg/metrics/config.go` parser establish that
+`metrics.backend-destination` is the removed OpenCensus spelling the target
+parser no longer recognizes.
+
+```sh
+umask 077
+cat > config-observability.yaml <<'YAML'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-observability
+  namespace: tekton-pipelines
+data:
+  metrics-protocol: prometheus
+YAML
+chmod 600 config-observability.yaml
+./prufyx check cncf --project tekton \
+  --tekton-config-observability config-observability.yaml \
+  --tekton-distribution official_upstream \
+  --tekton-system-namespace tekton-pipelines \
+  --tekton-config-observability-complete true \
+  --retain-prometheus-metrics-required true \
+  --from 1.9.0 --to 1.10.0 --now 2026-09-19T00:00:00Z
+```
+
+An exact `metrics-protocol: prometheus` data value is a scoped `PASS`. A
+definite absence of that key -- including a ConfigMap that still carries only
+the removed `metrics.backend-destination` key, and a ConfigMap with no `data`
+block at all -- is `BLOCKED`, because the pinned target `DefaultConfig`
+resolves to `ProtocolNone`. Everything else stays `UNKNOWN`: a recognized
+non-Prometheus token such as `grpc`, `http/protobuf` or `none`; an empty,
+whitespace-padded, differently-cased or unrecognized value; a near-miss or
+duplicate key spelling; a non-string value; `binaryData` that overlaps the
+reviewed key; a templated or unrendered document; and an unreviewed version
+pair. The `_example` block is a data value, not a protocol source, and is
+never scanned. The removed `metrics.backend-destination` key is never read as
+a protocol, because the reviewed evidence states the target parser no longer
+recognizes it and reading it would invent a claim.
+
+Identity binding compares the document's `apiVersion`, `kind` and `name`
+with the exact reviewed identity and its `namespace` with
+`--tekton-system-namespace`, which is the caller's own declaration of the
+proposed system namespace. No ConfigMap is discovered from a cluster, and
+effective composition, overlays, endpoint configuration, scrape
+availability, dashboards, alerts and runtime rollout are not evaluated.
+Pinned source evidence is `config/config-observability.yaml`,
+`vendor/knative.dev/pkg/observability/metrics/config.go` and
+`vendor/knative.dev/pkg/configmap/parser/parse.go` at revision
+`9db88e0a3f07`, and `config/config-observability.yaml` with
+`vendor/knative.dev/pkg/metrics/config.go` at revision `0cc798780b36`.
+Whole-upgrade safety remains `UNKNOWN`.
+
+## KubeEdge keadm init version-selector migration
+
+The native KubeEdge route decides which of the two reviewed `keadm init`
+version-selector forms one caller-declared effective argv literally uses, for
+the reviewed `1.18.0` to `1.19.0` transition. It is a local usability route for
+the existing `kubeedge.keadm-init-profile-version-selector.1-18-to-1-19` rule;
+it does not add a project, rule, or upgrade-pair claim. The reviewed rule's own
+fact description already states the whole accepted grammar, and each accepted
+form is established by the pinned evidence: the `v1.18` `--profile` flag help
+documents `/path/version.yaml or version=v<version>`, the `v1.18` install path
+splits that option value on `=` and treats only the literal key `version` as a
+version selector, the `v1.19` install path hands `--profile` straight to
+external values-file reading with no version parsing, and the `v1.19` release
+note states that `--profile version` is no longer supported.
+
+```sh
+umask 077
+cat > keadm-init-argv.json <<'JSON'
+["keadm","init","--advertise-address=10.0.0.9","--profile","version=v1.19.0"]
+JSON
+chmod 600 keadm-init-argv.json
+./prufyx check cncf --project kubeedge \
+  --keadm-init-argv keadm-init-argv.json \
+  --kubeedge-distribution official_upstream \
+  --keadm-argv-complete true \
+  --from 1.18.0 --to 1.19.0 --now 2026-09-19T00:00:00Z
+```
+
+A literal `--profile version=<version>` selector, in either the separated or
+the attached spelling, is a conclusive `BLOCKED` witness. An explicit
+`--kubeedge-version=v1.19.0` with `--profile` definitely absent is a scoped
+`PASS`, and only when the caller also declares
+`--kubeedge-distribution official_upstream` and `--keadm-argv-complete true`.
+Every other shape stays `UNKNOWN` rather than becoming a negative-presence
+`PASS`: an external `--profile` values file, including a version-like filename
+such as `/local/version.yaml`; both selectors together, whose reviewed meaning
+is not decided because the `v1.18` install path only consults
+`--profile version=` when `--kubeedge-version` is empty; neither selector; a
+non-target `--kubeedge-version` value; repeated `--profile` options with
+different meanings; any single-dash shorthand token, because the pinned flag
+registrations declare only long-form options; a `-`/`--` delimiter; a missing
+option value; and templated or unrendered argv. Every token is scanned and
+there is no option table, so no selector spelling can be stepped over as
+another option's value.
+
+The declared argv is caller-supplied data. It is never executed, no `--profile`
+values file is ever opened or interpreted, and wrappers, entrypoints, images,
+environment, Helm values, chart defaults, and runtime behavior are not
+evaluated. Argv completeness, the distribution, and the command surface remain
+the caller's own declarations. Pinned source evidence is
+`keadm/cmd/keadm/app/cmd/cloud/init.go`,
+`keadm/cmd/keadm/app/cmd/helm/cloudcore.go`,
+`keadm/cmd/keadm/app/cmd/helm/helm_helper.go` at revisions `c5e705a7545d` and
+`6ca40b8e51d9`, and `blog/release-v1.19/index.mdx` at revision
+`656ad81a245c`. Whole-upgrade safety remains `UNKNOWN`.
+
 ## SPIFFE X.509-SVID public-leaf URI-SAN subset
 
 Use `prufyx check spiffe-x509-svid --certificate FILE --now RFC3339` for the
