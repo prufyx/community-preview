@@ -5,6 +5,13 @@ small maintainer-reviewed registry separate from the bundled CNCF Landscape
 identity registry. It does not assert CNCF membership and does not use the
 CNCF knowledge profile or store.
 
+Every route documented below, including the Ceph and Argo Workflows workload
+routes and the Grafana, Kibana, and Fluent Bit target-only pairs, is also
+discoverable through `catalog checks` alongside MariaDB Operator; see
+[Discovering embedded source-rule routes](community-checks.md#discovering-embedded-source-rule-routes).
+`catalog checks` reports the exact typed `check project` command for each
+bound identity without evaluating it.
+
 From the repository root, build the preview with the validated offline
 toolchain settings and keep its binary and private inputs outside the checkout:
 

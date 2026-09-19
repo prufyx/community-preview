@@ -223,6 +223,10 @@ func cncfBase(project string) []Argument {
 	return []Argument{literal("check"), literal("cncf"), literal("--project"), literal(project)}
 }
 
+func projectBase(project string) []Argument {
+	return []Argument{literal("check"), literal("project"), literal("--project"), literal(project)}
+}
+
 func extend(base []Argument, values ...Argument) []Argument {
 	return append(append([]Argument(nil), base...), values...)
 }
@@ -232,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 28)
+	result := make([]descriptor, 0, 67)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -278,6 +282,92 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "keda", component: "pkg:github/kedacore/keda", ruleID: "keda.external-scaler-legacy-tls-transport.2-17", from: "2.16.0", to: "2.17.0", command: exactPair(extend(cncfBase("keda"), file("--keda-scaled-object"), literal("--keda-scaled-object-complete"), boolean("--keda-legacy-tls-transport-required")), "2.16.0", "2.17.0"), limit: "One caller-selected rendered ScaledObject set only; a raw tlsCertFile metadata field never establishes reliance on the removed direct transport, and TriggerAuthentication material, scaler reachability, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "spire", component: "pkg:github/spiffe/spire", ruleID: "spire.removed-entry-ttl.1-11", from: "1.10.4", to: "1.11.0", command: exactPair(extend(cncfBase("spire"), file("--spire-entry-argv"), name("--spire-distribution")), "1.10.4", "1.11.0"), limit: "One caller-declared explicit effective spire-server entry create argv only; wrappers, entrypoints, images, environment, defaults, replacement TTL values, registration entries, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
+
+	grafanaBase := extend(projectBase("grafana"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"))
+	grafanaPairs := []struct{ from, to, id string }{
+		{"10.4.0", "11.0.0", "grafana.legacy-alerting-config.10-4-to-11-0"},
+		{"12.2.10", "13.2.1", "grafana.legacy-alerting-config.12-2-10-to-13-2-1"},
+		{"12.3.11", "13.2.1", "grafana.legacy-alerting-config.12-3-11-to-13-2-1"},
+		{"12.4.10", "13.2.1", "grafana.legacy-alerting-config.12-4-10-to-13-2-1"},
+		{"13.0.8", "13.2.1", "grafana.legacy-alerting-config.13-0-8-to-13-2-1"},
+		{"13.1.5", "13.2.1", "grafana.legacy-alerting-config.13-1-5-to-13-2-1"},
+	}
+	for _, pair := range grafanaPairs {
+		result = append(result, descriptor{family: FamilyCommunity, project: "grafana", component: "pkg:github/grafana/grafana", ruleID: pair.id, from: pair.from, to: pair.to, command: exactPair(grafanaBase, pair.from, pair.to), limit: "One selected [alerting] enabled key only; completeness and precedence remain caller declarations. Full configuration, alert-data migration, and whole-upgrade safety remain unassessed."})
+	}
+
+	kibanaReportingBase := extend(projectBase("kibana"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"))
+	result = append(result, descriptor{family: FamilyCommunity, project: "kibana", component: "pkg:github/elastic/kibana", ruleID: "kibana.reporting-roles-allow.8-18-to-9-0", from: "8.18.0", to: "9.0.0", command: exactPair(kibanaReportingBase, "8.18.0", "9.0.0"), limit: "One selected xpack.reporting.roles.allow key only; completeness and precedence remain caller declarations. Feature privileges, reporting access, and whole-upgrade safety remain unassessed."})
+	kibanaStatusBase := extend(kibanaReportingBase, literal("--full-status-without-monitor-required"))
+	kibanaStatusPairs := []struct{ from, id string }{
+		{"9.0.8", "kibana.status-page-monitor-bypass.9-0-8-to-9-5-3"},
+		{"9.1.10", "kibana.status-page-monitor-bypass.9-1-10-to-9-5-3"},
+		{"9.2.8", "kibana.status-page-monitor-bypass.9-2-8-to-9-5-3"},
+		{"9.3.8", "kibana.status-page-monitor-bypass.9-3-8-to-9-5-3"},
+		{"9.4.6", "kibana.status-page-monitor-bypass.9-4-6-to-9-5-3"},
+	}
+	for _, pair := range kibanaStatusPairs {
+		result = append(result, descriptor{family: FamilyCommunity, project: "kibana", component: "pkg:github/elastic/kibana", ruleID: pair.id, from: pair.from, to: "9.5.3", command: exactPair(kibanaStatusBase, pair.from, "9.5.3"), limit: "One selected status.allowAnonymous and status.statusPageBypassMonitorPrivilege pair plus an explicit full-status-without-monitor intent only; client monitor privilege, route runtime behavior, and whole-upgrade safety remain unassessed."})
+	}
+
+	fluentBitSettingBase := extend(projectBase("fluent-bit"), file("--effective-config"), literal("--effective-config-complete"), literal("--current-default-was-used"), literal("--preserve-http2-enabled"))
+	result = append(result, descriptor{family: FamilyCommunity, project: "fluent-bit", component: "pkg:github/fluent/fluent-bit", ruleID: "fluent-bit.http2-setting.3-2-to-4-0", from: "3.2.0", to: "4.0.0", command: exactPair(fluentBitSettingBase, "3.2.0", "4.0.0"), limit: "One selected OpenTelemetry output enable_http2 setting only, with explicit current-default and preservation-intent declarations; full configuration, protocol negotiation, and whole-upgrade safety remain unassessed."})
+	fluentBitTargetBase := extend(projectBase("fluent-bit"), file("--effective-config"), literal("--effective-config-complete"), literal("--require-http2"))
+	fluentBitTargetPairs := []struct{ from, id string }{
+		{"3.2.10", "fluent-bit.http2-target-required.3-2-to-5-1"},
+		{"4.0.14", "fluent-bit.http2-target-required.4-0-to-5-1"},
+		{"4.1.2", "fluent-bit.http2-target-required.4-1-to-5-1"},
+		{"4.2.8", "fluent-bit.http2-target-required.4-2-to-5-1"},
+		{"5.0.10", "fluent-bit.http2-target-required.5-0-to-5-1"},
+	}
+	for _, pair := range fluentBitTargetPairs {
+		result = append(result, descriptor{family: FamilyCommunity, project: "fluent-bit", component: "pkg:github/fluent/fluent-bit", ruleID: pair.id, from: pair.from, to: "5.1.2", command: exactPair(fluentBitTargetBase, pair.from, "5.1.2"), limit: "One selected OpenTelemetry output HTTP/2 requirement only; protocol negotiation, connectivity, and whole-upgrade safety remain unassessed."})
+	}
+
+	cephBase := extend(projectBase("ceph"), file("--selected-osd-metadata"), name("--selected-osd-id"), literal("--selected-osd-metadata-complete"))
+	cephPairs := []struct{ from, to, id string }{
+		{"17.2.7", "18.2.0", "ceph.selected-osd-filestore.17-2-to-18-2"},
+		{"15.2.17", "20.2.4", "ceph.selected-osd-filestore.15-2-17-to-20-2-4"},
+		{"16.2.15", "20.2.4", "ceph.selected-osd-filestore.16-2-15-to-20-2-4"},
+		{"17.2.9", "20.2.4", "ceph.selected-osd-filestore.17-2-9-to-20-2-4"},
+		{"18.2.8", "20.2.4", "ceph.selected-osd-filestore.18-2-8-to-20-2-4"},
+		{"19.2.6", "20.2.4", "ceph.selected-osd-filestore.19-2-6-to-20-2-4"},
+	}
+	for _, pair := range cephPairs {
+		result = append(result, descriptor{family: FamilyCommunity, project: "ceph", component: "pkg:github/ceph/ceph", ruleID: pair.id, from: pair.from, to: pair.to, command: exactPair(cephBase, pair.from, pair.to), limit: "One caller-selected current per-OSD metadata object only, identified by an explicit selected OSD id; cluster inventory, live observation, and whole-upgrade safety remain unassessed."})
+	}
+
+	argoWorkflowsBase := extend(projectBase("argo-workflows"), file("--workload"), literal("--workload-complete"))
+	argoWorkflowsPairs := []struct{ from, to, id string }{
+		{"3.5.0", "3.6.0", "argo-workflows.server-basehref.3-5-to-3-6"},
+		{"3.4.18", "4.1.3", "argo-workflows.server-basehref.3-4-18-to-4-1-3"},
+		{"3.5.15", "4.1.3", "argo-workflows.server-basehref.3-5-15-to-4-1-3"},
+		{"3.6.19", "4.1.3", "argo-workflows.server-basehref.3-6-19-to-4-1-3"},
+		{"3.7.18", "4.1.3", "argo-workflows.server-basehref.3-7-18-to-4-1-3"},
+		{"4.0.11", "4.1.3", "argo-workflows.server-basehref.4-0-11-to-4-1-3"},
+	}
+	for _, pair := range argoWorkflowsPairs {
+		result = append(result, descriptor{family: FamilyCommunity, project: "argo-workflows", component: "pkg:github/argoproj/argo-workflows", ruleID: pair.id, from: pair.from, to: pair.to, command: exactPair(argoWorkflowsBase, pair.from, pair.to), limit: "One caller-selected complete argo-server workload argv only; wrappers, images, defaults, deployment, and whole-upgrade safety remain unassessed."})
+	}
+
+	result = append(result, descriptor{family: FamilyCommunity, project: "loki", component: "pkg:github/grafana/loki", ruleID: "loki.compactor-shared-store.2-9-to-3-0", from: "2.9.8", to: "3.0.0", command: exactPair(extend(projectBase("loki"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved")), "2.9.8", "3.0.0"), limit: "One selected complete native Loki compactor mapping only; storage, retention, data, and whole-upgrade safety remain unassessed."})
+	result = append(result, descriptor{family: FamilyCommunity, project: "loki", component: "pkg:github/grafana/loki", ruleID: "loki.structured-metadata-tsdb-v13.2-9-8-to-3-0-0", from: "2.9.8", to: "3.0.0", command: exactPair(extend(projectBase("loki"), file("--loki-schema-config"), literal("--effective-config-complete"), literal("--precedence-resolved")), "2.9.8", "3.0.0"), limit: "One selected complete native Loki schema_config period only; storage migration, retention, data access, and whole-upgrade safety remain unassessed."})
+
+	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb", component: "pkg:github/mariadb/server", ruleID: "mariadb.innodb-defragmentation-required.10-11-8-to-11-4-2", from: "10.11.8", to: "11.4.2", command: exactPair(extend(projectBase("mariadb"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"), literal("--upstream-distribution"), boolean("--require-innodb-defragmentation")), "10.11.8", "11.4.2"), limit: "One selected complete native option file only, with explicit upstream-distribution and InnoDB-defragmentation-requirement declarations; runtime behavior and whole-upgrade safety remain unassessed."})
+
+	thanosBase := extend(cncfBase("thanos"), file("--native-resource"))
+	thanosPairs := []struct{ from, to, id string }{
+		{"0.41.0", "0.42.0", "thanos.receive-store-flags-removed.0-42"},
+		{"0.37.2", "0.42.4", "thanos.receive-store-flags-target-argv.0-37-2-to-0-42-4"},
+		{"0.38.0", "0.42.4", "thanos.receive-store-flags-target-argv.0-38-0-to-0-42-4"},
+		{"0.39.2", "0.42.4", "thanos.receive-store-flags-target-argv.0-39-2-to-0-42-4"},
+		{"0.40.1", "0.42.4", "thanos.receive-store-flags-target-argv.0-40-1-to-0-42-4"},
+		{"0.41.0", "0.42.4", "thanos.receive-store-flags-target-argv.0-41-0-to-0-42-4"},
+	}
+	for _, pair := range thanosPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "thanos", component: "pkg:github/thanos-io/thanos", ruleID: pair.id, from: pair.from, to: pair.to, command: exactPair(thanosBase, pair.from, pair.to), limit: "One caller-supplied Kubernetes workload object's single named thanos container args only; generated arguments, image provenance, Query, storage, compaction, and whole-upgrade safety remain unassessed."})
+	}
+
 	return result
 }
 
@@ -321,7 +411,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 28 {
+	if len(descriptors) != 67 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
