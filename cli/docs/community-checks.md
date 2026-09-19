@@ -564,6 +564,52 @@ the existing rule is `cmd/spire-server/util/util.go` and
 `ca35234a30a2` and `CHANGELOG.md` at commit `ca35234a30a2`. Whole-upgrade
 safety remains `UNKNOWN`.
 
+## etcd removed v2/proxy and 3.7 experimental flags
+
+The native etcd route decides whether one caller-declared, complete, direct
+effective etcd argv (every option in strict `--name=value` form) literally
+contains a removed option. It is a local usability route for the existing
+`etcd.v2-proxy-flags-removed.3-6` and `etcd.experimental-flags-unsupported.*`
+rules; it does not add a project, rule, or upgrade-pair claim.
+
+For the reviewed `3.5.17` to `3.6.0` transition it checks the eight named
+v2/proxy options (`enable-v2`, `experimental-enable-v2v3`, `proxy`,
+`proxy-failure-wait`, `proxy-refresh-interval`, `proxy-dial-timeout`,
+`proxy-write-timeout`, `proxy-read-timeout`). For the reviewed `3.2.32`,
+`3.3.27`, `3.4.45`, `3.5.33`, and `3.6.14` origins to `3.7.1` it checks the
+finite documented set of 3.7-removed experimental flag names.
+
+```sh
+umask 077
+cat > etcd-argv.json <<'JSON'
+{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--name=node0","--enable-v2=true"]}
+JSON
+chmod 600 etcd-argv.json
+./prufyx check cncf --project etcd \
+  --native-resource etcd-argv.json \
+  --from 3.5.17 --to 3.6.0 --now 2026-09-18T00:00:00Z
+```
+
+Every option in the declared argv must resolve against the reviewed source
+grammar for that pair; an option outside the reviewed known-flag set, a
+non-`--name=value` token, or `effectiveArgvDeclared: false` keeps the claim
+`UNKNOWN` rather than guessing at an unmodelled flag's arity. For the
+`3.5.17` to `3.6.0` pair the rule only ever proves presence of a removed
+option: a fully resolved argv containing none of the eight still stays
+`UNKNOWN`, never a negative-presence PASS. For the five `3.7.1` origins, an
+argv containing none of the finite removed experimental names is a scoped
+`PASS` for that predicate alone; four of those five origins additionally match
+a separate, unconditional minor-version-skip blocker outside this route's
+scope, which keeps the aggregate `BLOCKED` even when this route's own claim
+passes.
+
+The route never executes the argv and does not resolve a wrapper, an
+entrypoint, a config file, environment, data migration, or quorum health.
+Pinned source evidence is `server/etcdmain/config.go` and
+`server/embed/config.go` at commits `507c0de87bd5` and `f5d605a93abe`, and the
+etcd 3.6 and 3.7 upgrade guides and `server/embed/config.go` at commit
+`5e7fd0de9a57`. Whole-upgrade safety remains `UNKNOWN`.
+
 ## Envoy direct V2 transport blocker
 
 The Envoy native route is a blocker-only usability route for the existing

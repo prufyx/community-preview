@@ -104,7 +104,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 	selectedRuleID := requestedRuleID
 	var err error
 	switch project {
-	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry":
+	case "metallb", "contour", "kubevirt", "thanos", "cortex", "coredns", "envoy", "nats", "strimzi", "falco", "kuma", "crossplane", "velero", "spire", "keda", "flux", "kubernetes", "cilium", "prometheus", "opentelemetry", "etcd":
 		if nativePath == "" || anyFlagProvided(args, "current-resource", "current-resource-digest", "resource", "resource-digest") {
 			return r.usage("invalid native CNCF resource check arguments; use --help")
 		}
@@ -182,6 +182,8 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			prepared, err = cncfprepare.PrepareCoreDNSCorefile(raw, from, to, selectedJob, complete)
 		} else if project == "envoy" {
 			prepared, err = cncfprepare.PrepareEnvoyBootstrap(raw, from, to, complete)
+		} else if project == "etcd" {
+			prepared, err = cncfprepare.PrepareEtcd(raw, from, to)
 		} else if prometheusRemoteWriteMode {
 			prepared, err = cncfprepare.PreparePrometheusRemoteWriteConfig(raw, selectedJob, from, to, complete, precedenceResolved, prometheusHTTP2Required)
 			selectedRuleID = cncfprepare.PrometheusRemoteWriteHTTP2RuleID
