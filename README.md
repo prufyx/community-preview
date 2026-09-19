@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The forty-four documented scenario examples are:
+The fifty-one documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -144,6 +144,13 @@ The forty-four documented scenario examples are:
 | Velero | 1.17.0 → 1.18.0 requires the target CRDs to be updated before the server deployment | one flat `v1` List of rendered upgrade documents in declared apply order, plus the literal server Deployment name |
 | Velero | 1.16.2 → 1.18.0 is outside the documented upgrade path and requires the 1.17.x intermediate first | the same declared upgrade plan; the reviewed pair alone blocks the direct transition |
 | Thanos | 0.41.0 → 0.42.0 and five exact origins → 0.42.4 reject one removed literal Receive or Store subcommand flag | native selected Kubernetes workload container JSON |
+| CRI-O | 1.34.0 → 1.35.0 rejects a short-name Artifact reference without a declared resolution plan | image-status request JSON with an explicit named-reference-resolution declaration |
+| CubeFS | 3.2.1 → 3.3.2 requires `raftSyncSnapFormatVersion: 0` for a MetaNode during the declared upgrade phase | MetaNode configuration JSON with an explicit phase declaration |
+| TUF (python-tuf) | 6.0.0 → 7.0.0 requires an explicitly named `bootstrap` keyword argument for `Updater` | caller-supplied Python source with one conservatively bound direct call |
+| in-toto | 2.2.0 → 3.0.0 removes the legacy `-k`/`--key` option from `in-toto-run` | caller-supplied planned argv JSON |
+| Knative Serving | 1.22.0 → 1.23.0 requires a startup HTTP probe's named port to match a supported named container port | proposed Service JSON |
+| Kubeflow Pipelines SDK | 1.8.22 → 2.0.0 removes `create_component_from_func` | caller-supplied Python source with one conservatively bound decorator form |
+| Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
 Custodian, Crossplane, Falco, KEDA, Kuma, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
