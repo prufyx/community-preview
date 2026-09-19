@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 112)
+	result := make([]descriptor, 0, 124)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -281,6 +281,29 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "velero", component: "pkg:github/velero-io/velero", ruleID: "velero.intermediate-1-17.1-18", from: "1.16.2", to: "1.18.0", command: exactPair(extend(cncfBase("velero"), file("--upgrade-plan"), name("--velero-server-deployment"), literal("--velero-plan-order-declared")), "1.16.2", "1.18.0"), limit: "The reviewed mandatory 1.17.x intermediate blocks this direct transition on the declared pair alone; no supplied plan can establish a PASS here.", nativePass: "NOT_AVAILABLE_BLOCKER_ONLY"})
 	result = append(result, descriptor{family: FamilyCNCF, project: "keda", component: "pkg:github/kedacore/keda", ruleID: "keda.external-scaler-legacy-tls-transport.2-17", from: "2.16.0", to: "2.17.0", command: exactPair(extend(cncfBase("keda"), file("--keda-scaled-object"), literal("--keda-scaled-object-complete"), boolean("--keda-legacy-tls-transport-required")), "2.16.0", "2.17.0"), limit: "One caller-selected rendered ScaledObject set only; a raw tlsCertFile metadata field never establishes reliance on the removed direct transport, and TriggerAuthentication material, scaler reachability, and runtime behavior are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "spire", component: "pkg:github/spiffe/spire", ruleID: "spire.removed-entry-ttl.1-11", from: "1.10.4", to: "1.11.0", command: exactPair(extend(cncfBase("spire"), file("--spire-entry-argv"), name("--spire-distribution")), "1.10.4", "1.11.0"), limit: "One caller-declared explicit effective spire-server entry create argv only; wrappers, entrypoints, images, environment, defaults, replacement TTL values, registration entries, and runtime behavior are unassessed."})
+	result = append(result, descriptor{family: FamilyCNCF, project: "etcd", component: "pkg:github/etcd-io/etcd", ruleID: "etcd.v2-proxy-flags-removed.3-6", from: "3.5.17", to: "3.6.0", command: exactPair(extend(cncfBase("etcd"), file("--native-resource")), "3.5.17", "3.6.0"), limit: "Removal of the eight named etcd v2/proxy options only, from one caller-declared complete direct effective argv; data migration and quorum health are unverified."})
+	etcdExperimentalFlagPairs := []struct{ from, id string }{
+		{"3.2.32", "etcd.experimental-flags-unsupported.3-2-32-to-3-7-1"},
+		{"3.3.27", "etcd.experimental-flags-unsupported.3-3-27-to-3-7-1"},
+		{"3.4.45", "etcd.experimental-flags-unsupported.3-4-45-to-3-7-1"},
+		{"3.5.33", "etcd.experimental-flags-unsupported.3-5-33-to-3-7-1"},
+		{"3.6.14", "etcd.experimental-flags-unsupported.3-6-14-to-3-7-1"},
+	}
+	for _, pair := range etcdExperimentalFlagPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "etcd", component: "pkg:github/etcd-io/etcd", ruleID: pair.id, from: pair.from, to: "3.7.1", command: exactPair(extend(cncfBase("etcd"), file("--native-resource")), pair.from, "3.7.1"), limit: "etcd 3.7 rejects only the finite reviewed removed experimental flag names, checked against one caller-declared complete direct proposed argv; unknown experimental names, indirect configuration, and the separate mandatory minor-version-skip blocker are unassessed by this route."})
+	}
+	kyvernoNativeBase := extend(cncfBase("kyverno"), file("--kyverno-resource"), name("--container"), name("--kyverno-distribution"))
+	result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: "kyverno.reports-chunk-size-removed.1-13", from: "1.12.5", to: "1.13.0", command: exactPair(kyvernoNativeBase, "1.12.5", "1.13.0"), limit: "One caller-selected container's explicitly declared official-upstream bare literal reports-controller command only; image provenance, wrappers, other command surfaces, controller behavior, and whole-upgrade compatibility are unverified."})
+	kyvernoLatestReportsChunkSizePairs := []struct{ from, id string }{
+		{"1.14.5", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-14-5"},
+		{"1.15.3", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-15-3"},
+		{"1.16.4", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-16-4"},
+		{"1.17.2", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-17-2"},
+		{"1.18.2", "kyverno.reports-chunk-size-unsupported-at-1-19-1-from-1-18-2"},
+	}
+	for _, pair := range kyvernoLatestReportsChunkSizePairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: pair.id, from: pair.from, to: "1.19.1", command: exactPair(kyvernoNativeBase, pair.from, "1.19.1"), limit: "Target-only Kyverno 1.19.1 reportsChunkSize constraint for one caller-selected container's explicitly declared official-upstream bare reports-controller invocation; it does not identify when removal occurred, establish image provenance, inspect wrappers, or prove controller runtime or whole-upgrade safety."})
+	}
 	result = append(result, descriptor{family: FamilyCommunity, project: "mariadb-operator", component: "pkg:github/mariadb-operator/mariadb-operator", ruleID: "mariadb-operator.upgrade-26-6.requires-dataplane-prerequisite", from: "26.3.0", to: "26.6.0", command: exactPair([]Argument{literal("check"), literal("project"), literal("--project"), literal("mariadb-operator"), file("--mariadb-resource"), literal("--resource-complete"), literal("--pre-operator-update")}, "26.3.0", "26.6.0"), limit: "One complete selected MariaDB resource before the operator update; controller and data-plane behavior are unassessed."})
 
 	grafanaBase := extend(projectBase("grafana"), file("--effective-config"), literal("--effective-config-complete"), literal("--precedence-resolved"))
@@ -505,7 +528,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 112 {
+	if len(descriptors) != 124 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {

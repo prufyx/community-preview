@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The fifty-one documented scenario examples are:
+The fifty-three documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -118,6 +118,8 @@ The fifty-one documented scenario examples are:
 | Cortex | 1.17.2 and four exact origins → 1.21.1 remove the `querier.at-modifier-enabled` flag | native exact-image `apps/v1` Deployment, StatefulSet, or DaemonSet JSON with one explicitly named `cortex` container |
 | Kuma | 2.8.0 → 2.9.0 removes two deprecated `kumactl install transparent-proxy` UID exclusion flags | caller-declared explicit effective `kumactl install transparent-proxy` argv JSON with declared distribution |
 | SPIRE | 1.10.4 → 1.11.0 removes the `spire-server entry create` `-ttl` and `--ttl` options | caller-declared explicit effective `spire-server entry create` argv JSON with declared distribution |
+| etcd | 3.5.17 → 3.6.0 removes eight v2/proxy options; five exact origins → 3.7.1 reject the finite documented 3.7-removed experimental flag names | caller-declared, complete, direct effective etcd argv JSON in strict `--name=value` form |
+| Kyverno | 1.12.5 → 1.13.0 removes `reportsChunkSize`; five exact origins → 1.19.1 check the same target-only constraint | one caller-selected container's bare literal `reports-controller` command with declared distribution |
 | KEDA | 2.16.0 → 2.17.0 removes the direct External Scaler `tlsCertFile` TLS transport; a forwarded metadata field alone never establishes reliance | complete caller-selected rendered `keda.sh/v1alpha1` ScaledObject JSON with an explicit reliance declaration when `tlsCertFile` is present |
 | MariaDB Operator | 26.3.0 → 26.6.0 requires `autoUpdateDataPlane` for one complete Galera resource before the operator update | complete native `k8s.mariadb.com/v1alpha1` MariaDB JSON with Galera-only and pre-update declarations |
 | containerd | 1.7.28 → 2.0.0 removes two selected official bundled v1 runtime shims; upstream migration preserves the selected runtime type | complete, precedence-resolved native config.toml with an explicit handler and upstream/bundled-runtime declarations |
@@ -153,7 +155,7 @@ The fifty-one documented scenario examples are:
 | Buildpacks Lifecycle | 0.16.5 → 0.17.7 checks a requested Platform API against its declared supported set | paired current/proposed Lifecycle config JSON with declared Platform API values |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, Falco, KEDA, Kuma, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
+Custodian, Crossplane, etcd, Falco, KEDA, Kuma, Kyverno, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select
