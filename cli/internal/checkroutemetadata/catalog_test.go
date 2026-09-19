@@ -50,7 +50,7 @@ func TestDiscoverCompleteEmbeddedIdentityCatalog(t *testing.T) {
 			t.Fatalf("community generic route exposed: %#v", item)
 		}
 	}
-	if bound != 155 {
+	if bound != 160 {
 		t.Fatalf("bound native routes = %d", bound)
 	}
 }

@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 155)
+	result := make([]descriptor, 0, 160)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -511,6 +511,22 @@ func descriptorSet() []descriptor {
 	result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: "argo-cd.required-rbac-inheritance.3-0", from: "2.14.0", to: "3.0.0", command: exactPair(extend(cncfBase("argo-cd"), file("--config-map"), boolean("--requires-inherited-application-permissions")), "2.14.0", "3.0.0"), limit: "One caller-selected ConfigMap plus an explicit inherited-application-permissions intent only; user authorization and the whole RBAC policy are unassessed."})
 	result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: "argo-cd.resource-exclusions-v2-visibility-preservation.3-0", from: "2.14.0", to: "3.0.0", command: exactPair(extend(cncfBase("argo-cd"), file("--resource-exclusions-config-map"), literal("--resource-exclusions-config-complete"), literal("--resource-exclusions-precedence-resolved"), boolean("--requires-v2-visibility-of-v3-default-excluded-resources")), "2.14.0", "3.0.0"), limit: "One complete, precedence-resolved argocd-cm ConfigMap plus an explicit v2-visibility-preservation intent only; resource existence, watches, UI, reconciliation, and runtime behavior are unassessed."})
 
+	// Argo CD: PrepareArgoCDLatestRepository already has a working single-step
+	// native input route (wired here); it already handled all five reviewed
+	// 3.5.2 latest-target origins via the two-step prepare/check flow before
+	// this route existed.
+	argoCDLatestBase := extend(cncfBase("argo-cd"), file("--repository-secret"), name("--repository-distribution"), boolean("--repository-settings-resolved"), boolean("--repository-uses-plain-http"))
+	argoCDLatestOriginPairs := []struct{ from, id string }{
+		{"3.0.23", "argo-cd.plain-http-oci-repository-helm4.3-0-23-to-3-5-2"},
+		{"3.1.16", "argo-cd.plain-http-oci-repository-helm4.3-1-16-to-3-5-2"},
+		{"3.2.12", "argo-cd.plain-http-oci-repository-helm4.3-2-12-to-3-5-2"},
+		{"3.3.14", "argo-cd.plain-http-oci-repository-helm4.3-3-14-to-3-5-2"},
+		{"3.4.8", "argo-cd.plain-http-oci-repository-helm4.3-4-8-to-3-5-2"},
+	}
+	for _, pair := range argoCDLatestOriginPairs {
+		result = append(result, descriptor{family: FamilyCNCF, project: "argo-cd", component: "pkg:github/argoproj/argo-cd", ruleID: pair.id, from: pair.from, to: "3.5.2", command: exactPair(argoCDLatestBase, pair.from, "3.5.2"), limit: "One caller-selected pre-apply repository Secret using stringData, plus explicit distribution, settings-resolved, and plain-HTTP declarations only; Secret values, names, URLs, credentials, repository connectivity, Helm execution, and whole-upgrade compatibility are unassessed."})
+	}
+
 	// 17 already-routed singleton projects: each has exactly one reviewed rule
 	// with a working preparer and CLI dispatch already wired, verified against
 	// current main rather than assumed from the survey.
@@ -587,7 +603,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 155 {
+	if len(descriptors) != 160 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
