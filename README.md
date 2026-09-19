@@ -96,7 +96,7 @@ HTTP/2-default check; these do not change the 23-project,
 This is current source-preview development scope, not an official release or a
 whole-upgrade compatibility claim.
 
-The forty-one documented scenario examples are:
+The forty-two documented scenario examples are:
 
 | Project | Scoped scenario | Local input |
 | --- | --- | --- |
@@ -141,9 +141,10 @@ The forty-one documented scenario examples are:
 | Prometheus | 2.55.1 → 3.1.0 removes selected Alertmanager `api_version: v1` | complete, precedence-resolved `alerting.alertmanagers` entry YAML |
 | Velero | 1.17.0 → 1.18.0 requires the target CRDs to be updated before the server deployment | one flat `v1` List of rendered upgrade documents in declared apply order, plus the literal server Deployment name |
 | Velero | 1.16.2 → 1.18.0 is outside the documented upgrade path and requires the 1.17.x intermediate first | the same declared upgrade plan; the reviewed pair alone blocks the direct transition |
+| Thanos | 0.41.0 → 0.42.0 and five exact origins → 0.42.4 reject one removed literal Receive or Store subcommand flag | native selected Kubernetes workload container JSON |
 
 Use `prufyx check cncf --project PROJECT` for CNCF scenarios, including Cloud
-Custodian, Crossplane, Falco, KEDA, Kuma, Prometheus, SPIRE, Strimzi and Velero, and `prufyx check
+Custodian, Crossplane, Falco, KEDA, Kuma, Prometheus, SPIRE, Strimzi, Thanos and Velero, and `prufyx check
 project --project PROJECT` for the separately scoped community-project scenarios
 (Argo Workflows, Ceph, Fluent Bit, Grafana, Kibana, Grafana Loki, MariaDB, and MariaDB Operator), with the input contract
 documented in [community checks](cli/docs/community-checks.md). Version arguments select

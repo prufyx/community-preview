@@ -35,6 +35,15 @@ guidance: replace `FILE`, `NAME`, `RFC3339`, and `BOOL` with caller-supplied
 values. It does not declare an assessment, validate a target, or establish
 runtime behavior. Named checks appear only as scoped `--help` hints.
 
+Thanos `0.41.0` to `0.42.0`, and the five exact origins to `0.42.4`, are
+bound native `check cncf --project thanos --native-resource FILE` routes
+under this same discovery; see the
+[latest-target coverage matrix](latest-upgrade-coverage-2026-09-12.md) for the
+reviewed input and predicate. The Grafana, Kibana, Fluent Bit, Loki, MariaDB,
+Ceph, and Argo Workflows community-project routes are documented in
+[Community project checks](community-project-checks.md) and are discoverable
+the same way with `--project PROJECT`.
+
 ## Fluentd selected-literal treatment
 
 For Fluentd `1.17.1` to `1.18.0`, `prepare cncf --project fluentd` accepts a
