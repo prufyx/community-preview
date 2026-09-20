@@ -182,8 +182,32 @@ func (b bundle) ruleSet(project string) (constraintengine.RuleSet, error) {
 }
 
 func (b bundle) parseRules(rules []json.RawMessage) (constraintengine.RuleSet, error) {
+	return b.parseRulesCorpus(rules, nil)
+}
+
+// parseRulesCorpus is the single seam through which every CNCF rule document
+// reaches the engine. corpus, when non-empty, attaches the maintainer's
+// completeness attestation; a filtered selection must always pass nil, because
+// a narrowed document cannot honestly claim it holds every reviewed rule.
+func (b bundle) parseRulesCorpus(rules []json.RawMessage, corpus []string) (constraintengine.RuleSet, error) {
 	if err := validateCNCFReviewWindows(rules); err != nil {
 		return constraintengine.RuleSet{}, err
+	}
+	raw, err := b.ruleDocumentBytes(rules, corpus)
+	if err != nil {
+		return constraintengine.RuleSet{}, err
+	}
+	return constraintengine.ParseRuleSet(raw, b.registry)
+}
+
+// ruleDocumentBytes renders the rule document exactly as the engine will see
+// it. It is separate from parseRulesCorpus so the corpus tests can hand a
+// document straight to constraintengine.ParseRuleSet and observe the engine's
+// own verdict on it, independently of this package's checks.
+func (b bundle) ruleDocumentBytes(rules []json.RawMessage, corpus []string) ([]byte, error) {
+	type corpusBlock struct {
+		Completeness string   `json:"completeness"`
+		Components   []string `json:"components"`
 	}
 	document := struct {
 		Schema       string            `json:"schema"`
@@ -191,12 +215,16 @@ func (b bundle) parseRules(rules []json.RawMessage) (constraintengine.RuleSet, e
 		PolicyID     string            `json:"policyId"`
 		PolicyDigest string            `json:"policyDigest"`
 		Rules        []json.RawMessage `json:"rules"`
-	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules}
+		Corpus       *corpusBlock      `json:"corpus,omitempty"`
+	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules, nil}
+	if len(corpus) > 0 {
+		document.Corpus = &corpusBlock{Completeness: constraintengine.CorpusAttestation, Components: corpus}
+	}
 	raw, err := json.Marshal(document)
 	if err != nil {
-		return constraintengine.RuleSet{}, ErrIntegrity
+		return nil, ErrIntegrity
 	}
-	return constraintengine.ParseRuleSet(raw, b.registry)
+	return raw, nil
 }
 
 const maxCNCFReviewWindow = 90 * 24 * time.Hour
