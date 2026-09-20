@@ -144,15 +144,45 @@ members.
   command classifies against the *observed* component version as the
   declared origin; it never guesses what the operator intends to upgrade
   to beyond the fixed target each descriptor already specifies.
-- The Workstream 1 whole-upgrade scope-completeness aggregate. That is a
-  separate, concurrently in-progress piece of work in
-  `constraintengine`/`validation`, out of scope for this command and
-  deliberately not touched by it (see "Conflict avoidance" in the roadmap).
-  The report's `aggregate` field is always `{"assessment":"UNKNOWN",
-  "reasonCode":"WORKSTREAM_1_SCOPE_COMPLETENESS_NOT_WIRED"}` — a stated
-  limitation, not a fabricated verdict. `APPLICABLE_NEEDS_DECLARATION` or
-  `APPLICABLE_FULLY_SATISFIED` on an individual check is never itself a
-  PASS for the whole upgrade.
+- A component scope. Without `--scope-input` the report's `aggregate` field
+  is `{"assessment":"UNKNOWN","reasonCode":"SCOPE_DECLARATION_NOT_SUPPLIED"}`
+  — a stated limitation, not a fabricated verdict.
+  `APPLICABLE_NEEDS_DECLARATION` or `APPLICABLE_FULLY_SATISFIED` on an
+  individual check is never itself a PASS for anything, and this command
+  never synthesises a scope declaration from what it collected.
+
+## The scope-completeness aggregate
+
+With `--scope-input FILE`, where FILE is an operator-declared constraint
+input (`prufyx.io/operator-declared-constraint-input/v1alpha1`) carrying a
+`scope` declaration, the `aggregate` field becomes the constraint engine's
+own recomputed scope-completeness verdict, and `scopeAssessment` carries the
+enumerated evidence behind it.
+
+What makes that honest:
+
+- The engine evaluates the **whole** embedded community rule corpus, not a
+  selected rule. `projectcheck.ruleSetSelected` — the path `check project`
+  uses — narrows the pack to one project and one exact from/to pair *before*
+  parsing, which structurally cannot support a completeness statement. The
+  scope path assembles every entry in the pack instead and lets the engine
+  decide applicability from declared versions and declared fact values.
+- The corpus carries the maintainer's completeness attestation, emitted by
+  `prufyx-maintainer corpus-attestation generate` over the unfiltered pack
+  and bound to it by the engine's own `RuleSetDigest`. An attestation naming
+  a component the pack holds no reviewed rule for is rejected at parse time,
+  so "complete" cannot be satisfied by attesting an empty set.
+- Applicability is computed independently of evidence freshness. One expired
+  rule does not destroy completeness verdicts for unrelated components.
+- Your scope declaration is validated, not trusted: it must match your own
+  declared bundle exactly and name only components the corpus has a compiled
+  identity for. It is **not** cross-checked against observed cluster state,
+  and the report says so.
+- The strongest reachable verdict is `SCOPE_COMPLETE_PASS`. It is never
+  `SAFE`. It states only that every reviewed constraint applicable to the
+  declared components was evaluated and passed, and it enumerates, per
+  component, every rule that was not evaluated and why. Absence of evidence
+  is `UNKNOWN`.
 
 ## Why one collection run per context
 

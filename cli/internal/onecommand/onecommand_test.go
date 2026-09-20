@@ -116,8 +116,14 @@ func TestRunClassifiesThreeWaySplit(t *testing.T) {
 	if report.RouteCatalog.TotalNativeRoutes != 166 {
 		t.Fatalf("totalNativeRoutes=%d want 166", report.RouteCatalog.TotalNativeRoutes)
 	}
-	if report.Aggregate.Assessment != "UNKNOWN" {
-		t.Fatalf("aggregate assessment=%q, must never be anything but UNKNOWN in this build", report.Aggregate.Assessment)
+	// Without a declared component scope there is no auditable applicable set,
+	// so the aggregate must stay UNKNOWN however many routes classified as
+	// applicable. An applicability classification is never a verdict.
+	if report.Aggregate.Assessment != "UNKNOWN" || report.Aggregate.ReasonCode != reasonScopeNotSupplied {
+		t.Fatalf("aggregate=%q/%q, want UNKNOWN with no scope declaration", report.Aggregate.Assessment, report.Aggregate.ReasonCode)
+	}
+	if report.ScopeAssessment != nil {
+		t.Fatal("a scope assessment appeared without a scope declaration")
 	}
 	if len(report.Contexts) != 1 {
 		t.Fatalf("contexts=%d want 1", len(report.Contexts))
@@ -312,5 +318,114 @@ func TestRenderCommandSubstitutesPlaceholders(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("got=%v want=%v", got, want)
 		}
+	}
+}
+
+// lokiScopeInputJSON is an operator-declared constraint input whose scope
+// declares exactly one component the embedded rule corpus is attested for, with
+// every fact its reviewed rules read declared explicitly.
+const lokiScopeInputJSON = `{
+  "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+  "authority": "OPERATOR_DECLARED_MINIMIZED",
+  "scope": {"declaration": "OPERATOR_DECLARED_COMPLETE_COMPONENT_SET", "components": ["pkg:github/grafana/loki"]},
+  "current": {"components": [{"component": "pkg:github/grafana/loki", "version": "2.9.8", "facts": []}]},
+  "proposed": {"components": [{"component": "pkg:github/grafana/loki", "version": "3.0.0", "facts": [
+    {"id": "component.loki.compactor_legacy_shared_store_present", "state": "declared", "boolValue": false},
+    {"id": "component.loki.structured_metadata_requires_tsdb_v13", "state": "declared", "boolValue": false}
+  ]}]}
+}`
+
+func writeScopeInput(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "scope-input.json")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestDeclaredScopeReachesScopeCompletePass is the aggregate this command
+// could not reach before: a genuinely complete, genuinely attested component
+// set, compiled deterministically from the engine's own enumerated evidence.
+func TestDeclaredScopeReachesScopeCompletePass(t *testing.T) {
+	opts := baseTestOptions(t, &fakeRunner{t: t})
+	opts.ScopeInput = writeScopeInput(t, lokiScopeInputJSON)
+	var stdout, stderr bytes.Buffer
+	report, code := Run(context.Background(), opts, &stdout, &stderr)
+	if code != ExitOK {
+		t.Fatalf("Run failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if report.Aggregate.Assessment != "SCOPE_COMPLETE_PASS" {
+		t.Fatalf("aggregate=%q/%q", report.Aggregate.Assessment, report.Aggregate.ReasonCode)
+	}
+	if report.Aggregate.ReasonCode != reasonScopeResolved {
+		t.Fatalf("reasonCode=%q", report.Aggregate.ReasonCode)
+	}
+	scope := report.ScopeAssessment
+	if scope == nil || scope.Check.ScopeCompleteness == nil {
+		t.Fatal("no scope evidence accompanied the aggregate")
+	}
+	if !scope.Check.ScopeCompleteness.Resolved || len(scope.Check.ScopeCompleteness.Components) != 1 {
+		t.Fatalf("scope block=%+v", scope.Check.ScopeCompleteness)
+	}
+	if !scope.Check.ScopeCompleteness.Components[0].CorpusAttested {
+		t.Fatal("the reached verdict was not backed by a corpus attestation")
+	}
+	// The corpus was unfiltered: the rules outside this scope are enumerated
+	// as out of scope rather than silently absent.
+	if scope.Check.ScopeCompleteness.OutOfScopeRules != scope.CorpusRuleCount-2 {
+		t.Fatalf("outOfScopeRules=%d corpusRuleCount=%d", scope.Check.ScopeCompleteness.OutOfScopeRules, scope.CorpusRuleCount)
+	}
+	raw, err := MarshalReport(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"assessment": "SAFE"`) {
+		t.Fatal("report carried SAFE")
+	}
+	if !strings.Contains(string(raw), "scopeAssessment") {
+		t.Fatal("the aggregate was reported without its evidence")
+	}
+}
+
+// TestDeclaredScopeWithAnUndeclaredFactStaysUnknown: absence of evidence is
+// UNKNOWN. Nothing about a live collection may fill in a fact the operator did
+// not declare.
+func TestDeclaredScopeWithAnUndeclaredFactStaysUnknown(t *testing.T) {
+	body := strings.Replace(lokiScopeInputJSON,
+		`{"id": "component.loki.structured_metadata_requires_tsdb_v13", "state": "declared", "boolValue": false}`,
+		`{"id": "component.loki.structured_metadata_requires_tsdb_v13", "state": "missing"}`, 1)
+	opts := baseTestOptions(t, &fakeRunner{t: t})
+	opts.ScopeInput = writeScopeInput(t, body)
+	var stdout, stderr bytes.Buffer
+	report, code := Run(context.Background(), opts, &stdout, &stderr)
+	if code != ExitOK {
+		t.Fatalf("Run failed: code=%d stderr=%s", code, stderr.String())
+	}
+	if report.Aggregate.Assessment != "UNKNOWN" {
+		t.Fatalf("aggregate=%q, want UNKNOWN when a required fact was not declared", report.Aggregate.Assessment)
+	}
+	if report.ScopeAssessment == nil || report.ScopeAssessment.Check.ScopeCompleteness.Resolved {
+		t.Fatal("an unresolved scope was reported as resolved")
+	}
+}
+
+// TestRejectedScopeInputFailsLoudly: a scope declaration that does not match
+// its own declared bundle is a caller error, not an evidence gap. It must not
+// degrade quietly into an UNKNOWN verdict that looks like honest uncertainty.
+func TestRejectedScopeInputFailsLoudly(t *testing.T) {
+	for name, body := range map[string]string{
+		"no scope declaration": strings.Replace(lokiScopeInputJSON, `"scope": {"declaration": "OPERATOR_DECLARED_COMPLETE_COMPONENT_SET", "components": ["pkg:github/grafana/loki"]},`, "", 1),
+		"unknown component":    strings.ReplaceAll(lokiScopeInputJSON, "pkg:github/grafana/loki", "pkg:github/example/absent"),
+		"not JSON":             "{",
+	} {
+		t.Run(name, func(t *testing.T) {
+			opts := baseTestOptions(t, &fakeRunner{t: t})
+			opts.ScopeInput = writeScopeInput(t, body)
+			var stdout, stderr bytes.Buffer
+			if _, code := Run(context.Background(), opts, &stdout, &stderr); code != ExitUsage {
+				t.Fatalf("code=%d, want ExitUsage; stderr=%s", code, stderr.String())
+			}
+		})
 	}
 }
