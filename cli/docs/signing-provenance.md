@@ -56,10 +56,16 @@ statement that would pin a root exists.
 ## Verify a supplied archive
 
 Use GitHub CLI with artifact attestation support. The following example uses the
-artifact layout produced by the release workflow. Public downloads are not
-available during the current private preview. When the release owner supplies a
-specific archive, checksum asset and tag, substitute those exact values below;
-do not infer them from a historical alpha archive.
+artifact layout produced by the release workflow. No release has been signed
+or published from this repository: it carries no version tag, no GitHub
+Release, and no CI release workflow (there is no `.github/workflows/` in this
+checkout). The commands below are a template for verifying a signed archive
+once one exists, not a description of this repository's current state; the
+`prufyx-cli` repository and `v0.1.0-alpha.5` tag they reference are historical
+and no longer exist (`prufyx/prufyx-cli` now returns HTTP 404). When a release
+owner publishes a signed archive from this repository, substitute the actual
+repository, checksum asset and tag below; do not infer them from this
+historical example.
 
 ```sh
 VERSION=v0.1.0-alpha.5
