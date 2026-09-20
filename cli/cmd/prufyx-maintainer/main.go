@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/maintainer/contribution"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/corpusattest"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/evidencerepin"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgeexport"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
@@ -116,6 +117,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: code, message: "source-corpus failed", printed: true}
 		}
 		return nil
+	case "corpus-attestation":
+		if code := runCorpusAttestation(args[1:], stdout, stderr); code != 0 {
+			return &commandError{code: code, message: "corpus-attestation failed", printed: true}
+		}
+		return nil
 	case "review-record":
 		if err := reviewrecord.Run(args[1:], stdout); err != nil {
 			return &commandError{code: 2, message: "review-record: record rejected", err: err}
@@ -137,7 +143,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|review-record|public-source-capture|evidence|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|corpus-attestation|review-record|public-source-capture|evidence|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()
@@ -402,6 +408,18 @@ func runEvidenceRepin(args []string, stdout, stderr io.Writer) int {
 	}
 	apiFetcher := evidencerepin.GitHubAPIFetcher{Token: token}
 	return evidencerepin.Run(context.Background(), args, stdout, stderr, apiFetcher, sourcecapture.FixedHTTPSFetcher{}, time.Now, defaultRulePacks)
+}
+
+// runCorpusAttestation wires the corpus-attestation maintainer subcommand. It
+// computes over the whole embedded rule pack, never a filtered view, and
+// writes or verifies the attestation asset the runtime scope path consumes.
+func runCorpusAttestation(args []string, stdout, stderr io.Writer) int {
+	root, err := cliRoot()
+	if err != nil {
+		fmt.Fprintln(stderr, "corpus-attestation: CLI root is unavailable")
+		return 2
+	}
+	return corpusattest.Run(args, stdout, stderr, root)
 }
 
 func runSupportInventory(args []string, stderr io.Writer) error {

@@ -32,6 +32,7 @@ func (r runtime) assess(ctx context.Context, args []string) int {
 	kubectl := fs.String("kubectl", "", "kubectl executable (default PATH lookup)")
 	output := fs.String("output", "", "private working directory for the collected bundle (default: a fresh temporary directory)")
 	format := fs.String("format", "human", "human or json")
+	scopeInput := fs.String("scope-input", "", "operator-declared constraint input carrying a scope declaration")
 	var execEnv stringsFlag
 	fs.Var(&execEnv, "exec-env", "forward one named ambient variable; repeatable")
 	if duplicateFlags(args) || fs.Parse(args) != nil {
@@ -51,6 +52,7 @@ func (r runtime) assess(ctx context.Context, args []string) int {
 		ExecEnv:                       execEnv,
 		Kubectl:                       *kubectl,
 		ComponentConfigurationProfile: *profile,
+		ScopeInput:                    *scopeInput,
 	}
 	report, code := onecommand.Run(ctx, opts, r.stdout, r.stderr)
 	if code != onecommand.ExitOK {
@@ -75,7 +77,8 @@ func (s *stringsFlag) Set(v string) error { *s = append(*s, v); return nil }
 
 func writeAssessHuman(w io.Writer, report onecommand.Report) {
 	fmt.Fprintf(w, "prufyx assess: %d registered native check routes evaluated against the collected bundle.\n", report.RouteCatalog.TotalNativeRoutes)
-	fmt.Fprintf(w, "aggregate (whole-upgrade): %s (%s)\n  %s\n", report.Aggregate.Assessment, report.Aggregate.ReasonCode, report.Aggregate.Note)
+	fmt.Fprintf(w, "aggregate: %s (%s)\n  %s\n", report.Aggregate.Assessment, report.Aggregate.ReasonCode, report.Aggregate.Note)
+	writeScopeHuman(w, report)
 	for _, c := range report.Contexts {
 		fmt.Fprintf(w, "\ncontext %s (%s)\n", c.ContextHash, c.CollectionStatus)
 		s := c.Summary
@@ -118,6 +121,30 @@ func writeAssessHuman(w io.Writer, report onecommand.Report) {
 	}
 }
 
+// writeScopeHuman prints the declared-scope aggregate's evidence. Everything
+// not evaluated is named: a completeness statement that cannot say what it
+// skipped is not auditable.
+func writeScopeHuman(w io.Writer, report onecommand.Report) {
+	scope := report.ScopeAssessment
+	if scope == nil || scope.Check.ScopeCompleteness == nil {
+		return
+	}
+	block := scope.Check.ScopeCompleteness
+	fmt.Fprintf(w, "\ndeclared component scope (%d attested components in corpus revision %s, %d reviewed rules, %d out of scope)\n", len(scope.AttestedComponents), scope.KnowledgeRevision, scope.CorpusRuleCount, block.OutOfScopeRules)
+	for _, component := range block.Components {
+		fmt.Fprintf(w, "  %s %s -> %s  attested=%t evaluated=%d notEvaluated=%d\n", component.Component, component.From, component.To, component.CorpusAttested, len(component.EvaluatedRuleIDs), len(component.NotEvaluated))
+		for _, skipped := range component.NotEvaluated {
+			fmt.Fprintf(w, "      not evaluated: %s (%s / %s)\n", skipped.RuleID, skipped.Applicability, skipped.ReasonCode)
+		}
+	}
+	if !block.Resolved {
+		fmt.Fprintf(w, "  unresolved: %s\n", block.UnresolvedReason)
+	}
+	for _, limitation := range scope.Limitations {
+		fmt.Fprintf(w, "  limitation: %s\n", limitation)
+	}
+}
+
 func (r runtime) assessUsage(w io.Writer) {
 	fmt.Fprintln(w, `Usage: prufyx assess --kubeconfig FILE --acknowledge-kubeconfig-exec-risk [OPTIONS] CONTEXT...
 
@@ -129,7 +156,17 @@ collector observes. It never mutates cluster state, never runs a check on
 the operator's behalf, and never invents a declaration. See
 cli/docs/one-command-flow.md for the full design and its limits.
 
+With --scope-input the aggregate becomes the constraint engine's own
+scope-completeness verdict over the components you declare, computed against
+the whole attested community rule corpus rather than a selected rule. The
+strongest verdict it can reach is SCOPE_COMPLETE_PASS, which states only that
+every applicable reviewed constraint for the declared components was evaluated
+and passed, and enumerates everything that was not. It is never SAFE, and your
+scope declaration is validated against your own declared bundle rather than
+taken on trust.
+
 Options:
+  --scope-input FILE                        operator-declared constraint input carrying a scope declaration
   --component-configuration-profile v2|v3   default v2
   --allow-partial                           classify anyway when collection is partial (absence conclusions are downgraded to indeterminate)
   --kubectl PATH                            kubectl executable (default PATH lookup)

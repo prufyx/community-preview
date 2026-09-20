@@ -27,6 +27,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/currentbundle"
 	"github.com/prufyx/prufyx-cli/internal/localcollector"
 	"github.com/prufyx/prufyx-cli/internal/observation"
+	"github.com/prufyx/prufyx-cli/internal/projectcheck"
 )
 
 const (
@@ -42,7 +43,19 @@ const (
 
 	freshnessPolicyID = "prufyx.io.one-command-flow-same-run.v1"
 	freshnessMaxAge   = time.Hour
+
+	// Aggregate reason codes. The aggregate is the constraint engine's own
+	// recomputed verdict whenever a scope declaration was supplied, and an
+	// honest "not asked" otherwise. It is never SAFE.
+	reasonScopeNotSupplied = "SCOPE_DECLARATION_NOT_SUPPLIED"
+	reasonScopeResolved    = "SCOPE_COMPLETENESS_RESOLVED"
+
+	maxScopeInputBytes = 1 << 20
 )
+
+const scopeNotSuppliedNote = "No component scope was declared, so no whole-upgrade or scoped aggregate is derivable: the per-check applicability below is a triage aid, not a compatibility verdict. Pass --scope-input FILE with an operator-declared constraint input carrying a scope declaration to get a scope-completeness aggregate over the attested rule corpus."
+
+const scopeSuppliedNote = "This aggregate is the constraint engine's own recomputed scope-completeness verdict over the declared component set only. It is never SAFE: SCOPE_COMPLETE_PASS states only that every applicable reviewed constraint for the declared components was evaluated and passed, with everything not evaluated enumerated per component in scopeAssessment.check.scopeCompleteness. The declared scope was validated against the caller's own declared bundle, not against observed cluster state."
 
 // observableComponents is the closed, small correspondence between a native
 // check route's catalog project slug and the componentId that
@@ -82,6 +95,13 @@ type Options struct {
 	// Tests inject a fake to classify against synthetic API responses without
 	// a real cluster or kubectl binary.
 	Runner localcollector.Runner
+	// ScopeInput is an optional path to an operator-declared constraint input
+	// carrying a scope declaration. With it, the aggregate becomes the
+	// constraint engine's own scope-completeness verdict over the attested
+	// rule corpus; without it the aggregate stays UNKNOWN. It is never
+	// synthesised from collected state: a scope declaration is the operator's
+	// statement to make, and an absent one is not a default.
+	ScopeInput string
 }
 
 // Report is the combined, single-file output of the one-command flow.
@@ -92,6 +112,10 @@ type Report struct {
 	RouteCatalog RouteCatalogInfo    `json:"routeCatalog"`
 	Contexts     []ContextAssessment `json:"contexts"`
 	Aggregate    AggregateNote       `json:"aggregate"`
+	// ScopeAssessment is present only when the operator declared a component
+	// scope. It carries the engine's enumerated per-component evidence,
+	// including every rule that was not evaluated and why.
+	ScopeAssessment *projectcheck.ScopeReport `json:"scopeAssessment,omitempty"`
 }
 
 type CollectorSummary struct {
@@ -222,9 +246,22 @@ func Run(ctx context.Context, opts Options, stdout, stderr io.Writer) (Report, i
 		Contexts:     make([]ContextAssessment, 0, len(opts.Contexts)),
 		Aggregate: AggregateNote{
 			Assessment: "UNKNOWN",
-			ReasonCode: "WORKSTREAM_1_SCOPE_COMPLETENESS_NOT_WIRED",
-			Note:       "The whole-upgrade scope-completeness aggregate (roadmap Workstream 1) is a separate, in-progress piece of work in constraintengine/validation and is not wired into this command. The per-check applicability below is a triage aid, not a compatibility verdict: an APPLICABLE_NEEDS_DECLARATION or APPLICABLE_FULLY_SATISFIED entry is never itself a PASS for the whole upgrade.",
+			ReasonCode: reasonScopeNotSupplied,
+			Note:       scopeNotSuppliedNote,
 		},
+	}
+
+	if opts.ScopeInput != "" {
+		scope, code := assessDeclaredScope(opts.ScopeInput, nowForEvaluation, stderr)
+		if code != ExitOK {
+			return Report{}, code
+		}
+		reason := scope.Check.ScopeCompleteness.UnresolvedReason
+		if reason == "" {
+			reason = reasonScopeResolved
+		}
+		report.Aggregate = AggregateNote{Assessment: scope.Assessment, ReasonCode: reason, Note: scopeSuppliedNote}
+		report.ScopeAssessment = &scope
 	}
 
 	for _, contextName := range opts.Contexts {
@@ -235,6 +272,33 @@ func Run(ctx context.Context, opts Options, stdout, stderr io.Writer) (Report, i
 		report.Contexts = append(report.Contexts, assessment)
 	}
 	return report, ExitOK
+}
+
+// assessDeclaredScope evaluates the operator's declared scope against the
+// whole attested rule corpus. It authors nothing: the declaration comes from
+// the operator's own file, the rules and the completeness attestation come
+// from the reviewed embedded pack, and the aggregate is the engine's own —
+// re-derived by constraintengine.MarshalReport before it is accepted here.
+func assessDeclaredScope(path string, now time.Time, stderr io.Writer) (projectcheck.ScopeReport, int) {
+	raw, err := currentbundle.ReadBoundedFile(path, maxScopeInputBytes)
+	if err != nil {
+		fmt.Fprintln(stderr, "Cannot read the declared scope input file.")
+		return projectcheck.ScopeReport{}, ExitUsage
+	}
+	scope, err := projectcheck.AssessScope(raw, now.UTC().Truncate(time.Second))
+	if err != nil {
+		fmt.Fprintln(stderr, "The declared scope input was rejected: it must be an operator-declared constraint input carrying a scope declaration whose components exactly match its own declared bundle and are known to the embedded rule corpus.")
+		return projectcheck.ScopeReport{}, ExitUsage
+	}
+	if scope.Check.ScopeCompleteness == nil {
+		fmt.Fprintln(stderr, "Scope-completeness evidence is unavailable for the declared scope.")
+		return projectcheck.ScopeReport{}, ExitIntegrity
+	}
+	if _, err := projectcheck.MarshalScopeReport(scope); err != nil {
+		fmt.Fprintln(stderr, "Scope assessment integrity failure.")
+		return projectcheck.ScopeReport{}, ExitIntegrity
+	}
+	return scope, ExitOK
 }
 
 func assessOneContext(ctx context.Context, opts Options, contextName, outputRoot string, collectedAt, now time.Time, routes []checkroutemetadata.Check, stdout, stderr io.Writer) (ContextAssessment, int) {
