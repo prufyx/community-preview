@@ -1,6 +1,6 @@
 // Package onecommand is the one-command fast path described in the roadmap's
 // Workstream 2: it collects a local, read-only current-state bundle from a
-// kubeconfig the operator already trusts, and reports which of the 166
+// kubeconfig the operator already trusts, and reports which of the 170
 // registered native check routes (checkroutemetadata.descriptorSet) are
 // applicable to what was actually found.
 //
@@ -167,7 +167,7 @@ type CheckAssessment struct {
 
 // RunResult is reserved for a future ApplicableFullySatisfied check: one
 // with zero caller declarations beyond the version pair itself. As of the
-// current 166-route catalog this bucket is empty and verified so (see
+// current 170-route catalog this bucket is empty and verified so (see
 // TestNoNativeRouteIsFullySatisfiedByVersionAlone and
 // cli/docs/one-command-flow.md); execution is deliberately not wired yet,
 // so this field is always nil today. It is not omitted from the schema so
@@ -194,7 +194,7 @@ const (
 )
 
 // Run collects a current bundle from each declared kubeconfig context and
-// classifies every one of the 166 native check routes against it. It never
+// classifies every one of the 170 native check routes against it. It never
 // mutates cluster state and never opens any network path beyond the
 // Kubernetes API the collector already uses.
 //

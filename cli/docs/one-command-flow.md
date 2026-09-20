@@ -1,6 +1,6 @@
 # One-command flow (`prufyx assess`)
 
-Roadmap Workstream 2 (`ROADMAP-2026-09-19.md`). Problem: 166 registered
+Roadmap Workstream 2 (`ROADMAP-2026-09-19.md`). Problem: 170 registered
 native check routes each require hand-authored caller JSON and per-project
 flags. Getting one answer takes an hour of manual input preparation. This
 command is the fast path layered on top of those routes; it does not replace
@@ -22,11 +22,11 @@ prufyx assess --kubeconfig FILE --acknowledge-kubeconfig-exec-risk [OPTIONS] CON
 2. Projects that bundle through the existing, unmodified
    `internal/currentbundle` boundary into the canonical `CurrentBundle`
    schema.
-3. Loads the full 166-route catalog via
+3. Loads the full 170-route catalog via
    `checkroutemetadata.Discover("", "", "")`, filtered to entries whose
    `NativeDescriptor.State == DescriptorExact` (the routes with a working
    native command, not just a generic declaration route).
-4. Classifies every one of those 166 routes against the bundle and emits one
+4. Classifies every one of those 170 routes against the bundle and emits one
    combined report (`internal/onecommand.Report`), in human or JSON form.
 
 It authors zero new compatibility claims. The classification never decides
@@ -35,7 +35,7 @@ attempted from what was collected, and if not, exactly why.
 
 ## The three-way (in practice four-way) applicability split
 
-For each of the 166 native routes, against each collected kubeconfig
+For each of the 170 native routes, against each collected kubeconfig
 context, exactly one outcome is assigned:
 
 | Outcome | Meaning |
@@ -101,9 +101,9 @@ this command already supplies) need nothing further. `file_placeholder`,
 missing declarations, each with its exact flag name and a one-line
 explanation of what kind of thing it is and why it isn't observable.
 
-## The honest finding: 0 of 166 are fully satisfiable today
+## The honest finding: 0 of 170 are fully satisfiable today
 
-Every single one of the 166 native descriptors requires at least one
+Every single one of the 170 native descriptors requires at least one
 `file_placeholder` argument beyond the version pair — a caller-supplied
 resource, configuration, or argv declaration
 (`--alertmanager-config`, `--native-resource`, `--kafka-resource`,
@@ -199,9 +199,9 @@ design choice made here.
 Against a reachable cluster with a valid, already-trusted kubeconfig:
 `prufyx assess --kubeconfig ~/.kube/config --acknowledge-kubeconfig-exec-risk my-context`
 completes in one command and one confirmation flag, versus hand-authoring
-per-project JSON and flags for each of 166 routes beforehand. The answer it
-gives is a triage list, not a verdict — but going from "166 routes, unknown
+per-project JSON and flags for each of 170 routes beforehand. The answer it
+gives is a triage list, not a verdict — but going from "170 routes, unknown
 which apply" to "here are the N that apply to what you actually have
 running, and exactly what each one still needs from you" is the whole
-value: it turns an hour of guessing which of 166 routes are even worth
+value: it turns an hour of guessing which of 170 routes are even worth
 hand-authoring input for into a single command's output.
