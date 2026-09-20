@@ -236,7 +236,7 @@ func exactPair(base []Argument, from, to string) []Argument {
 }
 
 func descriptorSet() []descriptor {
-	result := make([]descriptor, 0, 166)
+	result := make([]descriptor, 0, 170)
 	alertPairs := []struct{ from, id string }{
 		{"2.55.1", "prometheus.alertmanager-api-v1-removed.3-1"},
 		{"3.9.1", "prometheus.alertmanager-api-v1.target-config.3-9-1-to-3-14-0"},
@@ -291,6 +291,18 @@ func descriptorSet() []descriptor {
 	}
 	for _, pair := range etcdExperimentalFlagPairs {
 		result = append(result, descriptor{family: FamilyCNCF, project: "etcd", component: "pkg:github/etcd-io/etcd", ruleID: pair.id, from: pair.from, to: "3.7.1", command: exactPair(extend(cncfBase("etcd"), file("--native-resource")), pair.from, "3.7.1"), limit: "etcd 3.7 rejects only the finite reviewed removed experimental flag names, checked against one caller-declared complete direct proposed argv; unknown experimental names, indirect configuration, and the separate mandatory minor-version-skip blocker are unassessed by this route."})
+	}
+	// etcd direct-minor-skip: an unconditional forbid_target_version blocker
+	// (requiredFacts is empty) for the same four multi-minor origins already
+	// routed above to 3.7.1. It shares the identical --native-resource command
+	// already wired for etcd.experimental-flags-unsupported.*; no facts are
+	// needed because the rule fires purely from the declared component/from/to
+	// identity. TestEtcdNativeCheck_AllLatestOriginsAreRouted in
+	// internal/communityapp already exercises this exact claim end to end for
+	// these four origins.
+	etcdDirectMinorSkipFroms := []string{"3.2.32", "3.3.27", "3.4.45", "3.5.33"}
+	for _, from := range etcdDirectMinorSkipFroms {
+		result = append(result, descriptor{family: FamilyCNCF, project: "etcd", component: "pkg:github/etcd-io/etcd", ruleID: "etcd.direct-minor-skip." + strings.ReplaceAll(from, ".", "-") + "-to-3-7-1", from: from, to: "3.7.1", command: exactPair(extend(cncfBase("etcd"), file("--native-resource")), from, "3.7.1"), limit: "etcd supports one minor release at a time; this exact direct skip is blocked without a claim about cluster health or a complete staged route. No supplied native-resource content can establish a PASS for this identity.", nativePass: "NOT_AVAILABLE_BLOCKER_ONLY"})
 	}
 	kyvernoNativeBase := extend(cncfBase("kyverno"), file("--kyverno-resource"), name("--container"), name("--kyverno-distribution"))
 	result = append(result, descriptor{family: FamilyCNCF, project: "kyverno", component: "pkg:github/kyverno/kyverno", ruleID: "kyverno.reports-chunk-size-removed.1-13", from: "1.12.5", to: "1.13.0", command: exactPair(kyvernoNativeBase, "1.12.5", "1.13.0"), limit: "One caller-selected container's explicitly declared official-upstream bare literal reports-controller command only; image provenance, wrappers, other command surfaces, controller behavior, and whole-upgrade compatibility are unverified."})
@@ -639,7 +651,7 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		knownProjects[item.Project] = true
 		known[identityKey(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)] = true
 	}
-	if len(descriptors) != 166 {
+	if len(descriptors) != 170 {
 		return Result{}, fmt.Errorf("%w: descriptor count=%d", ErrIntegrity, len(descriptors))
 	}
 	for key := range descriptors {
