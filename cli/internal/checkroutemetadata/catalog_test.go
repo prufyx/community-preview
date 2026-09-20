@@ -81,6 +81,24 @@ func TestDiscoverExactPairExcludesCrossMode(t *testing.T) {
 	}
 }
 
+func TestDiscoverRookHasNoWorkingNativeRoute(t *testing.T) {
+	result, err := Discover("rook", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Checks) != 11 {
+		t.Fatalf("rook rule identity count = %d", len(result.Checks))
+	}
+	for _, item := range result.Checks {
+		if item.NativeDescriptor.State != DescriptorNone {
+			t.Fatalf("rook has no working native adapter today; unexpected bound descriptor: %#v", item)
+		}
+		if item.GenericDeclarationRoute.State != RouteExposed {
+			t.Fatalf("rook generic declaration route should remain exposed: %#v", item)
+		}
+	}
+}
+
 func TestDescriptorValidationRejectsUnsafeTypedCommand(t *testing.T) {
 	item := descriptorSet()[0]
 	item.command[0] = literal("prepare")
