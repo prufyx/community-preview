@@ -82,7 +82,7 @@ contour, cloudnativepg, linkerd, karmada, kubeedge, tekton, cri-o, cubefs,
 tuf, in-toto, knative, kubeflow, buildpacks, emissary-ingress, openfga,
 distribution, cni-spec, envoy, strimzi, falco, kuma, crossplane, velero,
 keda, spire, etcd, kyverno, jaeger, harbor, fluentd, opencost,
-cloud-custodian, mariadb-operator, fluent-bit — 46 projects) has no identity
+cloud-custodian, mariadb-operator, fluent-bit — 48 projects) has no identity
 in the collector's adapter registry at all. Every one of their checks is
 `INDETERMINATE_NOT_OBSERVABLE`.
 
