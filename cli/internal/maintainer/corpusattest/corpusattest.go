@@ -1,5 +1,6 @@
 // Package corpusattest emits the maintainer's corpus-completeness attestation
-// over the UNFILTERED embedded community-project rule pack.
+// over an UNFILTERED embedded rule pack — the community-project pack by
+// default, or the CNCF pack with --pack cncf.
 //
 // The attestation is the maintainer asserting, per component, that every
 // reviewed rule they hold for that component is present in this pack at this
@@ -21,26 +22,105 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecorpus"
 	"github.com/prufyx/prufyx-cli/internal/projectcheck"
 )
 
 const maxPackBytes = 4 << 20
 
-// Document renders the attestation for the current embedded pack as the exact
-// bytes the asset holds: indented JSON with a trailing newline.
-func Document() ([]byte, error) {
-	attestation, err := projectcheck.BuildAttestation()
-	if err != nil {
-		return nil, err
+// PackCommunity and PackCNCF name the two embedded corpora this command can
+// attest. Each is attested separately and over its own unfiltered pack; there
+// is deliberately no combined attestation, because the two packs carry
+// independent revisions, digests and component sets.
+const (
+	PackCommunity = "community"
+	PackCNCF      = "cncf"
+)
+
+// target binds one embedded pack to the paths and the parser that describe it.
+// Every field is derived from the compiled package; nothing here is declared
+// by the caller beyond which of the two packs to attest.
+type target struct {
+	packageDir string
+	rulesPath  string
+	assetPath  string
+	// build renders the attestation for the current embedded pack, and parse
+	// is the same parser the runtime uses to read the emitted asset back.
+	build func() ([]byte, error)
+	parse func([]byte) (attested, error)
+}
+
+// attested is the small read-only view of an attestation this command needs.
+// It keeps the two packs' concrete Attestation types out of the command.
+type attested struct {
+	Revision   string
+	PackDigest string
+	Components int
+	RuleCount  int
+}
+
+func targets() map[string]target {
+	return map[string]target{
+		PackCommunity: {
+			packageDir: "internal/projectcheck",
+			rulesPath:  "internal/projectcheck/data/rules.json",
+			assetPath:  projectcheck.AttestationPath,
+			build: func() ([]byte, error) {
+				attestation, err := projectcheck.BuildAttestation()
+				if err != nil {
+					return nil, err
+				}
+				return json.MarshalIndent(attestation, "", "  ")
+			},
+			parse: func(raw []byte) (attested, error) {
+				attestation, err := projectcheck.ParseAttestation(raw)
+				if err != nil {
+					return attested{}, err
+				}
+				return attested{Revision: attestation.Revision, PackDigest: attestation.PackDigest, Components: len(attestation.Components), RuleCount: attestation.RuleCount}, nil
+			},
+		},
+		PackCNCF: {
+			packageDir: "internal/cncfcheck",
+			rulesPath:  "internal/cncfcheck/data/rules.json",
+			assetPath:  cncfcheck.AttestationPath,
+			build: func() ([]byte, error) {
+				attestation, err := cncfcheck.BuildAttestation()
+				if err != nil {
+					return nil, err
+				}
+				return json.MarshalIndent(attestation, "", "  ")
+			},
+			parse: func(raw []byte) (attested, error) {
+				attestation, err := cncfcheck.ParseAttestation(raw)
+				if err != nil {
+					return attested{}, err
+				}
+				return attested{Revision: attestation.Revision, PackDigest: attestation.PackDigest, Components: len(attestation.Components), RuleCount: attestation.RuleCount}, nil
+			},
+		},
 	}
-	raw, err := json.MarshalIndent(attestation, "", "  ")
+}
+
+// Document renders the attestation for the community pack. It is the original
+// entry point and is unchanged; DocumentFor covers the other packs.
+func Document() ([]byte, error) { return DocumentFor(PackCommunity) }
+
+// DocumentFor renders the attestation for one embedded pack as the exact bytes
+// the asset holds: indented JSON with a trailing newline.
+func DocumentFor(pack string) ([]byte, error) {
+	selected, ok := targets()[pack]
+	if !ok {
+		return nil, fmt.Errorf("unknown rule pack")
+	}
+	raw, err := selected.build()
 	if err != nil {
 		return nil, err
 	}
 	// Round-trip through the same parser the runtime uses. An attestation this
 	// command cannot itself parse must never reach the asset.
-	if _, err := projectcheck.ParseAttestation(raw); err != nil {
+	if _, err := selected.parse(raw); err != nil {
 		return nil, err
 	}
 	return append(raw, '\n'), nil
@@ -92,21 +172,31 @@ func Run(args []string, stdout, stderr io.Writer, cliRoot string) int {
 	}
 	flags := flag.NewFlagSet("corpus-attestation "+mode, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	defaultOutput := filepath.Join(cliRoot, "internal/projectcheck", projectcheck.AttestationPath)
-	defaultPack := filepath.Join(cliRoot, "internal/projectcheck/data/rules.json")
-	output := flags.String("output", defaultOutput, "attestation asset path")
-	pack := flags.String("rules", defaultPack, "community-project rule pack")
-	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 || *output == "" || *pack == "" {
+	packName := flags.String("pack", PackCommunity, "rule pack to attest: community or cncf")
+	output := flags.String("output", "", "attestation asset path")
+	pack := flags.String("rules", "", "rule pack file the attestation is bound to")
+	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "corpus-attestation: command rejected")
 		return 2
 	}
+	selected, known := targets()[*packName]
+	if !known {
+		fmt.Fprintln(stderr, "corpus-attestation: command rejected")
+		return 2
+	}
+	if *output == "" {
+		*output = filepath.Join(cliRoot, selected.packageDir, selected.assetPath)
+	}
+	if *pack == "" {
+		*pack = filepath.Join(cliRoot, selected.rulesPath)
+	}
 
-	document, err := Document()
+	document, err := DocumentFor(*packName)
 	if err != nil {
 		fmt.Fprintln(stderr, "corpus-attestation: attestation rejected")
 		return 2
 	}
-	attestation, err := projectcheck.ParseAttestation(document)
+	attestation, err := selected.parse(document)
 	if err != nil {
 		fmt.Fprintln(stderr, "corpus-attestation: attestation rejected")
 		return 2
@@ -127,13 +217,13 @@ func Run(args []string, stdout, stderr io.Writer, cliRoot string) int {
 			fmt.Fprintln(stderr, "corpus-attestation: committed attestation is stale")
 			return 2
 		}
-		fmt.Fprintf(stdout, "corpus-attestation current: revision=%s components=%d rules=%d digest=%s\n", attestation.Revision, len(attestation.Components), attestation.RuleCount, digest)
+		fmt.Fprintf(stdout, "corpus-attestation current: pack=%s revision=%s components=%d rules=%d digest=%s\n", *packName, attestation.Revision, attestation.Components, attestation.RuleCount, digest)
 		return 0
 	}
 	if err := os.WriteFile(*output, document, 0o644); err != nil {
 		fmt.Fprintln(stderr, "corpus-attestation: cannot commit the attestation")
 		return 2
 	}
-	fmt.Fprintf(stdout, "corpus-attestation written: revision=%s components=%d rules=%d digest=%s\n", attestation.Revision, len(attestation.Components), attestation.RuleCount, digest)
+	fmt.Fprintf(stdout, "corpus-attestation written: pack=%s revision=%s components=%d rules=%d digest=%s\n", *packName, attestation.Revision, attestation.Components, attestation.RuleCount, digest)
 	return 0
 }
