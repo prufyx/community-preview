@@ -639,6 +639,25 @@ func descriptorSet() []descriptor {
 	// any of that is new adapter/preparer work, which is out of scope for
 	// pure route registration. TestDiscoverRookHasNoWorkingNativeRoute in
 	// catalog_test.go independently asserts this gap.
+
+	// NOTE: opa (6 reviewed rule identities: opa.v0-consumer-producer-option.1-0
+	// plus the five opa.v0-consumer-producer-option-at-1-20-2-from-* target
+	// pairs) and dragonfly (2 reviewed rule identities:
+	// dragonfly.manager-retained-debug.2-2-3-2-2-4 and
+	// dragonfly.scheduler-retained-debug.2-2-3-2-2-4) are deliberately NOT
+	// registered here. Verification found no native-format preparer, no
+	// cncfNativeFormat dispatch case, and no dedicated CLI flags for either
+	// project anywhere in internal/cncfprepare or internal/communityapp/cncf.go.
+	// The only route either project has today is the generic
+	// `check cncf --project <opa|dragonfly> --input FILE` minimized-declaration
+	// path already covered by GenericDeclarationRoute; runOPALatestExample in
+	// internal/communityapp/community_examples.go exercises exactly that path by
+	// hand-authoring the already-minimized operator-declared JSON directly, not
+	// by deriving it from any real native OPA or Dragonfly artifact. There is no
+	// working single-step native exact-pair route and no two-step prepare/check
+	// flow for either project, so both are Class C (no adapter at all).
+	// Registering descriptors for them would require building new preparers,
+	// which is out of scope for pure route registration.
 	return result
 }
 
