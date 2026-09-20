@@ -112,23 +112,21 @@ func TestLoadCitationsRejectsMismatchedRevision(t *testing.T) {
 }
 
 func TestClassifySpanIdentical(t *testing.T) {
-	data := []byte("a\nb\nc\nd\ne")
-	digest, ok := spanDigestAt([][]byte{[]byte("a"), []byte("b"), []byte("c"), []byte("d"), []byte("e")}, 2, 3)
-	if !ok {
-		t.Fatal("expected ok")
-	}
-	class, start, end := classifySpan(digest, 2, 3, data)
+	// The span (lines 2-3, "b\nc") survives untouched even though line 5
+	// of the file changed elsewhere.
+	oldData := []byte("a\nb\nc\nd\ne")
+	newData := []byte("a\nb\nc\nd\nZ")
+	class, start, end := classifySpan(oldData, 2, 3, newData)
 	if class != ClassSpanIdentical || start != 2 || end != 3 {
 		t.Fatalf("got class=%s start=%d end=%d", class, start, end)
 	}
 }
 
 func TestClassifySpanMoved(t *testing.T) {
-	lines := [][]byte{[]byte("a"), []byte("b"), []byte("c")}
-	digest, _ := spanDigestAt(lines, 1, 2) // digest of "a\nb"
+	oldData := []byte("a\nb\nc")
 	// New file: same "a\nb" pair now appears at lines 3-4 instead of 1-2.
 	newData := []byte("x\ny\na\nb\nz")
-	class, start, end := classifySpan(digest, 1, 2, newData)
+	class, start, end := classifySpan(oldData, 1, 2, newData)
 	if class != ClassSpanMoved {
 		t.Fatalf("expected SPAN_MOVED, got %s", class)
 	}
@@ -138,7 +136,9 @@ func TestClassifySpanMoved(t *testing.T) {
 }
 
 func TestClassifySpanContentChanged(t *testing.T) {
-	class, _, _ := classifySpan("sha256:0000000000000000000000000000000000000000000000000000000000000000", 1, 2, []byte("totally\ndifferent\ncontent"))
+	oldData := []byte("totally\noldstuff\nhere")
+	newData := []byte("totally\ndifferent\ncontent")
+	class, _, _ := classifySpan(oldData, 1, 2, newData)
 	if class != ClassContentChanged {
 		t.Fatalf("expected CONTENT_CHANGED, got %s", class)
 	}
@@ -172,12 +172,37 @@ func TestClassifyPathGone(t *testing.T) {
 	}
 }
 
-func TestClassifyEndToEndIdentical(t *testing.T) {
+func TestClassifyFileIdentical(t *testing.T) {
+	// contentDigest is a WHOLE-FILE digest in the shipped rule packs: when
+	// the whole file at the current release commit still hashes to it, the
+	// cited span is necessarily unchanged too, and no old-blob fetch is
+	// needed at all.
 	body := []byte("first\nsecond\nthird")
-	digest, _ := spanDigestAt([][]byte{[]byte("first"), []byte("second"), []byte("third")}, 2, 2)
-	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "util/helm/client.go", OldCommit: commitA, OldDigest: digest, StartLine: 2, EndLine: 2}
+	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "util/helm/client.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(body), StartLine: 2, EndLine: 2}
 	fetcher := fakeBlobFetcher{
 		"/argoproj/argo-cd/" + commitB + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: body},
+	}
+	result := Classify(context.Background(), citation, commitB, fetcher)
+	if result.Class != ClassFileIdentical {
+		t.Fatalf("expected FILE_IDENTICAL, got %s (%s)", result.Class, result.Detail)
+	}
+	if result.NewCommit != commitB {
+		t.Fatalf("expected NewCommit set, got %+v", result)
+	}
+}
+
+func TestClassifyEndToEndSpanIdentical(t *testing.T) {
+	// The file changed (so contentDigest, a whole-file digest, no longer
+	// matches the new file), but after fetching the file at the citation's
+	// own pinned commit and confirming THAT matches contentDigest, the
+	// cited span (line 2, "second") is byte-identical at the same line
+	// range in the new file.
+	oldBody := []byte("first\nsecond\nthird")
+	newBody := []byte("first\nsecond\nTHIRD")
+	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "util/helm/client.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(oldBody), StartLine: 2, EndLine: 2}
+	fetcher := fakeBlobFetcher{
+		"/argoproj/argo-cd/" + commitB + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+		"/argoproj/argo-cd/" + commitA + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBody},
 	}
 	result := Classify(context.Background(), citation, commitB, fetcher)
 	if result.Class != ClassSpanIdentical {
@@ -185,6 +210,52 @@ func TestClassifyEndToEndIdentical(t *testing.T) {
 	}
 	if result.NewCommit != commitB {
 		t.Fatalf("expected NewCommit set, got %+v", result)
+	}
+}
+
+func TestClassifyEndToEndSpanMoved(t *testing.T) {
+	oldBody := []byte("a\nb\nc")
+	newBody := []byte("x\ny\na\nb\nz")
+	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(oldBody), StartLine: 1, EndLine: 2}
+	fetcher := fakeBlobFetcher{
+		"/argoproj/argo-cd/" + commitB + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+		"/argoproj/argo-cd/" + commitA + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBody},
+	}
+	result := Classify(context.Background(), citation, commitB, fetcher)
+	if result.Class != ClassSpanMoved || result.NewStart != 3 || result.NewEnd != 4 {
+		t.Fatalf("expected SPAN_MOVED at 3-4, got %+v", result)
+	}
+}
+
+func TestClassifyCorpusDigestMismatchOnWrongDigest(t *testing.T) {
+	// The corpus record claims a contentDigest for the citation's own
+	// pinned commit, but the bytes actually at that commit hash to
+	// something else: a corpus integrity problem, not ordinary drift.
+	oldBody := []byte("first\nsecond\nthird")
+	newBody := []byte("first\nsecond\nTHIRD")
+	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "util/helm/client.go", OldCommit: commitA, OldDigest: "sha256:" + strings.Repeat("0", 64), StartLine: 2, EndLine: 2}
+	fetcher := fakeBlobFetcher{
+		"/argoproj/argo-cd/" + commitB + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+		"/argoproj/argo-cd/" + commitA + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBody},
+	}
+	result := Classify(context.Background(), citation, commitB, fetcher)
+	if result.Class != ClassCorpusDigestMismatch {
+		t.Fatalf("expected CORPUS_DIGEST_MISMATCH, got %s (%s)", result.Class, result.Detail)
+	}
+}
+
+func TestClassifyCorpusDigestMismatchOnUnreachableOldBlob(t *testing.T) {
+	// The citation's own pinned commit is immutable; a 404 fetching it
+	// there means the corpus recorded a URL that does not actually
+	// resolve, which is also a corpus integrity problem.
+	newBody := []byte("first\nsecond\nTHIRD")
+	citation := Citation{Owner: "argoproj", Repo: "argo-cd", Path: "util/helm/client.go", OldCommit: commitA, OldDigest: "sha256:" + strings.Repeat("0", 64), StartLine: 2, EndLine: 2}
+	fetcher := fakeBlobFetcher{
+		"/argoproj/argo-cd/" + commitB + "/util/helm/client.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+	}
+	result := Classify(context.Background(), citation, commitB, fetcher)
+	if result.Class != ClassCorpusDigestMismatch {
+		t.Fatalf("expected CORPUS_DIGEST_MISMATCH, got %s (%s)", result.Class, result.Detail)
 	}
 }
 
@@ -289,15 +360,23 @@ func TestResolveCurrentCommitRateLimited(t *testing.T) {
 	}
 }
 
-func TestBuildWorklistFalsificationArithmetic(t *testing.T) {
-	// Three citations: two SPAN_IDENTICAL/NO_NEW_RELEASE, one CONTENT_CHANGED.
-	// Batch-attestable-by-SPAN_IDENTICAL-alone fraction should be 1/3 < 0.5.
-	body := []byte("alpha\nbeta\ngamma")
-	identicalDigest, _ := spanDigestAt([][]byte{[]byte("alpha"), []byte("beta"), []byte("gamma")}, 1, 1)
+func TestBuildWorklistBatchAttestableArithmetic(t *testing.T) {
+	// Four citations against the same repo/path: one NO_NEW_RELEASE (no
+	// fetch), one FILE_IDENTICAL (whole new file still matches
+	// contentDigest), one SPAN_IDENTICAL (file changed, but the cited span
+	// survived at the same range once verified against the citation's own
+	// pinned commit), and one CONTENT_CHANGED (file changed, cited span
+	// gone). Batch-attestable = FILE_IDENTICAL+SPAN_IDENTICAL+NO_NEW_RELEASE
+	// = 3/4 = 0.75, so the falsification condition (<0.5) does NOT fire.
+	newBody := []byte("alpha\nbeta\ngamma")
+	oldBodySpanIdentical := []byte("alpha\nBETA\ngamma") // line 1 ("alpha") survives unchanged
+	oldBodyContentChanged := []byte("nomatch\nnomatch2\nnomatchtail")
+	commitC := "ccccccccccccccccccccccccccccccccccccccc3"
 	citations := []Citation{
-		{RulePack: "p", RuleID: "r1", Project: "argo-cd", SourceID: "s1", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: identicalDigest, StartLine: 1, EndLine: 1},
-		{RulePack: "p", RuleID: "r2", Project: "argo-cd", SourceID: "s2", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitB, OldDigest: "sha256:irrelevant", StartLine: 1, EndLine: 1},
-		{RulePack: "p", RuleID: "r3", Project: "argo-cd", SourceID: "s3", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000", StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r1", Project: "argo-cd", SourceID: "s1", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitB, OldDigest: "sha256:irrelevant", StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r2", Project: "argo-cd", SourceID: "s2", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(newBody), StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r3", Project: "argo-cd", SourceID: "s3", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(oldBodySpanIdentical), StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r4", Project: "argo-cd", SourceID: "s4", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitC, OldDigest: sourcecorpus.SHA(oldBodyContentChanged), StartLine: 1, EndLine: 1},
 	}
 	apiFetcher := &fakeAPIFetcher{responses: map[string]struct {
 		body   []byte
@@ -307,35 +386,73 @@ func TestBuildWorklistFalsificationArithmetic(t *testing.T) {
 		"/repos/argoproj/argo-cd/git/ref/tags/v1":      {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
 	}}
 	blobFetcher := fakeBlobFetcher{
-		"/argoproj/argo-cd/" + commitB + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: body},
+		"/argoproj/argo-cd/" + commitB + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+		"/argoproj/argo-cd/" + commitA + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBodySpanIdentical},
+		"/argoproj/argo-cd/" + commitC + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBodyContentChanged},
 	}
 	state := newState()
 	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), nil)
 	if err != nil {
 		t.Fatalf("BuildWorklist: %v", err)
 	}
-	if worklist.Summary.Classified != 3 {
-		t.Fatalf("expected 3 classified, got %+v", worklist.Summary)
-	}
-	if worklist.Summary.Distribution[ClassSpanIdentical] != 1 {
-		t.Fatalf("expected 1 SPAN_IDENTICAL, got %+v", worklist.Summary.Distribution)
+	if worklist.Summary.Classified != 4 {
+		t.Fatalf("expected 4 classified, got %+v", worklist.Summary)
 	}
 	if worklist.Summary.Distribution[ClassNoNewRelease] != 1 {
 		t.Fatalf("expected 1 NO_NEW_RELEASE, got %+v", worklist.Summary.Distribution)
 	}
+	if worklist.Summary.Distribution[ClassFileIdentical] != 1 {
+		t.Fatalf("expected 1 FILE_IDENTICAL, got %+v", worklist.Summary.Distribution)
+	}
+	if worklist.Summary.Distribution[ClassSpanIdentical] != 1 {
+		t.Fatalf("expected 1 SPAN_IDENTICAL, got %+v", worklist.Summary.Distribution)
+	}
 	if worklist.Summary.Distribution[ClassContentChanged] != 1 {
 		t.Fatalf("expected 1 CONTENT_CHANGED, got %+v", worklist.Summary.Distribution)
 	}
-	// SPAN_IDENTICAL alone is 1/3 < 0.5: the falsification condition fires.
-	if !worklist.Summary.FalsificationMet {
-		t.Fatalf("expected falsification condition met, got %+v", worklist.Summary)
+	if got, want := worklist.Summary.BatchAttestableFraction, 0.75; got != want {
+		t.Fatalf("expected batch-attestable fraction %v, got %v", want, got)
 	}
-	// Worklist must be cost-ordered: NO_NEW_RELEASE/SPAN_IDENTICAL first.
+	if worklist.Summary.FalsificationMet {
+		t.Fatalf("3/4 batch-attestable should NOT falsify, got %+v", worklist.Summary)
+	}
+	// Worklist must be cost-ordered: NO_NEW_RELEASE/FILE_IDENTICAL/SPAN_IDENTICAL first.
 	if worklist.Citations[0].Class == ClassContentChanged {
 		t.Fatalf("expected cheapest class first, got %s", worklist.Citations[0].Class)
 	}
-	if len(worklist.Rules) != 3 {
-		t.Fatalf("expected 3 rule verdicts, got %d", len(worklist.Rules))
+	if len(worklist.Rules) != 4 {
+		t.Fatalf("expected 4 rule verdicts, got %d", len(worklist.Rules))
+	}
+}
+
+func TestBuildWorklistFalsificationConditionFires(t *testing.T) {
+	// One NO_NEW_RELEASE (batch-attestable) and two CONTENT_CHANGED
+	// (not): 1/3 < 0.5, so the falsification condition fires.
+	newBody := []byte("alpha\nbeta\ngamma")
+	oldBodyContentChanged := []byte("nomatch\nnomatch2\nnomatchtail")
+	citations := []Citation{
+		{RulePack: "p", RuleID: "r1", Project: "argo-cd", SourceID: "s1", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitB, OldDigest: "sha256:irrelevant", StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r2", Project: "argo-cd", SourceID: "s2", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(oldBodyContentChanged), StartLine: 1, EndLine: 1},
+		{RulePack: "p", RuleID: "r3", Project: "argo-cd", SourceID: "s3", Owner: "argoproj", Repo: "argo-cd", Path: "a.go", OldCommit: commitA, OldDigest: sourcecorpus.SHA(oldBodyContentChanged), StartLine: 1, EndLine: 1},
+	}
+	apiFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/argoproj/argo-cd/releases?per_page=10": {[]byte(`[{"tag_name":"v1","draft":false}]`), 200},
+		"/repos/argoproj/argo-cd/git/ref/tags/v1":      {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
+	}}
+	blobFetcher := fakeBlobFetcher{
+		"/argoproj/argo-cd/" + commitB + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: newBody},
+		"/argoproj/argo-cd/" + commitA + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBodyContentChanged},
+	}
+	state := newState()
+	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), nil)
+	if err != nil {
+		t.Fatalf("BuildWorklist: %v", err)
+	}
+	if !worklist.Summary.FalsificationMet {
+		t.Fatalf("expected falsification condition met, got %+v", worklist.Summary)
 	}
 }
 

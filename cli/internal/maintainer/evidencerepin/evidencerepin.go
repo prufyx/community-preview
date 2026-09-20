@@ -6,18 +6,37 @@
 // current upstream release commit and classifies what happened to each one
 // (see section 6.2 of the design doc):
 //
-//   - SPAN_IDENTICAL  - same path, same lines, byte-identical content
-//   - SPAN_MOVED      - same content found at a different line range
-//   - CONTENT_CHANGED - path exists, cited span content differs
-//   - PATH_GONE       - path or repository no longer resolvable
-//   - NO_NEW_RELEASE  - no release since the citation's pinned commit
+//   - NO_NEW_RELEASE        - no release since the citation's pinned commit
+//   - FILE_IDENTICAL        - the whole file at the current release commit is
+//     byte-identical to the pinned revision, verified directly against the
+//     corpus's recorded contentDigest, which is a WHOLE-FILE digest, not a
+//     span digest; when the whole file is unchanged the cited span is
+//     necessarily unchanged too
+//   - SPAN_IDENTICAL        - the file changed elsewhere, but after fetching
+//     the file at the citation's own pinned commit and confirming that
+//     fetch matches the recorded contentDigest, the cited span itself is
+//     byte-identical at the same line range in the new file
+//   - SPAN_MOVED            - same span content found at a different line
+//     range in the new file
+//   - CONTENT_CHANGED       - path exists, cited span content differs and is
+//     not found anywhere else in the new file
+//   - PATH_GONE             - path or repository no longer resolvable at the
+//     current release commit
+//   - CORPUS_DIGEST_MISMATCH - the file fetched at the citation's OWN pinned
+//     commit does not hash to the recorded contentDigest (or is not
+//     reachable there at all); this means the corpus record itself is
+//     wrong or the original capture was not faithful. It is a real
+//     integrity finding, reported separately, and is never batch-attestable
 //
 // It is deterministic and involves no model anywhere. It reads rule packs
 // and network bytes and writes a worklist; it never writes to a rule pack
 // or a review record, and it never fabricates or alters a compatibility
-// claim. Digesting reuses maintainer/sourcecorpus's span-digest convention
-// (LF-split, joined with LF, no trailing separator, no normalization) and
-// blob retrieval reuses maintainer/sourcecapture's fixed-URL immutable-blob
+// claim. Whole-file digesting reuses maintainer/sourcecorpus.SHA directly
+// (never reimplemented); span extraction reuses maintainer/sourcecorpus's
+// own LF-split/join-with-LF/no-trailing-separator/no-normalization
+// convention, applied to actual bytes rather than to a digest, since
+// contentDigest is a whole-file digest and cannot be compared to a span.
+// Blob retrieval reuses maintainer/sourcecapture's fixed-URL immutable-blob
 // fetch discipline (no discovery, no redirects, fixed host, bounded size).
 package evidencerepin
 
@@ -56,11 +75,13 @@ const (
 	maxStateBytes int64 = 64 << 20
 
 	// Drift classes, per DESIGN-rule-ingestion.md section 6.2.
-	ClassSpanIdentical  = "SPAN_IDENTICAL"
-	ClassSpanMoved      = "SPAN_MOVED"
-	ClassContentChanged = "CONTENT_CHANGED"
-	ClassPathGone       = "PATH_GONE"
-	ClassNoNewRelease   = "NO_NEW_RELEASE"
+	ClassNoNewRelease         = "NO_NEW_RELEASE"
+	ClassFileIdentical        = "FILE_IDENTICAL"
+	ClassSpanIdentical        = "SPAN_IDENTICAL"
+	ClassSpanMoved            = "SPAN_MOVED"
+	ClassContentChanged       = "CONTENT_CHANGED"
+	ClassPathGone             = "PATH_GONE"
+	ClassCorpusDigestMismatch = "CORPUS_DIGEST_MISMATCH"
 	// ClassPending is not one of the five reported drift classes. It marks
 	// a citation this run could not resolve (rate limit, transport error,
 	// or a repo not yet attempted) so a later run can retry it.
@@ -372,6 +393,30 @@ func resolveTagCommit(ctx context.Context, fetcher APIFetcher, owner, repo, tag 
 
 var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+// cachingFetcher wraps a sourcecapture.Fetcher and caches results by exact
+// request path, so a corpus-wide run fetches each unique (owner, repo,
+// revision, path) blob at most once even though many citations across
+// different rules commonly share a file (their own new blob, or the old
+// blob at a shared pinned revision). It is not safe for concurrent use;
+// BuildWorklist classifies citations sequentially.
+type cachingFetcher struct {
+	fetcher sourcecapture.Fetcher
+	cache   map[string]sourcecapture.FetchResult
+}
+
+func newCachingFetcher(fetcher sourcecapture.Fetcher) *cachingFetcher {
+	return &cachingFetcher{fetcher: fetcher, cache: map[string]sourcecapture.FetchResult{}}
+}
+
+func (c *cachingFetcher) Fetch(ctx context.Context, path string) sourcecapture.FetchResult {
+	if cached, ok := c.cache[path]; ok {
+		return cached
+	}
+	result := c.fetcher.Fetch(ctx, path)
+	c.cache[path] = result
+	return result
+}
+
 // ClassResult is one citation's drift classification.
 type ClassResult struct {
 	RulePack  string `json:"rulePack"`
@@ -393,59 +438,69 @@ type ClassResult struct {
 
 // costRank orders the worklist cheapest-reviewer-cost first, per section
 // 6.2/8 of the design doc: batch-attestable first, full re-review last.
-// PENDING sorts last of all because it is not yet actionable.
+// CORPUS_DIGEST_MISMATCH sorts after PATH_GONE because, although it is a
+// corpus integrity finding rather than ordinary drift, it still requires a
+// human and is never batch-attestable. PENDING sorts last of all because it
+// is not yet actionable.
 func costRank(class string) int {
 	switch class {
 	case ClassNoNewRelease:
 		return 0
-	case ClassSpanIdentical:
+	case ClassFileIdentical:
 		return 1
-	case ClassSpanMoved:
+	case ClassSpanIdentical:
 		return 2
-	case ClassContentChanged:
+	case ClassSpanMoved:
 		return 3
-	case ClassPathGone:
+	case ClassContentChanged:
 		return 4
-	default:
+	case ClassPathGone:
 		return 5
+	case ClassCorpusDigestMismatch:
+		return 6
+	default:
+		return 7
 	}
 }
 
-// spanDigestAt computes the digest of lines [start,end] (1-indexed,
-// inclusive) of data using the exact same LF-split/join-with-LF/no-trailing
-// convention as maintainer/sourcecorpus, by calling sourcecorpus.SHA for
-// the actual hash. It never reimplements SHA-256.
-func spanDigestAt(lines [][]byte, start, end int) (string, bool) {
+// spanBytesAt extracts the exact byte span for lines [start,end]
+// (1-indexed, inclusive) using the exact same LF-split/join-with-LF/
+// no-trailing-separator convention as maintainer/sourcecorpus's VerifySpans.
+func spanBytesAt(lines [][]byte, start, end int) ([]byte, bool) {
 	if start < 1 || end < start || end > len(lines) {
-		return "", false
+		return nil, false
 	}
-	selected := bytes.Join(lines[start-1:end], []byte{'\n'})
-	return sourcecorpus.SHA(selected), true
+	return bytes.Join(lines[start-1:end], []byte{'\n'}), true
 }
 
-// classifySpan re-resolves one citation's span against the new file bytes.
-// It first checks the original line range with maintainer/sourcecorpus's
-// own verifier (real reuse of the digest convention for the identical
-// case), then, on mismatch, searches for the identical byte span at a
-// different line range before concluding the content changed.
-func classifySpan(oldDigest string, oldStart, oldEnd int, newData []byte) (class string, newStart, newEnd int) {
-	spanCount := oldEnd - oldStart + 1
-	spans := []any{map[string]any{"startLine": int64(oldStart), "endLine": int64(oldEnd), "spanDigest": oldDigest}}
-	if _, _, err := sourcecorpus.VerifySpans(spans, newData); err == nil {
-		return ClassSpanIdentical, oldStart, oldEnd
-	}
-	lines := bytes.Split(newData, []byte{'\n'})
-	if spanCount > len(lines) {
+// classifySpan compares the cited span as it reads in the OLD file bytes
+// (already verified by the caller to hash to the corpus's recorded
+// contentDigest) against the same line range in the NEW file bytes.
+//
+// contentDigest in the shipped rule packs is a WHOLE-FILE digest, not a
+// span digest (see the package doc comment), so this function never
+// compares a digest to a span; it compares the actual cited bytes, which is
+// the only reliable way to answer "is the cited span still intact" once the
+// containing file has changed. Equal bytes at the same range means the span
+// survived untouched (SPAN_IDENTICAL). Otherwise it searches the new file
+// for that exact span content at any offset (SPAN_MOVED), and failing that
+// concludes the content changed (CONTENT_CHANGED).
+func classifySpan(oldData []byte, start, end int, newData []byte) (class string, newStart, newEnd int) {
+	oldLines := bytes.Split(oldData, []byte{'\n'})
+	oldSpan, ok := spanBytesAt(oldLines, start, end)
+	if !ok {
 		return ClassContentChanged, 0, 0
 	}
-	for start := 1; start+spanCount-1 <= len(lines); start++ {
-		end := start + spanCount - 1
-		digest, ok := spanDigestAt(lines, start, end)
-		if !ok {
-			continue
-		}
-		if digest == oldDigest {
-			return ClassSpanMoved, start, end
+	newLines := bytes.Split(newData, []byte{'\n'})
+	if sameRange, ok := spanBytesAt(newLines, start, end); ok && bytes.Equal(sameRange, oldSpan) {
+		return ClassSpanIdentical, start, end
+	}
+	spanCount := end - start + 1
+	for candidateStart := 1; candidateStart+spanCount-1 <= len(newLines); candidateStart++ {
+		candidateEnd := candidateStart + spanCount - 1
+		candidate, ok := spanBytesAt(newLines, candidateStart, candidateEnd)
+		if ok && bytes.Equal(candidate, oldSpan) {
+			return ClassSpanMoved, candidateStart, candidateEnd
 		}
 	}
 	return ClassContentChanged, 0, 0
@@ -455,6 +510,12 @@ func classifySpan(oldDigest string, oldStart, oldEnd int, newData []byte) (class
 // commit and blob fetcher, returning its drift classification. current is
 // the repo's resolved current release commit (possibly equal to the
 // citation's own OldCommit, in which case no fetch is needed).
+//
+// blobFetcher is used for both the new blob (at currentCommit) and, when the
+// whole file changed, the citation's own old blob (at citation.OldCommit):
+// raw.githubusercontent.com is not subject to the GitHub API rate limit, so
+// this extra fetch is cheap, and callers that expect many citations to
+// share a file should pass a caching Fetcher (see BuildWorklist).
 func Classify(ctx context.Context, citation Citation, currentCommit string, blobFetcher sourcecapture.Fetcher) ClassResult {
 	result := ClassResult{
 		RulePack: citation.RulePack, RuleID: citation.RuleID, Project: citation.Project, SourceID: citation.SourceID,
@@ -471,26 +532,65 @@ func Classify(ctx context.Context, citation Citation, currentCommit string, blob
 		result.Class = ClassNoNewRelease
 		return result
 	}
-	rawPath := "/" + citation.Owner + "/" + citation.Repo + "/" + currentCommit + "/" + citation.Path
-	fetch := blobFetcher.Fetch(ctx, rawPath)
-	switch fetch.Kind {
+	newPath := "/" + citation.Owner + "/" + citation.Repo + "/" + currentCommit + "/" + citation.Path
+	newFetch := blobFetcher.Fetch(ctx, newPath)
+	switch newFetch.Kind {
 	case "HTTP_200":
-		class, newStart, newEnd := classifySpan(citation.OldDigest, citation.StartLine, citation.EndLine, fetch.Body)
-		result.Class = class
-		if class == ClassSpanMoved {
-			result.NewStart, result.NewEnd = newStart, newEnd
+		// contentDigest is a whole-file digest (see the package doc
+		// comment): when the whole new file still hashes to it, the file
+		// did not change at all, so the cited span is necessarily intact
+		// too. This is the cheap, batch-attestable case and needs no
+		// further fetch.
+		if sourcecorpus.SHA(newFetch.Body) == citation.OldDigest {
+			result.Class = ClassFileIdentical
+			return result
+		}
+		// The file changed. Fetch it at the citation's OWN pinned
+		// revision and verify that fetch actually matches the recorded
+		// contentDigest before trusting it as ground truth for the span
+		// comparison; if it doesn't, the corpus record itself is wrong
+		// and that is a finding in its own right, not a drift class.
+		oldPath := "/" + citation.Owner + "/" + citation.Repo + "/" + citation.OldCommit + "/" + citation.Path
+		oldFetch := blobFetcher.Fetch(ctx, oldPath)
+		switch oldFetch.Kind {
+		case "HTTP_200":
+			if sourcecorpus.SHA(oldFetch.Body) != citation.OldDigest {
+				result.Class = ClassCorpusDigestMismatch
+				result.Detail = "file fetched at the citation's own pinned commit does not hash to the recorded contentDigest"
+				return result
+			}
+			class, newStart, newEnd := classifySpan(oldFetch.Body, citation.StartLine, citation.EndLine, newFetch.Body)
+			result.Class = class
+			if class == ClassSpanMoved {
+				result.NewStart, result.NewEnd = newStart, newEnd
+			}
+		case "HTTP_STATUS":
+			if oldFetch.StatusCode == 404 {
+				// The citation's own pinned commit is immutable; a 404
+				// there means the corpus recorded a URL that does not
+				// actually resolve, which is a corpus integrity problem,
+				// not ordinary drift.
+				result.Class = ClassCorpusDigestMismatch
+				result.Detail = "path not found at the citation's own pinned commit " + citation.OldCommit
+			} else {
+				result.Class = ClassPending
+				result.Detail = "old blob fetch returned status " + strconv.Itoa(oldFetch.StatusCode)
+			}
+		default:
+			result.Class = ClassPending
+			result.Detail = "old blob fetch " + oldFetch.Kind
 		}
 	case "HTTP_STATUS":
-		if fetch.StatusCode == 404 {
+		if newFetch.StatusCode == 404 {
 			result.Class = ClassPathGone
 			result.Detail = "path not found at current release commit"
 		} else {
 			result.Class = ClassPending
-			result.Detail = "blob fetch returned status " + strconv.Itoa(fetch.StatusCode)
+			result.Detail = "blob fetch returned status " + strconv.Itoa(newFetch.StatusCode)
 		}
 	default:
 		result.Class = ClassPending
-		result.Detail = "blob fetch " + fetch.Kind
+		result.Detail = "blob fetch " + newFetch.Kind
 	}
 	return result
 }
@@ -553,13 +653,18 @@ func SaveState(path string, state *State) error {
 // Summary is the classification distribution over resolved citations,
 // which is the falsification test named in section 9.6 of the design doc:
 // batch re-attestation is viable only if at least half of classified
-// citations are SPAN_IDENTICAL.
+// citations are batch-attestable, i.e. FILE_IDENTICAL, SPAN_IDENTICAL, or
+// NO_NEW_RELEASE. SPAN_MOVED, CONTENT_CHANGED, PATH_GONE, and
+// CORPUS_DIGEST_MISMATCH all require a human reviewer and are never counted
+// as batch-attestable, even though CORPUS_DIGEST_MISMATCH is a corpus
+// integrity finding rather than ordinary citation drift.
 type Summary struct {
 	TotalCitations int            `json:"totalCitations"`
 	Classified     int            `json:"classified"`
 	Pending        int            `json:"pending"`
 	Distribution   map[string]int `json:"distribution"`
-	// BatchAttestableFraction is (SPAN_IDENTICAL+NO_NEW_RELEASE)/Classified.
+	// BatchAttestableFraction is
+	// (FILE_IDENTICAL+SPAN_IDENTICAL+NO_NEW_RELEASE)/Classified.
 	BatchAttestableFraction float64 `json:"batchAttestableFraction"`
 	FalsificationMet        bool    `json:"falsificationConditionMet"`
 }
@@ -576,14 +681,9 @@ func summarize(results []ClassResult) Summary {
 		}
 	}
 	if summary.Classified > 0 {
-		batchable := summary.Distribution[ClassSpanIdentical] + summary.Distribution[ClassNoNewRelease]
+		batchable := summary.Distribution[ClassFileIdentical] + summary.Distribution[ClassSpanIdentical] + summary.Distribution[ClassNoNewRelease]
 		summary.BatchAttestableFraction = float64(batchable) / float64(summary.Classified)
-		// The design doc's falsification condition is phrased over
-		// SPAN_IDENTICAL alone ("under half classify SPAN_IDENTICAL");
-		// NO_NEW_RELEASE is also explicitly batch-attestable in the
-		// section 6.2 table, so both figures are reported (see Worklist).
-		spanIdenticalFraction := float64(summary.Distribution[ClassSpanIdentical]) / float64(summary.Classified)
-		summary.FalsificationMet = spanIdenticalFraction < 0.5
+		summary.FalsificationMet = summary.BatchAttestableFraction < 0.5
 	}
 	return summary
 }
@@ -616,7 +716,7 @@ func ruleVerdicts(results []ClassResult) []RuleVerdict {
 		if result.Class == ClassPending {
 			verdict.PendingCitation = true
 			verdict.BatchEligible = false
-		} else if result.Class != ClassSpanIdentical && result.Class != ClassNoNewRelease {
+		} else if result.Class != ClassFileIdentical && result.Class != ClassSpanIdentical && result.Class != ClassNoNewRelease {
 			verdict.BatchEligible = false
 		}
 		if costRank(result.Class) > costRank(verdict.WorstClass) || verdict.WorstClass == "" {
@@ -655,7 +755,8 @@ var worklistLimitations = []string{
 	"this worklist is a mechanical drift classification, not a compatibility claim, a review, or a rule change",
 	"it reads existing rule packs and writes only this worklist and an optional state file; it cannot modify a pack or a rule",
 	"a repository's \"current release commit\" is its single most recent non-draft GitHub Release, or its single most recent tag when the project publishes no Releases; this is a proxy for \"upstream now\", not a guarantee of the true latest stable line",
-	"SPAN_MOVED and CONTENT_CHANGED still require a human reviewer to confirm correspondence; this tool only narrows where reviewer time goes",
+	"SPAN_MOVED, CONTENT_CHANGED, PATH_GONE, and CORPUS_DIGEST_MISMATCH all require a human reviewer; this tool only narrows where reviewer time goes",
+	"CORPUS_DIGEST_MISMATCH means the file fetched at the citation's own pinned commit does not hash to the recorded contentDigest (or is not reachable there at all); this is a corpus integrity problem, not citation drift, and should be investigated separately",
 }
 
 // BuildWorklist filters citations by project/limit, resolves each unique
@@ -666,6 +767,10 @@ var worklistLimitations = []string{
 // results instead of failing outright.
 func BuildWorklist(ctx context.Context, citations []Citation, projects []string, limit int, state *State, apiFetcher APIFetcher, blobFetcher sourcecapture.Fetcher, now func() time.Time, progress io.Writer) (Worklist, error) {
 	filtered := filterCitations(citations, projects, limit)
+	// Wrap once per run: many citations across a corpus cite the same
+	// file (shared old blob, and sometimes shared new blob too), and
+	// raw.githubusercontent.com fetches are otherwise repeated verbatim.
+	cachedBlobFetcher := newCachingFetcher(blobFetcher)
 
 	repoSet := map[string]struct{ owner, repo string }{}
 	repoOrder := []string{}
@@ -721,7 +826,7 @@ func BuildWorklist(ctx context.Context, citations []Citation, projects []string,
 		resolution := state.Repos[citation.repoKey()]
 		var result ClassResult
 		if resolution.Status == repoResolved {
-			result = Classify(ctx, citation, resolution.CurrentCommit, blobFetcher)
+			result = Classify(ctx, citation, resolution.CurrentCommit, cachedBlobFetcher)
 		} else {
 			result = ClassResult{
 				RulePack: citation.RulePack, RuleID: citation.RuleID, Project: citation.Project, SourceID: citation.SourceID,
