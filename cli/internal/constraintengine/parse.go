@@ -34,7 +34,42 @@ func ParseInput(raw []byte, registry Registry) (Input, error) {
 	if err := validateSide(document.Proposed, registry); err != nil {
 		return Input{}, err
 	}
+	if err := validateScope(document); err != nil {
+		return Input{}, err
+	}
 	return Input{document: document, digest: digestJSON(document), registryDigest: registry.Digest(), seal: &inputSeal{}}, nil
+}
+
+// validateScope checks the declared component set against the bundle it
+// claims to describe. A declaration that does not match the bundle is a
+// caller error, not an evidence gap: it fails as ErrInvalid rather than
+// disappearing into the honest-uncertainty channel.
+func validateScope(document inputDocument) error {
+	if document.Scope == nil {
+		return nil
+	}
+	scope := document.Scope
+	if scope.Declaration != ScopeDeclaration || len(scope.Components) == 0 || len(scope.Components) > maxComponents {
+		return fmt.Errorf("scope declaration: %w", ErrInvalid)
+	}
+	declared := make(map[string]struct{}, len(scope.Components))
+	for index, component := range scope.Components {
+		if !componentRE.MatchString(component) || (index > 0 && scope.Components[index-1] >= component) {
+			return fmt.Errorf("scope component identity or order: %w", ErrInvalid)
+		}
+		declared[component] = struct{}{}
+	}
+	for _, side := range []inputSide{document.Current, document.Proposed} {
+		if len(side.Components) != len(declared) {
+			return fmt.Errorf("scope cardinality: %w", ErrInvalid)
+		}
+		for _, component := range side.Components {
+			if _, ok := declared[component.Component]; !ok {
+				return fmt.Errorf("scope omits a declared bundle component: %w", ErrInvalid)
+			}
+		}
+	}
+	return nil
 }
 
 func validateSide(side inputSide, registry Registry) error {
@@ -108,7 +143,37 @@ func ParseRuleSet(raw []byte, registry Registry) (RuleSet, error) {
 			return RuleSet{}, fmt.Errorf("rule: %w", err)
 		}
 	}
+	if err := validateCorpus(document); err != nil {
+		return RuleSet{}, err
+	}
 	return RuleSet{document: document, digest: digestJSON(document), registryDigest: registry.Digest(), seal: &ruleSetSeal{}}, nil
+}
+
+// validateCorpus admits a completeness attestation only when the document can
+// support it. An attestation covering a component with no rule in the document
+// would make completeness vacuously true; that is the "no applicable rule
+// becomes a pass" hole, and it is closed here rather than downstream.
+func validateCorpus(document ruleDocument) error {
+	if document.Corpus == nil {
+		return nil
+	}
+	corpus := document.Corpus
+	if corpus.Completeness != CorpusAttestation || len(corpus.Components) == 0 || len(corpus.Components) > maxComponents {
+		return fmt.Errorf("corpus attestation: %w", ErrInvalid)
+	}
+	subjects := make(map[string]int, len(document.Rules))
+	for _, rule := range document.Rules {
+		subjects[rule.Subject.Component]++
+	}
+	for index, component := range corpus.Components {
+		if !componentRE.MatchString(component) || (index > 0 && corpus.Components[index-1] >= component) {
+			return fmt.Errorf("corpus component identity or order: %w", ErrInvalid)
+		}
+		if subjects[component] == 0 {
+			return fmt.Errorf("corpus attests a component with no reviewed rule: %w", ErrInvalid)
+		}
+	}
+	return nil
 }
 
 func validateRule(rule rule, registry Registry) error {
@@ -271,9 +336,14 @@ func immutableGitURL(value, revision string) bool {
 // run before struct decoding so aliases, null required objects, and untyped
 // arrays cannot enter a parser-issued capability.
 func validateInputShape(raw []byte) error {
-	root, err := exactObject(raw, []string{"schema", "authority", "current", "proposed"}, nil)
+	root, err := exactObject(raw, []string{"schema", "authority", "current", "proposed"}, []string{"scope"})
 	if err != nil {
 		return err
+	}
+	if scope, ok := root["scope"]; ok {
+		if err := validateTokenListShape(scope, "declaration", maxComponents); err != nil {
+			return err
+		}
 	}
 	for _, sideName := range []string{"current", "proposed"} {
 		side, err := exactObject(root[sideName], []string{"components"}, nil)
@@ -308,9 +378,14 @@ func validateInputShape(raw []byte) error {
 }
 
 func validateRuleShape(raw []byte) error {
-	root, err := exactObject(raw, []string{"schema", "revision", "policyId", "policyDigest", "rules"}, nil)
+	root, err := exactObject(raw, []string{"schema", "revision", "policyId", "policyDigest", "rules"}, []string{"corpus"})
 	if err != nil {
 		return err
+	}
+	if corpus, ok := root["corpus"]; ok {
+		if err := validateTokenListShape(corpus, "completeness", maxComponents); err != nil {
+			return err
+		}
 	}
 	rules, err := exactArray(root["rules"])
 	if err != nil || len(rules) > maxRules {
@@ -357,6 +432,27 @@ func validateRuleShape(raw []byte) error {
 			if _, err := exactObject(sourceRaw, []string{"id", "url", "revision", "contentDigest", "startLine", "endLine"}, nil); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+// validateTokenListShape gates the shared {<tokenField>, components} shape of
+// the scope declaration and the corpus attestation before struct decoding, so
+// field aliases and untyped arrays cannot enter a parser-issued capability.
+func validateTokenListShape(raw json.RawMessage, tokenField string, limit int) error {
+	object, err := exactObject(raw, []string{tokenField, "components"}, nil)
+	if err != nil {
+		return err
+	}
+	components, err := exactArray(object["components"])
+	if err != nil || len(components) == 0 || len(components) > limit {
+		return ErrInvalid
+	}
+	for _, component := range components {
+		var value string
+		if json.Unmarshal(component, &value) != nil {
+			return ErrInvalid
 		}
 	}
 	return nil

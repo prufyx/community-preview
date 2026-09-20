@@ -9,8 +9,13 @@ import (
 )
 
 // Evaluate is a pure reducer over opaque parser-issued capabilities and an
-// explicit UTC clock. It neither reads system time nor changes an aggregate
-// UNKNOWN assessment into SAFE.
+// explicit UTC clock. It neither reads system time nor emits SAFE.
+//
+// The aggregate stays UNKNOWN unless the caller declared a complete component
+// scope and the rule document attested that it holds every reviewed rule for
+// those components. With both present, the report enumerates per component
+// what was evaluated and what was not, and may report SCOPE_COMPLETE_PASS or
+// BLOCKED over the declared scope only.
 func Evaluate(input Input, rules RuleSet, now time.Time) (Report, error) {
 	if !input.Valid() || !rules.Valid() || input.registryDigest == "" || input.registryDigest != rules.registryDigest || now.IsZero() || now.Location() != time.UTC || now.Nanosecond() != 0 {
 		return Report{}, fmt.Errorf("evaluation capability or clock: %w", ErrIntegrity)
@@ -21,13 +26,15 @@ func Evaluate(input Input, rules RuleSet, now time.Time) (Report, error) {
 	}
 	inputDigest, _ := input.Digest()
 	ruleDigest, _ := rules.Digest()
+	scope, assessment := buildScopeCompleteness(input.document, rules.document, claims)
 	report := Report{
-		Schema: ReportSchema, Assessment: "UNKNOWN", InputAuthority: InputAuthority, RulesAuthority: RulesAuthority,
+		Schema: ReportSchema, Assessment: assessment, InputAuthority: InputAuthority, RulesAuthority: RulesAuthority,
 		EvaluatedAt: now.UTC().Format(time.RFC3339), InputDigest: inputDigest,
 		RuleSetDigest: ruleDigest, PolicyID: rules.document.PolicyID,
 		PolicyDigest: rules.document.PolicyDigest, EngineContractDigest: engineContractDigest(), RegistryDigest: input.registryDigest,
-		Claims:    claims,
-		Omissions: []string{"OPERATOR_DECLARED_INPUT_NOT_LIVE_OBSERVATION", "WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED"},
+		Claims:            claims,
+		Omissions:         requiredOmissions(assessment),
+		ScopeCompleteness: scope,
 	}
 	return issueReport(report), nil
 }
@@ -211,8 +218,13 @@ func issueReport(report Report) Report {
 	return report
 }
 
+// MarshalReport seals a report for publication. The aggregate gate is the
+// deliberate one: a non-UNKNOWN assessment is legal only when a structurally
+// valid scope-completeness block is present whose own enumerated contents
+// independently re-derive that same assessment. No block, no verdict —
+// however many claims passed. See legalAssessment.
 func MarshalReport(report Report) ([]byte, error) {
-	if report.seal == nil || report.Schema != ReportSchema || report.Assessment != "UNKNOWN" || report.InputAuthority != InputAuthority || report.RulesAuthority != RulesAuthority || report.EngineContractDigest != engineContractDigest() || !digestRE.MatchString(report.InputDigest) || !digestRE.MatchString(report.RuleSetDigest) || !digestRE.MatchString(report.PolicyDigest) || !digestRE.MatchString(report.RegistryDigest) || !validClaims(report.Claims) || len(report.Omissions) != 2 {
+	if report.seal == nil || report.Schema != ReportSchema || !legalAssessment(report) || report.InputAuthority != InputAuthority || report.RulesAuthority != RulesAuthority || report.EngineContractDigest != engineContractDigest() || !digestRE.MatchString(report.InputDigest) || !digestRE.MatchString(report.RuleSetDigest) || !digestRE.MatchString(report.PolicyDigest) || !digestRE.MatchString(report.RegistryDigest) || !validClaims(report.Claims) || !sameOmissions(report.Omissions, requiredOmissions(report.Assessment)) {
 		return nil, ErrIntegrity
 	}
 	raw, err := json.Marshal(report)

@@ -25,6 +25,43 @@ const (
 	RulesAuthority = "DECLARED_RULE_SOURCE_REFERENCES"
 	EngineVersion  = "deterministic-constraint-engine-v1"
 
+	// ScopeDeclaration is the caller's statement that the declared component
+	// set is exactly the set under evaluation. It is checked against the
+	// bundle at parse time; it is never accepted on assertion alone.
+	ScopeDeclaration = "OPERATOR_DECLARED_COMPLETE_COMPONENT_SET"
+	// CorpusAttestation is the rule maintainer's statement that, at this rule
+	// revision, the document holds every reviewed rule whose subject is one of
+	// the listed components. It is a statement about the corpus, not a
+	// compatibility claim about any project.
+	CorpusAttestation = "COMPLETE_REVIEWED_RULES_FOR_LISTED_COMPONENTS"
+	// ScopeContractVersion identifies the scope-completeness contract. It is
+	// deliberately separate from EngineVersion: the four constraint operators
+	// and their semantics are unchanged by this mechanism.
+	ScopeContractVersion = "scope-completeness-contract-v1"
+
+	// AssessmentUnknown is the only aggregate a report without genuine
+	// scope-completeness evidence may carry.
+	AssessmentUnknown = "UNKNOWN"
+	// AssessmentBlocked reports at least one applicable, decided blocker.
+	AssessmentBlocked = "BLOCKED"
+	// AssessmentScopeCompletePass states only that every constraint applicable
+	// to the declared component set was evaluated and passed. It is not SAFE
+	// and it makes no statement about anything outside the declared scope.
+	AssessmentScopeCompletePass = "SCOPE_COMPLETE_PASS"
+
+	ApplicabilityApplicable    = "APPLICABLE"
+	ApplicabilityNotApplicable = "NOT_APPLICABLE"
+	ApplicabilityUndetermined  = "UNDETERMINED"
+	applicabilityOutOfScope    = "OUT_OF_SCOPE"
+
+	omissionDeclaredInput          = "OPERATOR_DECLARED_INPUT_NOT_LIVE_OBSERVATION"
+	omissionWholeUpgradeNotChecked = "WHOLE_UPGRADE_COMPATIBILITY_NOT_EVALUATED"
+	omissionWholeUpgradeScoped     = "WHOLE_UPGRADE_COMPATIBILITY_LIMITED_TO_DECLARED_COMPONENT_SCOPE"
+
+	unresolvedComponentNotAttested = "SCOPE_COMPONENT_NOT_ATTESTED"
+	unresolvedApplicability        = "APPLICABILITY_UNDETERMINED"
+	unresolvedNoApplicableRule     = "NO_APPLICABLE_RULE_FOR_COMPONENT"
+
 	maxInputBytes            = 1 << 20
 	maxRulesBytes            = 1 << 20
 	maxComponents            = 128
@@ -150,6 +187,15 @@ type inputDocument struct {
 	Authority string    `json:"authority"`
 	Current   inputSide `json:"current"`
 	Proposed  inputSide `json:"proposed"`
+	// Scope is optional. When absent the document marshals exactly as it did
+	// before this field existed, so every previously issued input digest,
+	// report digest, and replay is unchanged.
+	Scope *inputScope `json:"scope,omitempty"`
+}
+
+type inputScope struct {
+	Declaration string   `json:"declaration"`
+	Components  []string `json:"components"`
 }
 
 type inputSide struct {
@@ -194,6 +240,15 @@ type ruleDocument struct {
 	PolicyID     string `json:"policyId"`
 	PolicyDigest string `json:"policyDigest"`
 	Rules        []rule `json:"rules"`
+	// Corpus is optional and carries the same digest-stability property as
+	// inputDocument.Scope. A rule document assembled by filtering a larger
+	// pack must not carry it.
+	Corpus *ruleCorpus `json:"corpus,omitempty"`
+}
+
+type ruleCorpus struct {
+	Completeness string   `json:"completeness"`
+	Components   []string `json:"components"`
 }
 
 type rule struct {
@@ -298,10 +353,48 @@ type Report struct {
 	RegistryDigest       string   `json:"registryDigest"`
 	Claims               []Claim  `json:"claims"`
 	Omissions            []string `json:"omissions"`
-	seal                 *reportSeal
-	digest               string
+	// ScopeCompleteness is present only when the caller declared a component
+	// scope and the rule document attested its own completeness. It is the
+	// sole evidence under which Assessment may be anything but UNKNOWN.
+	ScopeCompleteness *ScopeCompleteness `json:"scopeCompleteness,omitempty"`
+	seal              *reportSeal
+	digest            string
 }
 type reportSeal struct{}
+
+// ScopeCompleteness enumerates, per declared component, which reviewed rules
+// were evaluated and which were not. The not-evaluated list is the point: a
+// completeness statement that cannot name what it skipped is not auditable.
+type ScopeCompleteness struct {
+	Declaration       string           `json:"declaration"`
+	CorpusAttestation string           `json:"corpusAttestation"`
+	ContractDigest    string           `json:"contractDigest"`
+	RuleSetRevision   string           `json:"ruleSetRevision"`
+	Resolved          bool             `json:"resolved"`
+	UnresolvedReason  string           `json:"unresolvedReason,omitempty"`
+	OutOfScopeRules   int              `json:"outOfScopeRules"`
+	Components        []ComponentScope `json:"components"`
+}
+
+type ComponentScope struct {
+	Component        string             `json:"component"`
+	From             string             `json:"from"`
+	To               string             `json:"to"`
+	CorpusAttested   bool               `json:"corpusAttested"`
+	EvaluatedRuleIDs []string           `json:"evaluatedRuleIds"`
+	NotEvaluated     []NotEvaluatedRule `json:"notEvaluated"`
+}
+
+// NotEvaluatedRule records one reviewed rule that produced no verdict for this
+// component. NOT_APPLICABLE always rests on a declared version or declared
+// fact value that excludes the rule; UNDETERMINED means the engine could not
+// establish applicability or could not evaluate an applicable rule, and it
+// always forces the aggregate back to UNKNOWN.
+type NotEvaluatedRule struct {
+	RuleID        string `json:"ruleId"`
+	Applicability string `json:"applicability"`
+	ReasonCode    string `json:"reasonCode"`
+}
 
 func engineContractDigest() string {
 	return digestBytes([]byte(EngineVersion + "\n" + InputSchema + "\n" + RulesSchema + "\n" + ReportSchema + "\n" + InputAuthority + "\n" + RulesAuthority + "\nappliesWhen\ncomparison:eq\ncomparison:gte\ncomparison:lte\ncomparison:lt\nforbid_predicate_value\nrequire_component_version\nrequire_intermediate_version\nforbid_target_version"))
@@ -310,6 +403,16 @@ func engineContractDigest() string {
 // EngineContractDigest exposes the immutable scalar contract identity without
 // exposing mutable parser or registry state.
 func EngineContractDigest() string { return engineContractDigest() }
+
+// scopeContractDigest binds the scope-completeness vocabulary separately from
+// engineContractDigest, so reports that do not use scope keep byte-identical
+// identity while reports that do carry the contract they depend on.
+func scopeContractDigest() string {
+	return digestBytes([]byte(ScopeContractVersion + "\n" + ScopeDeclaration + "\n" + CorpusAttestation + "\n" + AssessmentUnknown + "\n" + AssessmentBlocked + "\n" + AssessmentScopeCompletePass + "\n" + ApplicabilityApplicable + "\n" + ApplicabilityNotApplicable + "\n" + ApplicabilityUndetermined + "\n" + omissionWholeUpgradeScoped))
+}
+
+// ScopeContractDigest exposes the scope-completeness contract identity.
+func ScopeContractDigest() string { return scopeContractDigest() }
 
 func digestJSON(value any) string { raw, _ := json.Marshal(value); return digestBytes(raw) }
 func digestBytes(raw []byte) string {
