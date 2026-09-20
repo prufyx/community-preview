@@ -690,7 +690,9 @@ func summarize(results []ClassResult) Summary {
 
 // RuleVerdict rolls citation classifications up to the rule they belong
 // to, per section 6.2: a rule is batch re-attestable only if every one of
-// its citations is SPAN_IDENTICAL or NO_NEW_RELEASE.
+// its citations is FILE_IDENTICAL, SPAN_IDENTICAL or NO_NEW_RELEASE. A
+// single citation in any other class makes the whole rule reviewer work,
+// because a rule stands on all of its evidence, not its best piece.
 type RuleVerdict struct {
 	RulePack        string `json:"rulePack"`
 	RuleID          string `json:"ruleId"`
