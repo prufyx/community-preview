@@ -2,14 +2,17 @@
 
 ## Supported versions
 
-Prufyx is an early alpha. The current Community preview is unpublished and
-private, so it is not a published supported release. After an authorized
-Community alpha is published, security fixes are provided for the latest
-published alpha when practical; older published alphas are unsupported.
+Prufyx is an early alpha. This repository is a public source preview under
+Apache-2.0 (see [LICENSE](LICENSE)), but no tagged, versioned, or signed
+release has been published from it — there is no GitHub Release and no
+version tag. A source preview is not a published supported release. Once a
+tagged Community alpha is published, security fixes are provided for the
+latest published alpha when practical; older published alphas are
+unsupported.
 
 | Version | Supported |
 | --- | --- |
-| Current unpublished private preview | No published support commitment |
+| Current untagged source preview | No published support commitment |
 | Latest published Community alpha | Yes, when practical |
 | Earlier published alphas | No |
 
@@ -18,7 +21,7 @@ published alpha when practical; older published alphas are unsupported.
 Use either private channel:
 
 - open a private security advisory in the
-  [GitHub repository](https://github.com/prufyx/prufyx-cli/security/advisories/new);
+  [GitHub repository](https://github.com/prufyx/community-preview/security/advisories/new);
 - email [hello@prufyx.com](mailto:hello@prufyx.com).
 
 Include the affected version or commit, impact, and a minimal reproduction.
