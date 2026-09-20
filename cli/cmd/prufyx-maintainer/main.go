@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/maintainer/contribution"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/evidencerepin"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgeexport"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/knowledgepack"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/localkind"
@@ -56,15 +57,18 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if len(args) == 0 {
 		return usageError()
 	}
-	repeatable := ""
+	var repeatable []string
 	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-root-transition" {
-		repeatable = "--signatures"
+		repeatable = []string{"--signatures"}
 	}
 	if len(args) > 1 && args[0] == "knowledge-publish" && args[1] == "finalize-rotated-package" {
-		repeatable = "--successor-root"
+		repeatable = []string{"--successor-root"}
 	}
 	if len(args) > 1 && args[0] == "project" && args[1] == "init" {
-		repeatable = "--exact-tag"
+		repeatable = []string{"--exact-tag"}
+	}
+	if len(args) > 1 && args[0] == "evidence" && args[1] == "repin" {
+		repeatable = []string{"--project", "--rules"}
 	}
 	if duplicateLongFlag(args[1:], repeatable) {
 		return &commandError{code: 2, message: "prufyx-maintainer: duplicate option rejected"}
@@ -127,8 +131,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: code, message: "project onboarding failed", printed: true}
 		}
 		return nil
+	case "evidence":
+		if code := runEvidenceRepin(args[1:], stdout, stderr); code != 0 {
+			return &commandError{code: code, message: "evidence repin failed", printed: true}
+		}
+		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|review-record|public-source-capture|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|review-record|public-source-capture|evidence|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()
@@ -157,14 +166,18 @@ func runLocalKind(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func duplicateLongFlag(args []string, repeatable string) bool {
+func duplicateLongFlag(args []string, repeatable []string) bool {
+	allowed := map[string]bool{}
+	for _, name := range repeatable {
+		allowed[name] = true
+	}
 	seen := map[string]bool{}
 	for _, arg := range args {
 		if !strings.HasPrefix(arg, "--") || arg == "--" {
 			continue
 		}
 		name := strings.SplitN(arg, "=", 2)[0]
-		if seen[name] && name != repeatable {
+		if seen[name] && !allowed[name] {
 			return true
 		}
 		seen[name] = true
@@ -366,6 +379,29 @@ func cliRoot() (string, error) {
 		current = parent
 	}
 	return "", fmt.Errorf("locate cli root from %s", cwd)
+}
+
+// runEvidenceRepin wires the evidence-repin maintainer subcommand. It reads
+// an optional GitHub token from the environment (GITHUB_TOKEN, falling
+// back to GH_TOKEN) to raise the unauthenticated GitHub API rate limit; the
+// token is never required, never logged, and never written to disk by this
+// command itself.
+func runEvidenceRepin(args []string, stdout, stderr io.Writer) int {
+	root, err := cliRoot()
+	if err != nil {
+		fmt.Fprintln(stderr, "evidence: CLI root is unavailable")
+		return 2
+	}
+	defaultRulePacks := []string{
+		filepath.Join(root, "internal/cncfcheck/data/rules.json"),
+		filepath.Join(root, "internal/projectcheck/data/rules.json"),
+	}
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		token = os.Getenv("GH_TOKEN")
+	}
+	apiFetcher := evidencerepin.GitHubAPIFetcher{Token: token}
+	return evidencerepin.Run(context.Background(), args, stdout, stderr, apiFetcher, sourcecapture.FixedHTTPSFetcher{}, time.Now, defaultRulePacks)
 }
 
 func runSupportInventory(args []string, stderr io.Writer) error {
