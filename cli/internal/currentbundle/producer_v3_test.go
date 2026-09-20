@@ -170,7 +170,7 @@ func writeCurrentBundleProducerV3(t *testing.T, root, version, imageDigest strin
 }
 
 func mustPrometheusDigest(version string) string {
-	digest, ok := approvedPrometheusImageDigest(version)
+	digest, ok := observation.ApprovedPrometheusImageDigest(version)
 	if !ok {
 		panic("unapproved test version")
 	}

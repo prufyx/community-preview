@@ -947,7 +947,7 @@ func validateProducerBoundPredicates(metadata surfaceMetadata, row surfaceCompon
 	if row.ComponentID != prometheusID || row.ObservedVersion == nil || row.VersionScheme != "tag" {
 		return fmt.Errorf("Prometheus identity predicates are outside their component/version binding: %w", ErrIntegrity)
 	}
-	expectedDigest, ok := approvedPrometheusImageDigest(*row.ObservedVersion)
+	expectedDigest, ok := ApprovedPrometheusImageDigest(*row.ObservedVersion)
 	if !ok {
 		return fmt.Errorf("Prometheus identity predicates use an unsupported version: %w", ErrInvalid)
 	}
@@ -1007,15 +1007,50 @@ func validConfigurationOmissionSource(code, source string) bool {
 	}
 }
 
-func approvedPrometheusImageDigest(version string) (string, bool) {
-	switch version {
-	case "2.55.1":
-		return "sha256:f4def6b3b61109a6eeea59945d578bb7e926c36cb0e036a23e3ceb8b6de024ad", true
-	case "3.1.0":
-		return "sha256:0ea5254abf85f87901e8cfbd18fd243c59162c338ce0acd86aa2b0153d83dce2", true
-	default:
-		return "", false
+// approvedPrometheusImageDigestTable is the single source of truth for the
+// Prometheus image digests this verifier will honor. Both the observation
+// projection and the currentbundle projection read it through
+// ApprovedPrometheusImageDigest; neither keeps its own copy.
+//
+// The same digests are mirrored as entrypointContract.imageBindings[].
+// platformDigests for pkg:oci/prometheus/prometheus in
+// internal/localcollector/assets/component-configuration-adapters-v3.json,
+// because the collector matches observed images against the asset before this
+// table is ever consulted. That mirror is not a second source of truth: the
+// localcollector test TestAdapterAssetPrometheusDigestsMatchApprovedTable
+// fails if the two ever diverge in either direction. A digest is added,
+// removed, or changed in both places in the same commit, or in neither.
+//
+// Known gap, tracked separately and deliberately not addressed here: every
+// platformDigests array currently holds exactly one digest and it is the
+// linux/arm64/v8 platform digest, so an amd64 cluster running the same tag is
+// reported as unverified_image. Capture is being changed to record every
+// platform. The sync test compares both sides as sets and assumes nothing
+// about how many digests a version has, so it needs no rewrite for that work;
+// it will however fail the moment the asset carries a platform digest this
+// table does not honor, which is the point. Widen both sides together.
+var approvedPrometheusImageDigestTable = map[string]string{
+	"2.55.1": "sha256:f4def6b3b61109a6eeea59945d578bb7e926c36cb0e036a23e3ceb8b6de024ad",
+	"3.1.0":  "sha256:0ea5254abf85f87901e8cfbd18fd243c59162c338ce0acd86aa2b0153d83dce2",
+}
+
+// ApprovedPrometheusImageDigest reports the approved image digest bound to an
+// observed Prometheus version, and whether that version is approved at all.
+// An unapproved version yields ("", false) and must be rejected by the caller.
+func ApprovedPrometheusImageDigest(version string) (string, bool) {
+	digest, ok := approvedPrometheusImageDigestTable[version]
+	return digest, ok
+}
+
+// ApprovedPrometheusImageDigests returns a copy of the approved version-to-
+// digest table, for tests and reporting that need to enumerate it. The copy
+// keeps callers from mutating a trust anchor through the returned map.
+func ApprovedPrometheusImageDigests() map[string]string {
+	out := make(map[string]string, len(approvedPrometheusImageDigestTable))
+	for version, digest := range approvedPrometheusImageDigestTable {
+		out[version] = digest
 	}
+	return out
 }
 
 func parseSourceTime(value string) (time.Time, bool) {
