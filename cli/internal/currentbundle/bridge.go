@@ -1008,17 +1008,6 @@ func predicateAllowedInRegistry(id, registryVersion string) bool {
 	return ok
 }
 
-func approvedPrometheusImageDigest(version string) (string, bool) {
-	switch version {
-	case "2.55.1":
-		return "sha256:f4def6b3b61109a6eeea59945d578bb7e926c36cb0e036a23e3ceb8b6de024ad", true
-	case "3.1.0":
-		return "sha256:0ea5254abf85f87901e8cfbd18fd243c59162c338ce0acd86aa2b0153d83dce2", true
-	default:
-		return "", false
-	}
-}
-
 func sourceRefs(digests []string) []SourceRef {
 	refs := make([]SourceRef, 0, len(digests))
 	for _, digest := range digests {
@@ -1516,7 +1505,7 @@ func validatePrometheusIdentityPredicates(component CanonicalComponent, registry
 	if !reflect.DeepEqual(agentMode.Sources, imageDigest.Sources) {
 		return fmt.Errorf("Prometheus identity predicates do not share the same source binding: %w", ErrIntegrity)
 	}
-	expectedDigest, ok := approvedPrometheusImageDigest(component.Version.Value)
+	expectedDigest, ok := observation.ApprovedPrometheusImageDigest(component.Version.Value)
 	if !ok {
 		return fmt.Errorf("Prometheus identity predicates use an unsupported version: %w", ErrInvalid)
 	}
