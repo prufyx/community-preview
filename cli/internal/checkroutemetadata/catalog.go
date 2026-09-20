@@ -596,6 +596,37 @@ func descriptorSet() []descriptor {
 	// is bound for that pair, confirming this gap. Registering these two would
 	// require adding new dispatch/evaluation logic, which is out of scope for
 	// pure route registration.
+
+	// NOTE: none of the eleven rook.* rule identities are registered here.
+	// Verification (not survey) showed rook has no working native route at
+	// all today:
+	//   - internal/communityapp/cncf_native_resource.go's project switch does
+	//     not list "rook"; `check cncf --project rook --native-resource FILE
+	//     --from X --to Y --now T` fails with "native resource flags require
+	//     metallb, contour, kubevirt, thanos, cortex, cloudnativepg, flux,
+	//     kubernetes, cilium, etcd, harbor, fluentd, opencost, or
+	//     cloud-custodian".
+	//   - internal/communityapp/cncf_prepare.go's project switch does not
+	//     list "rook" either; `prepare cncf --project rook ...` fails with
+	//     "invalid CNCF preparation project; use --help".
+	//   - No cncfprepare.PrepareRook (or equivalent) function exists, and
+	//     cncfprepare.PrepareNativeMigration only recognizes "metallb" and
+	//     "contour".
+	// Rook's only reachable route is the generic operator-declared minimized
+	// --input path (see internal/communityapp/cncf_rook_latest_test.go),
+	// which by design embeds the from/to pair inside the canonical JSON and
+	// admits no --from/--to flags, so it can never satisfy validDescriptor's
+	// requirement of literal "--from FROM --to TO" segments. The four
+	// rook.direct-minor-skip.* (forbid_target_version) rules need no facts
+	// to evaluate, but still have no adapter to bind to; the six
+	// rook.minimum-kubernetes.* (require_component_version) rules would
+	// additionally need a genuinely new adapter that extracts a Kubernetes
+	// dependency version from a real Rook resource; and
+	// rook.helm-intermediate-1-19-5.1-20 (require_intermediate_version)
+	// would need one that extracts component.rook.deployment_mode. Building
+	// any of that is new adapter/preparer work, which is out of scope for
+	// pure route registration. TestDiscoverRookHasNoWorkingNativeRoute in
+	// catalog_test.go independently asserts this gap.
 	return result
 }
 
