@@ -53,6 +53,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, version s
 		return r.rootHelp()
 	}
 	switch args[0] {
+	case "assess":
+		return r.assess(ctx, args[1:])
 	case "prepare":
 		if len(args) >= 2 && args[1] == "cncf" {
 			return r.prepareCNCF(args[2:])
@@ -125,6 +127,7 @@ func (r runtime) rootHelp() int {
 	fmt.Fprintln(r.stdout, `prufyx Community
 
 Usage:
+  prufyx assess --kubeconfig FILE --acknowledge-kubeconfig-exec-risk [--allow-partial] [--component-configuration-profile v2|v3] [--output DIR] [--format human|json] CONTEXT...
   prufyx prepare project --project grafana|kibana|loki --effective-config FILE --from VERSION --to VERSION --effective-config-complete --precedence-resolved [--effective-config-digest SHA256] [--format human|json|input]
   prufyx prepare project --project mariadb --effective-config FILE --from 10.11.8 --to 11.4.2 --effective-config-complete --precedence-resolved --upstream-distribution --require-innodb-defragmentation true|false [--effective-config-digest SHA256] [--format human|json|input]
   prufyx prepare project --project mariadb-operator --mariadb-resource FILE --from 26.3.0 --to 26.6.0 --resource-complete --pre-operator-update [--mariadb-resource-digest SHA256] [--format human|json|input]
