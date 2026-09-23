@@ -11,7 +11,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/onecommand"
 )
 
-// assess is the one-command fast path (roadmap Workstream 2): it collects a
+// assess is the one-command fast path: it collects a
 // current bundle from a local kubeconfig the operator already trusts and
 // classifies every registered native check route's applicability against
 // it. It never mutates cluster state, never reads more than the collector

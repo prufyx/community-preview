@@ -1,8 +1,7 @@
 # One-command flow (`prufyx assess`)
 
-Roadmap Workstream 2 (`ROADMAP-2026-09-19.md`). Problem: 170 registered
-native check routes each require hand-authored caller JSON and per-project
-flags. Getting one answer takes an hour of manual input preparation. This
+Each of the 170 registered native check routes requires hand-authored
+caller JSON and per-project flags. Getting one answer takes an hour of manual input preparation. This
 command is the fast path layered on top of those routes; it does not replace
 them, and it does not change `checkroutemetadata/catalog.go` or
 `communityapp/cncf.go`.
@@ -47,7 +46,7 @@ context, exactly one outcome is assigned:
 | `INDETERMINATE_NOT_OBSERVABLE` | The check's project is not one of the handful of components the collector's already-reviewed component-configuration adapter registry can identify from container images. Presence, absence, and version are all unknown from collected state. This is *not* folded into "not applicable" — asserting non-applicability would be a claim collected state cannot support. |
 | `INDETERMINATE_PARTIAL_COLLECTION` | An absence conclusion (component or Kubernetes version) was about to be drawn, but this context's collection was partial (a declared API read failed). Absence is not confirmed, so the check is reported as indeterminate rather than not-applicable. A *positive* observation elsewhere in the same partial context is not weakened by this: an unrelated failed read (e.g. `storageclasses`) does not cast doubt on a component that genuinely was found. |
 
-The roadmap asked for three buckets — (a) fully satisfiable, (b) applicable
+The natural split is three buckets — (a) fully satisfiable, (b) applicable
 but needs declarations, (c) doesn't apply. The two indeterminate outcomes
 are a deliberate refinement of (c): "this check does not apply" and "we
 cannot tell whether this check applies" are different claims, and collapsing

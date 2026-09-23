@@ -192,10 +192,10 @@ the admitted and unresolved branches. The Prometheus
 [3.0 migration guide](https://github.com/prometheus/prometheus/blob/7086161a93b262aa0949dbf2aba15a5a7b13e0a3/docs/migration.md)
 documents the upstream Agent-mode flag change.
 
-## Roadmap boundary
+## Current limits
 
-Runtime/startup verification for this same exact transition is the next
-planned evidence slice. It will remain unsupported until a reproducible public
+Runtime/startup verification for this same exact transition is not
+supported. It will remain unsupported until a reproducible public
 test record ships with exact inputs, assertions, cleanup receipts, and stated
 fidelity omissions. Data and remote-write safety, rollback, broader Prometheus
 versions, other architectures, and whole-upgrade assessment are also

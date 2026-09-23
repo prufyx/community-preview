@@ -1,10 +1,9 @@
 // Package evidencerepin implements the "evidence repin" maintainer
-// subcommand: the first increment of Workstream 5's staleness pipeline
-// (product-discovery/prufyx/DESIGN-rule-ingestion.md, section 8).
+// subcommand, the maintainer tool that keeps reviewed evidence current as
+// upstream projects publish new releases.
 //
 // It re-resolves the existing rule packs' citations at each project's
-// current upstream release commit and classifies what happened to each one
-// (see section 6.2 of the design doc):
+// current upstream release commit and classifies what happened to each one:
 //
 //   - NO_NEW_RELEASE        - no release since the citation's pinned commit
 //   - FILE_IDENTICAL        - the whole file at the current release commit is
@@ -74,7 +73,7 @@ const (
 	maxAPIBytes   int64 = 4 << 20
 	maxStateBytes int64 = 64 << 20
 
-	// Drift classes, per DESIGN-rule-ingestion.md section 6.2.
+	// Drift classes, ordered from cheapest to most expensive to re-review.
 	ClassNoNewRelease         = "NO_NEW_RELEASE"
 	ClassFileIdentical        = "FILE_IDENTICAL"
 	ClassSpanIdentical        = "SPAN_IDENTICAL"
@@ -436,8 +435,8 @@ type ClassResult struct {
 	Detail    string `json:"detail,omitempty"`
 }
 
-// costRank orders the worklist cheapest-reviewer-cost first, per section
-// 6.2/8 of the design doc: batch-attestable first, full re-review last.
+// costRank orders the worklist cheapest-reviewer-cost first: batch-attestable
+// first, full re-review last.
 // CORPUS_DIGEST_MISMATCH sorts after PATH_GONE because, although it is a
 // corpus integrity finding rather than ordinary drift, it still requires a
 // human and is never batch-attestable. PENDING sorts last of all because it
@@ -651,7 +650,7 @@ func SaveState(path string, state *State) error {
 }
 
 // Summary is the classification distribution over resolved citations,
-// which is the falsification test named in section 9.6 of the design doc:
+// and the viability test for batch re-attestation:
 // batch re-attestation is viable only if at least half of classified
 // citations are batch-attestable, i.e. FILE_IDENTICAL, SPAN_IDENTICAL, or
 // NO_NEW_RELEASE. SPAN_MOVED, CONTENT_CHANGED, PATH_GONE, and
@@ -689,7 +688,7 @@ func summarize(results []ClassResult) Summary {
 }
 
 // RuleVerdict rolls citation classifications up to the rule they belong
-// to, per section 6.2: a rule is batch re-attestable only if every one of
+// to: a rule is batch re-attestable only if every one of
 // its citations is FILE_IDENTICAL, SPAN_IDENTICAL or NO_NEW_RELEASE. A
 // single citation in any other class makes the whole rule reviewer work,
 // because a rule stands on all of its evidence, not its best piece.

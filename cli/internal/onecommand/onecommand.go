@@ -1,5 +1,4 @@
-// Package onecommand is the one-command fast path described in the roadmap's
-// Workstream 2: it collects a local, read-only current-state bundle from a
+// Package onecommand is the one-command fast path: it collects a local, read-only current-state bundle from a
 // kubeconfig the operator already trusts, and reports which of the 170
 // registered native check routes (checkroutemetadata.descriptorSet) are
 // applicable to what was actually found.
