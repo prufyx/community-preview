@@ -234,3 +234,54 @@ func TestCNCFDirectEmissaryAndOpenFGARoutes(t *testing.T) {
 		t.Fatalf("direct format help code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }
+
+// TestCNCFNativeResourceGroupOrWorldReadableInputGetsAnActionableHint proves a
+// newcomer's very first mistake (a --native-resource file left at the
+// default umask, e.g. 0644) fails with the same reason code and exit code as
+// before, but with a plain-English explanation and a concrete fix appended,
+// instead of a bare, unexplained reason code. A correctly-permissioned
+// (0600) file with identical content still succeeds, so the permission
+// control itself is exactly as strict as before this change.
+func TestCNCFNativeResourceGroupOrWorldReadableInputGetsAnActionableHint(t *testing.T) {
+	raw := []byte(`{"apiVersion":"prufyx.io/etcd-effective-argv/v1alpha1","kind":"EtcdEffectiveArguments","effectiveArgvDeclared":true,"argv":["--name=n"]}`)
+	args := func(path string) []string {
+		return []string{
+			"check", "cncf", "--project", "etcd", "--native-resource", path,
+			"--from", "3.5.17", "--to", "3.6.0", "--now", "2026-09-24T00:00:00Z", "--format", "json",
+		}
+	}
+
+	t.Run("0644 fails with the same reason code, exit code, and an added hint", func(t *testing.T) {
+		path := writeCNCFFile(t, "etcd-group-readable.json", raw, 0o644)
+		code, stdout, stderr := runCNCFCLI(t, args(path)...)
+		if code != ExitUsage {
+			t.Fatalf("code=%d, want ExitUsage(%d); stdout=%q stderr=%q", code, ExitUsage, stdout, stderr)
+		}
+		if stdout != "" {
+			t.Fatalf("stdout must stay empty on a rejected input, got %q", stdout)
+		}
+		if !strings.Contains(stderr, "NATIVE_CNCF_RESOURCE_INPUT_INVALID") {
+			t.Fatalf("stable reason code must be preserved: stderr=%q", stderr)
+		}
+		if !strings.Contains(stderr, "chmod 600") {
+			t.Fatalf("hint must tell the user how to fix it (chmod 600): stderr=%q", stderr)
+		}
+		if !strings.Contains(stderr, "group") && !strings.Contains(stderr, "others") {
+			t.Fatalf("hint must explain what happened (group/other readable): stderr=%q", stderr)
+		}
+		if strings.Contains(stderr, path) {
+			t.Fatalf("hint must not print the full sensitive path: stderr=%q", stderr)
+		}
+	})
+
+	t.Run("0600 with identical content still succeeds", func(t *testing.T) {
+		path := writeCNCFFile(t, "etcd-private.json", raw, 0o600)
+		code, stdout, stderr := runCNCFCLI(t, args(path)...)
+		if code != ExitUnknown || stderr != "" {
+			t.Fatalf("code=%d, want ExitUnknown(%d); stdout=%q stderr=%q", code, ExitUnknown, stdout, stderr)
+		}
+		if !strings.Contains(stdout, `"assessment":"UNKNOWN"`) {
+			t.Fatalf("expected an UNKNOWN assessment: stdout=%q", stdout)
+		}
+	})
+}

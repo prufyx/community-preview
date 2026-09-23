@@ -6,7 +6,7 @@ for `FlowSchema` and `PriorityLevelConfiguration` at the removed
 distribution and caller-declared target API apply intent.
 
 Build `$PREVIEW_DIR/prufyx-community` as in the repository
-[quickstart](../../../../../README.md#quickstart-a-metallb-migration-fact), then:
+[quickstart](../../../../../README.md#another-worked-example-a-metallb-migration-fact), then:
 
 ```sh
 umask 077

@@ -14,7 +14,7 @@ const argoCDResourceExclusionsRuleID = "argo-cd.resource-exclusions-v2-visibilit
 func (r runtime) cncfArgoCDResourceExclusions(path, pin, from, to string, complete, precedence bool, intentText string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("ARGO_CD_RESOURCE_EXCLUSIONS_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("ARGO_CD_RESOURCE_EXCLUSIONS_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

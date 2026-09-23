@@ -19,7 +19,7 @@ import (
 func (r runtime) cncfTektonConfigObservabilityCheck(path, pin, from, to, distribution, systemNamespace, completeText, retainText string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("TEKTON_CONFIG_OBSERVABILITY_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("TEKTON_CONFIG_OBSERVABILITY_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

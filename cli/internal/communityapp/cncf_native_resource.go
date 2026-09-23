@@ -118,7 +118,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		}
 		raw, readErr := readCNCFPrivate(nativePath, 1<<20)
 		if readErr != nil {
-			return r.fail("NATIVE_CNCF_RESOURCE_INPUT_INVALID", ExitUsage)
+			return r.fail(withPermissionHint("NATIVE_CNCF_RESOURCE_INPUT_INVALID", readErr), ExitUsage)
 		}
 		digest := digestCommunityBytes(raw)
 		if nativePin != "" && nativePin != digest {
@@ -223,7 +223,11 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 		current, currentErr := readCNCFPrivate(currentPath, 1<<20)
 		proposed, proposedErr := readCNCFPrivate(proposedPath, 1<<20)
 		if currentErr != nil || proposedErr != nil {
-			return r.fail("CLOUDNATIVEPG_RESOURCE_INPUT_INVALID", ExitUsage)
+			hintErr := currentErr
+			if hintErr == nil {
+				hintErr = proposedErr
+			}
+			return r.fail(withPermissionHint("CLOUDNATIVEPG_RESOURCE_INPUT_INVALID", hintErr), ExitUsage)
 		}
 		currentDigest, proposedDigest := digestCommunityBytes(current), digestCommunityBytes(proposed)
 		if (currentPin != "" && currentPin != currentDigest) || (proposedPin != "" && proposedPin != proposedDigest) {

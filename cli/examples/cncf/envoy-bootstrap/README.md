@@ -9,7 +9,7 @@ The route supports only target `1.39.1` from `1.34.14`, `1.35.13`, `1.36.10`,
 `1.37.6`, or `1.38.4`. The caller must declare that the local bytes are the
 directly loaded bootstrap with `--envoy-bootstrap-selected`; that authority is
 not inferred. Build `$PREVIEW_DIR/prufyx-community` as in the repository
-[quickstart](../../../../../README.md#quickstart-a-metallb-migration-fact).
+[quickstart](../../../../../README.md#another-worked-example-a-metallb-migration-fact).
 
 ```sh
 umask 077

@@ -53,7 +53,7 @@ func (r runtime) cloudEventsStructuredJSON(args []string) int {
 	}
 	raw, err := readCNCFPrivate(*event, 1<<20)
 	if err != nil {
-		return r.fail("event input failed private local admission", ExitUsage)
+		return r.fail(withPermissionHint("event input failed private local admission", err), ExitUsage)
 	}
 	rawDigest := digestCommunityBytes(raw)
 	if *eventDigest != "" && *eventDigest != rawDigest {
@@ -67,7 +67,7 @@ func (r runtime) cloudEventsStructuredJSON(args []string) int {
 	if replay {
 		expected, readErr := readCNCFPrivate(*replayPath, 4<<20)
 		if readErr != nil {
-			return r.fail("replay report failed private local admission", ExitUsage)
+			return r.fail(withPermissionHint("replay report failed private local admission", readErr), ExitUsage)
 		}
 		var result cloudeventsjsonknowledge.HistoricalReplay
 		if external {

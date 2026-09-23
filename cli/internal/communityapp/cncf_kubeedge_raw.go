@@ -18,7 +18,7 @@ import (
 func (r runtime) cncfKubeEdgeInitArgvCheck(path, pin, from, to, distribution, argvCompleteText string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("KUBEEDGE_INIT_ARGV_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("KUBEEDGE_INIT_ARGV_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

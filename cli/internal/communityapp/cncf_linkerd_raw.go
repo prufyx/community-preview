@@ -17,7 +17,7 @@ import (
 func (r runtime) cncfLinkerdCheck(path, pin, from, to, distribution, schemaValidation string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("LINKERD_RESOURCE_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("LINKERD_RESOURCE_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

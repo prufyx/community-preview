@@ -19,7 +19,7 @@ const containerdRemovedOfficialShimRuleID = "containerd.selected-official-runtim
 func (r runtime) cncfContainerdConfig(path, pin, handler, from, to string, complete, precedenceResolved, officialUpstream, officialBundledRuntimesOnly bool, nowText, storeRoot, revision, bundle, receipt, replayPath, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("CONTAINERD_CONFIG_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("CONTAINERD_CONFIG_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

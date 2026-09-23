@@ -21,7 +21,7 @@ import (
 func (r runtime) cncfJaegerNativeCheck(path, pin string, nonMemoryStorage, officialDistribution *bool, from, to, nowText, storeRoot, revision, bundle, receipt, replayPath, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("NATIVE_CNCF_RESOURCE_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("NATIVE_CNCF_RESOURCE_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {
