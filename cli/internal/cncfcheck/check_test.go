@@ -50,14 +50,14 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	vectors := reviewedVectors(t)
-	if len(b.pack.Entries) != 178 || len(vectors) != 178 {
+	if len(b.pack.Entries) != 191 || len(vectors) != 191 {
 		t.Fatal("unexpected reviewed rule or vector count")
 	}
 	caseCount := 0
 	for _, vector := range vectors {
 		caseCount += len(vector.Cases)
 	}
-	if caseCount != 911 {
+	if caseCount != 963 {
 		t.Fatal("unexpected reviewed case count")
 	}
 	if len(vectors) != len(b.pack.Entries) {
@@ -70,6 +70,10 @@ func TestReviewedTransitionCorpus(t *testing.T) {
 		for _, scenario := range vector.Cases {
 			t.Run(vector.RuleID+"/"+scenario.Name, func(t *testing.T) {
 				clock := reviewClock(t)
+				switch vector.RuleID {
+				case "kubernetes.admissionwebhook-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.apiservice-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.crd-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.csr-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.ingress-extensions-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.ingress-networking-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.ingressclass-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.lease-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.priorityclass-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.rbac-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.storage-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.subjectaccessreview-v1beta1-removed.1-21-0-to-1-22-0", "kubernetes.tokenreview-v1beta1-removed.1-21-0-to-1-22-0":
+					clock = time.Date(2026, 9, 23, 13, 56, 0, 0, time.UTC)
+				}
 				switch vector.RuleID {
 				case "kubernetes.cronjob-v1beta1-removed.1-24-0-to-1-25-0", "kubernetes.csistoragecapacity-v1beta1-removed.1-26-0-to-1-27-0", "kubernetes.endpointslice-v1beta1-removed.1-24-0-to-1-25-0", "kubernetes.event-v1beta1-removed.1-24-0-to-1-25-0", "kubernetes.flowcontrol-v1beta1-removed.1-25-0-to-1-26-0", "kubernetes.flowcontrol-v1beta2-removed.1-28-0-to-1-29-0", "kubernetes.hpa-v2beta1-removed.1-24-0-to-1-25-0", "kubernetes.hpa-v2beta2-removed.1-25-0-to-1-26-0", "kubernetes.pdb-v1beta1-removed.1-24-0-to-1-25-0", "kubernetes.psp-v1beta1-removed.1-24-0-to-1-25-0", "kubernetes.runtimeclass-v1beta1-removed.1-24-0-to-1-25-0":
 					clock = time.Date(2026, 9, 23, 12, 36, 0, 0, time.UTC)

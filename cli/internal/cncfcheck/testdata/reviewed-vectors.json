@@ -17751,6 +17751,390 @@
   },
   {
     "project": "kubernetes",
+    "ruleId": "kubernetes.admissionwebhook-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.admissionwebhook_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.admissionwebhook_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.admissionwebhook_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.apiservice-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.apiservice_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.apiservice_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.apiservice_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.crd-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.crd_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.crd_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.crd_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
     "ruleId": "kubernetes.cronjob-v1beta1-removed.1-24-0-to-1-25-0",
     "cases": [
       {
@@ -17993,6 +18377,134 @@
                 "facts": [
                   {
                     "id": "component.kubernetes.csistoragecapacity_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.csr-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.csr_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.csr_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.csr_v1beta1_removed_gvk_present",
                     "state": "declared",
                     "boolValue": true
                   }
@@ -19031,6 +19543,518 @@
   },
   {
     "project": "kubernetes",
+    "ruleId": "kubernetes.ingress-extensions-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_extensions_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_extensions_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_extensions_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.ingress-networking-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_networking_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_networking_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingress_networking_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.ingressclass-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingressclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingressclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.ingressclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.lease-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.lease_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.lease_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.lease_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
     "ruleId": "kubernetes.pdb-v1beta1-removed.1-24-0-to-1-25-0",
     "cases": [
       {
@@ -19145,6 +20169,134 @@
                 "facts": [
                   {
                     "id": "component.kubernetes.pdb_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.priorityclass-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.priorityclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.priorityclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.priorityclass_v1beta1_removed_gvk_present",
                     "state": "declared",
                     "boolValue": true
                   }
@@ -19287,6 +20439,134 @@
   },
   {
     "project": "kubernetes",
+    "ruleId": "kubernetes.rbac-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.rbac_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.rbac_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.rbac_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
     "ruleId": "kubernetes.runtimeclass-v1beta1-removed.1-24-0-to-1-25-0",
     "cases": [
       {
@@ -19401,6 +20681,390 @@
                 "facts": [
                   {
                     "id": "component.kubernetes.runtimeclass_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.storage-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.storage_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.storage_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.storage_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.subjectaccessreview-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.subjectaccessreview_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.subjectaccessreview_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.subjectaccessreview_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      }
+    ]
+  },
+  {
+    "project": "kubernetes",
+    "ruleId": "kubernetes.tokenreview-v1beta1-removed.1-21-0-to-1-22-0",
+    "cases": [
+      {
+        "name": "satisfied",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.tokenreview_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": false
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "PASS"
+      },
+      {
+        "name": "blocked",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.tokenreview_v1beta1_removed_gvk_present",
+                    "state": "declared",
+                    "boolValue": true
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "status": "BLOCKED"
+      },
+      {
+        "name": "missing",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.22.0",
+                "facts": []
+              }
+            ]
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      {
+        "name": "outside",
+        "input": {
+          "schema": "prufyx.io/operator-declared-constraint-input/v1alpha1",
+          "authority": "OPERATOR_DECLARED_MINIMIZED",
+          "current": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.21.0",
+                "facts": []
+              }
+            ]
+          },
+          "proposed": {
+            "components": [
+              {
+                "component": "pkg:github/kubernetes/kubernetes",
+                "version": "1.31.1",
+                "facts": [
+                  {
+                    "id": "component.kubernetes.tokenreview_v1beta1_removed_gvk_present",
                     "state": "declared",
                     "boolValue": true
                   }

@@ -113,8 +113,8 @@ func TestRunClassifiesThreeWaySplit(t *testing.T) {
 	if code != ExitOK {
 		t.Fatalf("Run failed: code=%d stderr=%s", code, stderr.String())
 	}
-	if report.RouteCatalog.TotalNativeRoutes != 181 {
-		t.Fatalf("totalNativeRoutes=%d want 181", report.RouteCatalog.TotalNativeRoutes)
+	if report.RouteCatalog.TotalNativeRoutes != 194 {
+		t.Fatalf("totalNativeRoutes=%d want 194", report.RouteCatalog.TotalNativeRoutes)
 	}
 	// Without a declared component scope there is no auditable applicable set,
 	// so the aggregate must stay UNKNOWN however many routes classified as
@@ -132,8 +132,8 @@ func TestRunClassifiesThreeWaySplit(t *testing.T) {
 	if ctxReport.CollectionStatus != "complete_for_declared_surface" {
 		t.Fatalf("collectionStatus=%q", ctxReport.CollectionStatus)
 	}
-	if len(ctxReport.Checks) != 181 {
-		t.Fatalf("checks=%d want 181", len(ctxReport.Checks))
+	if len(ctxReport.Checks) != 194 {
+		t.Fatalf("checks=%d want 194", len(ctxReport.Checks))
 	}
 
 	// Prometheus is observed at exactly 2.55.1 with a recognized predicate
@@ -191,8 +191,8 @@ func TestRunClassifiesThreeWaySplit(t *testing.T) {
 	// Summary counts must add up to the total.
 	s := ctxReport.Summary
 	total := s.ApplicableFullySatisfied + s.ApplicableNeedsDeclaration + s.NotApplicableVersionMismatch + s.NotApplicableComponentAbsent + s.IndeterminateNotObservable + s.IndeterminatePartialCollection
-	if total != 181 {
-		t.Fatalf("summary total=%d want 181 (%+v)", total, s)
+	if total != 194 {
+		t.Fatalf("summary total=%d want 194 (%+v)", total, s)
 	}
 	if s.ApplicableFullySatisfied != 0 {
 		t.Fatalf("applicableFullySatisfied=%d, want 0 for the current catalog (see TestNoNativeRouteIsFullySatisfiedByVersionAlone)", s.ApplicableFullySatisfied)
@@ -250,19 +250,19 @@ func TestRunPartialCollectionDowngradesAbsenceButNotPositiveEvidence(t *testing.
 }
 
 // TestNoNativeRouteIsFullySatisfiedByVersionAlone documents and enforces a
-// core finding of the design: every one of the 181 native check routes
+// core finding of the design: every one of the 194 native check routes
 // requires at least one caller declaration (a file, a name, or a boolean
 // intent flag) beyond the --from/--to version pair. If this ever stops being
 // true, ApplicableFullySatisfied stops being a dead bucket and the design
-// note's "0 of 181" claim needs updating alongside this test.
+// note's "0 of 194" claim needs updating alongside this test.
 func TestNoNativeRouteIsFullySatisfiedByVersionAlone(t *testing.T) {
 	result, err := checkroutemetadata.Discover("", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	routes := nativeRoutes(result)
-	if len(routes) != 181 {
-		t.Fatalf("native routes=%d want 181", len(routes))
+	if len(routes) != 194 {
+		t.Fatalf("native routes=%d want 194", len(routes))
 	}
 	for _, route := range routes {
 		if len(missingDeclarations(route.NativeDescriptor.Command)) == 0 {
