@@ -310,3 +310,72 @@ func TestK8sRemovedAPIsFactIDsAreUniqueAcrossTable(t *testing.T) {
 		}
 	}
 }
+
+const from122, to122 = "1.21.0", "1.22.0"
+
+func k8sFact122(slug string) string {
+	return "component.kubernetes." + slug + "_removed_gvk_present"
+}
+
+// Ingress was removed in two groups at 1.22; each group is its own fact, and
+// the served networking.k8s.io/v1 Ingress witnesses neither.
+func TestK8sRemovedAPIs122IngressGroupsStaySeparate(t *testing.T) {
+	facts := k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("extensions/v1beta1", "Ingress")), from122, to122, true))
+	wantBool(t, facts, k8sFact122("ingress_extensions_v1beta1"), true)
+	wantBool(t, facts, k8sFact122("ingress_networking_v1beta1"), false)
+
+	facts = k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("networking.k8s.io/v1beta1", "Ingress")), from122, to122, true))
+	wantBool(t, facts, k8sFact122("ingress_networking_v1beta1"), true)
+	wantBool(t, facts, k8sFact122("ingress_extensions_v1beta1"), false)
+	wantBool(t, facts, k8sFact122("ingressclass_v1beta1"), false)
+
+	facts = k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("networking.k8s.io/v1", "Ingress"), k8sDoc("networking.k8s.io/v1", "IngressClass")), from122, to122, true))
+	for _, slug := range []string{"ingress_extensions_v1beta1", "ingress_networking_v1beta1", "ingressclass_v1beta1"} {
+		wantBool(t, facts, k8sFact122(slug), false)
+	}
+}
+
+// CSIStorageCapacity shares storage.k8s.io/v1beta1 but was still served at
+// 1.22 (removed in 1.27), so it must not witness the 1.22 storage removal.
+func TestK8sRemovedAPIs122StorageKindsOnly(t *testing.T) {
+	facts := k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("storage.k8s.io/v1beta1", "CSIStorageCapacity")), from122, to122, true))
+	wantBool(t, facts, k8sFact122("storage_v1beta1"), false)
+
+	facts = k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("storage.k8s.io/v1beta1", "StorageClass")), from122, to122, true))
+	wantBool(t, facts, k8sFact122("storage_v1beta1"), true)
+}
+
+func TestK8sRemovedAPIs122Witnesses(t *testing.T) {
+	cases := []struct{ api, kind, slug string }{
+		{"admissionregistration.k8s.io/v1beta1", "ValidatingWebhookConfiguration", "admissionwebhook_v1beta1"},
+		{"apiextensions.k8s.io/v1beta1", "CustomResourceDefinition", "crd_v1beta1"},
+		{"apiregistration.k8s.io/v1beta1", "APIService", "apiservice_v1beta1"},
+		{"authentication.k8s.io/v1beta1", "TokenReview", "tokenreview_v1beta1"},
+		{"authorization.k8s.io/v1beta1", "SelfSubjectRulesReview", "subjectaccessreview_v1beta1"},
+		{"certificates.k8s.io/v1beta1", "CertificateSigningRequest", "csr_v1beta1"},
+		{"coordination.k8s.io/v1beta1", "Lease", "lease_v1beta1"},
+		{"networking.k8s.io/v1beta1", "IngressClass", "ingressclass_v1beta1"},
+		{"rbac.authorization.k8s.io/v1beta1", "RoleBinding", "rbac_v1beta1"},
+		{"scheduling.k8s.io/v1beta1", "PriorityClass", "priorityclass_v1beta1"},
+	}
+	for _, tc := range cases {
+		facts := k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc(tc.api, tc.kind)), from122, to122, true))
+		wantBool(t, facts, k8sFact122(tc.slug), true)
+		for _, other := range KubernetesRemovedAPIFacts(from122, to122) {
+			if other != k8sFact122(tc.slug) {
+				wantBool(t, facts, other, false)
+			}
+		}
+	}
+	if n := len(KubernetesRemovedAPIFacts(from122, to122)); n != 13 {
+		t.Fatalf("1.22 facts = %d, want 13", n)
+	}
+}
+
+// extensions has no served replacement for Ingress in the cited source, so an
+// Ingress in any other extensions version is undecidable, not absent.
+func TestK8sRemovedAPIs122ExtensionsIngressOtherVersion(t *testing.T) {
+	facts := k8sProposedFacts(t, prepareK8s(t, k8sList(k8sDoc("extensions/v1", "Ingress")), from122, to122, true))
+	wantUnsupported(t, facts, k8sFact122("ingress_extensions_v1beta1"))
+	wantBool(t, facts, k8sFact122("ingress_networking_v1beta1"), false)
+}
