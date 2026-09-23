@@ -33,6 +33,14 @@ For a public upstream identity or transition proposal, use the closed offline
 receipt proves packet consistency only; it does not authenticate a reviewer,
 verify an upstream source, authorize a rule, or publish data.
 
+To propose a single deterministic compatibility rule — a source-pinned claim
+that upgrading one already-tracked component under a specific condition will
+break — see [contributing a rule](cli/docs/contributing-rules.md). It walks
+through the rule schema, the evidence-pinning discipline, and the offline
+`prufyx-maintainer rule validate` command that checks a candidate before you
+open a pull request. That validator never publishes anything; a maintainer
+still reviews and folds every accepted rule in by hand.
+
 If you only want to suggest a useful public project, start with the
 [public project source issue form](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml).
 One exact public GitHub repository URL is enough; you do not need to maintain

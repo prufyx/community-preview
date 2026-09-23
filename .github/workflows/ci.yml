@@ -40,6 +40,25 @@ jobs:
         working-directory: cli
         run: go test ./...
 
+      - name: Validate community rule candidates
+        working-directory: cli
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          candidates=(contrib/rules/*.json)
+          if [ "${#candidates[@]}" -eq 0 ]; then
+            echo "no candidate files under contrib/rules/, nothing to validate"
+            exit 0
+          fi
+          status=0
+          for candidate in "${candidates[@]}"; do
+            echo "validating ${candidate}"
+            if ! go run ./cmd/prufyx-maintainer rule validate --file "${candidate}"; then
+              status=1
+            fi
+          done
+          exit "${status}"
+
   gitleaks:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-24.04
