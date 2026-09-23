@@ -177,7 +177,7 @@ func (r runtime) cncfNativeResourceCheck(project, nativePath, nativePin, current
 			if kubernetesDistribution != "" && kubernetesDistribution != "official_upstream" && kubernetesDistribution != "custom_build" {
 				return r.usage("invalid Kubernetes distribution; use --help")
 			}
-			prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, from, to, kubernetesDistribution, targetAPIApplyRequired, resourceScopeComplete)
+			prepared, err = cncfprepare.PrepareKubernetesRemovedAPIs(raw, from, to, kubernetesDistribution, targetAPIApplyRequired, resourceScopeComplete)
 		} else if project == "cilium" {
 			if ciliumDistribution != "" && ciliumDistribution != "official_upstream" && ciliumDistribution != "custom_build" {
 				return r.usage("invalid Cilium distribution; use --help")
