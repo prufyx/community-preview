@@ -4,7 +4,7 @@
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
   "landscapeFileDigest": "sha256:8ee4c10af7d58ddda752ff91c20bf6a5f328bfa5aa288f93801d0ca9d2b0c0ef",
-  "registryDigest": "sha256:15810707a5713eb0582d0190aac592db14f494f48670805a9ac0d9bab391f14b",
+  "registryDigest": "sha256:d0e4fc1f2a246716a77e98ad62f00fec10460d1cefb1cbea61a561c87fe631ca",
   "entries": [
     {
       "description": "Argo CD v3.5.2 uses Helm 4; this checks one effective official Helm repository with OCI enabled and caller-declared plain-HTTP transport for the documented force-HTTP flag requirement and direct-repository conflicting TLS flags.",
@@ -7883,6 +7883,290 @@
     },
     {
       "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving CronJob through batch/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.cronjob_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains CronJob at batch/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.cronjob-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.cronjob_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-cronjob-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 87,
+              "endLine": 93
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named CronJob manifest to batch/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.27 stops serving CSIStorageCapacity through storage.k8s.io/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.csistoragecapacity_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains CSIStorageCapacity at storage.k8s.io/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.csistoragecapacity-v1beta1-removed.1-26-0-to-1-27-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.26.0",
+          "to": "1.27.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.csistoragecapacity_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v127-csistoragecapacity-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 55,
+              "endLine": 61
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named CSIStorageCapacity manifest to storage.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving EndpointSlice through discovery.k8s.io/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.endpointslice_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains EndpointSlice at discovery.k8s.io/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.endpointslice-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.endpointslice_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-endpointslice-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 95,
+              "endLine": 104
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named EndpointSlice manifest to discovery.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving Event through events.k8s.io/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.event_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains Event at events.k8s.io/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.event-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.event_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-event-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 106,
+              "endLine": 126
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named Event manifest to events.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.26 stops serving FlowSchema or PriorityLevelConfiguration through flowcontrol.apiserver.k8s.io/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.flowcontrol_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains FlowSchema or PriorityLevelConfiguration at flowcontrol.apiserver.k8s.io/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.flowcontrol-v1beta1-removed.1-25-0-to-1-26-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.25.0",
+          "to": "1.26.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.flowcontrol_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v126-flowcontrol-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 67,
+              "endLine": 73
+            },
+            {
+              "id": "kubernetes-website-v126-flowcontrol-v1beta1-context-1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 40,
+              "endLine": 49
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named FlowSchema or PriorityLevelConfiguration manifest to flowcontrol.apiserver.k8s.io/v1beta2, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.29 stops serving FlowSchema or PriorityLevelConfiguration through flowcontrol.apiserver.k8s.io/v1beta2. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.flowcontrol_v1beta2_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains FlowSchema or PriorityLevelConfiguration at flowcontrol.apiserver.k8s.io/v1beta2."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.flowcontrol-v1beta2-removed.1-28-0-to-1-29-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.28.0",
+          "to": "1.29.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.flowcontrol_v1beta2_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v129-flowcontrol-v1beta2",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 40,
+              "endLine": 49
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named FlowSchema or PriorityLevelConfiguration manifest to flowcontrol.apiserver.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
       "description": "Kubernetes 1.32 stops serving FlowSchema and PriorityLevelConfiguration through flowcontrol.apiserver.k8s.io/v1beta3. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
       "requiredFacts": [
         {
@@ -7929,6 +8213,98 @@
     },
     {
       "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving HorizontalPodAutoscaler through autoscaling/v2beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.hpa_v2beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains HorizontalPodAutoscaler at autoscaling/v2beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.hpa-v2beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.hpa_v2beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-hpa-v2beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 128,
+              "endLine": 135
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named HorizontalPodAutoscaler manifest to autoscaling/v2, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.26 stops serving HorizontalPodAutoscaler through autoscaling/v2beta2. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.hpa_v2beta2_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains HorizontalPodAutoscaler at autoscaling/v2beta2."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.hpa-v2beta2-removed.1-25-0-to-1-26-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.25.0",
+          "to": "1.26.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.hpa_v2beta2_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v126-hpa-v2beta2",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 75,
+              "endLine": 82
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named HorizontalPodAutoscaler manifest to autoscaling/v2, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
       "description": "Kubernetes in-tree dockershim removal only; CRI endpoint health and runtime compatibility are unverified.",
       "requiredFacts": [
         {
@@ -7971,6 +8347,144 @@
         },
         "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
         "nextAction": "Replace the in-tree dockershim dependency with a supported external CRI implementation and validate it separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving PodDisruptionBudget through policy/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.pdb_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains PodDisruptionBudget at policy/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.pdb-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.pdb_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-pdb-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 137,
+              "endLine": 146
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named PodDisruptionBudget manifest to policy/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving PodSecurityPolicy through policy/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.psp_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains PodSecurityPolicy at policy/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.psp-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.psp_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-psp-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 148,
+              "endLine": 156
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Remove PodSecurityPolicy (policy/v1beta1) from the target apply set; it has no served replacement API. Migrate to Pod Security Admission or an admission webhook, then reassess the complete target apply set."
+      }
+    },
+    {
+      "project": "kubernetes",
+      "description": "Kubernetes 1.25 stops serving RuntimeClass through node.k8s.io/v1beta1. This exact rendered apply-set check does not validate general manifest schema, CRDs, persisted objects, runtime clients, or API server configuration.",
+      "requiredFacts": [
+        {
+          "side": "proposed",
+          "id": "component.kubernetes.runtimeclass_v1beta1_removed_gvk_present",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "type": "bool",
+          "enumTokens": null,
+          "description": "Whether the complete non-paginated caller-selected official-upstream target apply set contains RuntimeClass at node.k8s.io/v1beta1."
+        }
+      ],
+      "rule": {
+        "id": "kubernetes.runtimeclass-v1beta1-removed.1-24-0-to-1-25-0",
+        "operator": "forbid_predicate_value",
+        "subject": {
+          "component": "pkg:github/kubernetes/kubernetes",
+          "from": "1.24.0",
+          "to": "1.25.0"
+        },
+        "condition": {
+          "side": "proposed",
+          "component": "pkg:github/kubernetes/kubernetes",
+          "factId": "component.kubernetes.runtimeclass_v1beta1_removed_gvk_present",
+          "boolValue": true
+        },
+        "evidence": {
+          "state": "active",
+          "reviewedAt": "2026-09-23T12:35:56Z",
+          "validUntil": "2026-12-22T12:35:56Z",
+          "sources": [
+            {
+              "id": "kubernetes-website-v125-runtimeclass-v1beta1",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/docs/reference/using-api/deprecation-guide.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
+              "startLine": 158,
+              "endLine": 164
+            }
+          ]
+        },
+        "reasonCode": "REVIEWED_SOURCE_CONSTRAINT",
+        "nextAction": "Migrate the named RuntimeClass manifest to node.k8s.io/v1, then reassess the complete target apply set. Validate admission, CRDs, stored objects, runtime clients, and API-server configuration separately."
       }
     },
     {
