@@ -930,21 +930,21 @@ func (r runtime) knativeInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	return r.fail("KNATIVE_SERVING_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("KNATIVE_SERVING_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) buildpacksInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	return r.fail("BUILDPACKS_LIFECYCLE_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("BUILDPACKS_LIFECYCLE_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) inTotoInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	return r.fail("IN_TOTO_RUN_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("IN_TOTO_RUN_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) tufInputFailure(err error) int {
@@ -954,7 +954,7 @@ func (r runtime) tufInputFailure(err error) int {
 	if errors.Is(err, cncfprepare.ErrTUFSourceParse) {
 		return r.fail("TUF_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX", ExitUsage)
 	}
-	return r.fail("TUF_UPDATER_SOURCE_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("TUF_UPDATER_SOURCE_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) kubeflowKFPInputFailure(err error) int {
@@ -964,25 +964,56 @@ func (r runtime) kubeflowKFPInputFailure(err error) int {
 	if errors.Is(err, cncfprepare.ErrKubeflowKFPSourceParse) {
 		return r.fail("KUBEFLOW_KFP_SOURCE_OUTSIDE_ADMITTED_GO_LEXICAL_SYNTAX", ExitUsage)
 	}
-	return r.fail("KUBEFLOW_KFP_SOURCE_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("KUBEFLOW_KFP_SOURCE_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) cubeFSInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	return r.fail("CUBEFS_METANODE_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("CUBEFS_METANODE_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) crioInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.knativeIntegrityFailure()
 	}
-	return r.fail("CRIO_IMAGE_STATUS_REQUEST_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("CRIO_IMAGE_STATUS_REQUEST_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) knativeIntegrityFailure() int {
 	return r.fail("CNCF_PREPARATION_INTEGRITY_FAILURE", ExitIntegrity)
+}
+
+// ErrInsecurePermissions is the sentinel readCNCFPrivate returns when an
+// otherwise-readable input file exists but is not owner-only (mode 0600).
+// It is always wrapped alongside cncfcheck.ErrInvalid so every existing
+// errors.Is(err, cncfcheck.ErrInvalid) / exit-code path is unaffected;
+// callers that want the human-readable hint check for it explicitly via
+// withPermissionHint or permissionHintFor.
+var ErrInsecurePermissions = errors.New("input file must be readable and writable by its owner only (mode 0600)")
+
+// permissionHintFor returns the human-readable, actionable suffix for a
+// readCNCFPrivate failure caused specifically by insecure file permissions,
+// or "" for every other failure (missing file, wrong size, symlink, not a
+// regular file, changed during read, and so on), which keep their existing
+// unadorned messages. It never repeats file contents or the caller's actual
+// path; "<file>" is a literal placeholder.
+func permissionHintFor(err error) string {
+	if !errors.Is(err, ErrInsecurePermissions) {
+		return ""
+	}
+	return "input file is readable or writable by group or others; prufyx requires owner-only permissions to protect its private contents; run `chmod 600 <file>` and retry"
+}
+
+// withPermissionHint appends permissionHintFor's guidance to message when
+// err was caused by insecure permissions, leaving every other message,
+// reason code, and exit code exactly as before.
+func withPermissionHint(message string, err error) string {
+	if hint := permissionHintFor(err); hint != "" {
+		return message + ": " + hint
+	}
+	return message
 }
 
 func readCNCFPrivate(path string, limit int) ([]byte, error) {
@@ -994,8 +1025,11 @@ func readCNCFPrivate(path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if info.Mode().Perm() != 0600 || !info.Mode().IsRegular() {
+	if !info.Mode().IsRegular() {
 		return nil, cncfcheck.ErrInvalid
+	}
+	if info.Mode().Perm() != 0600 {
+		return nil, fmt.Errorf("%w: %w", ErrInsecurePermissions, cncfcheck.ErrInvalid)
 	}
 	return raw, nil
 }
@@ -1004,5 +1038,5 @@ func (r runtime) cncfError(message string, err error) int {
 	if errors.Is(err, cncfcheck.ErrIntegrity) || errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.fail(message, ExitIntegrity)
 	}
-	return r.fail(message, ExitUsage)
+	return r.fail(withPermissionHint(message, err), ExitUsage)
 }

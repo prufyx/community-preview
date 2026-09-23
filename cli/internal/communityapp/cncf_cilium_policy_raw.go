@@ -19,7 +19,7 @@ import (
 func (r runtime) cncfCiliumPolicyCheck(path, pin, from, to, completeSetText string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("CILIUM_POLICY_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("CILIUM_POLICY_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

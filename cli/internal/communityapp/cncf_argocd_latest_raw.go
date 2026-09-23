@@ -17,7 +17,7 @@ import (
 func (r runtime) cncfArgoCDLatestRepository(path, pin, from, to, distribution string, settingsResolvedText, usesPlainHTTPText string, now time.Time, format string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("ARGO_CD_REPOSITORY_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("ARGO_CD_REPOSITORY_INPUT_INVALID", err), ExitUsage)
 	}
 	sourceDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != sourceDigest {

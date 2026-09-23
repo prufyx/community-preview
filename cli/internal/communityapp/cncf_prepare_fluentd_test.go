@@ -77,7 +77,7 @@ func TestFluentDLiteralPreparationRejectsInvalidUTF8AndDigest(t *testing.T) {
 	permissivePath := writeCNCFFile(t, "fluentd-permissive.json", raw, 0o644)
 	permissiveArgs := []string{"prepare", "cncf", "--project", "fluentd", "--input", permissivePath, "--from", "1.17.1", "--to", "1.18.0", "--format", "json"}
 	code, stdout, stderr = runCNCFCLI(t, permissiveArgs...)
-	if code != ExitUsage || stdout != "" || stderr != "prufyx: CNCF preparation input failed local admission\n" {
+	if code != ExitUsage || stdout != "" || !strings.HasPrefix(stderr, "prufyx: CNCF preparation input failed local admission: ") || !strings.Contains(stderr, "chmod 600") {
 		t.Fatalf("permissive mode code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }

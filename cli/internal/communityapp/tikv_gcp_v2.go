@@ -55,7 +55,7 @@ func (r runtime) tikvGCPV2WIFBackup(args []string) int {
 	}
 	raw, err := readCNCFPrivate(*config, 1<<20)
 	if err != nil {
-		return r.fail("configuration input failed private local admission", ExitUsage)
+		return r.fail(withPermissionHint("configuration input failed private local admission", err), ExitUsage)
 	}
 	rawDigest := digestCommunityBytes(raw)
 	if *configDigest != "" && *configDigest != rawDigest {
@@ -69,7 +69,7 @@ func (r runtime) tikvGCPV2WIFBackup(args []string) int {
 	if replay {
 		expected, readErr := readCNCFPrivate(*replayPath, 4<<20)
 		if readErr != nil {
-			return r.fail("replay report failed private local admission", ExitUsage)
+			return r.fail(withPermissionHint("replay report failed private local admission", readErr), ExitUsage)
 		}
 		var result tikvgcpv2knowledge.HistoricalReplay
 		if external {

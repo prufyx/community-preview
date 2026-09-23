@@ -554,7 +554,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 			return r.argoCDInputFailure(err)
 		}
 		if *project == "cilium" {
-			return r.fail("CILIUM_PREPARATION_INPUT_INVALID", ExitUsage)
+			return r.fail(withPermissionHint("CILIUM_PREPARATION_INPUT_INVALID", err), ExitUsage)
 		}
 		if *project == "jaeger" {
 			return r.jaegerInputFailure(err)
@@ -848,14 +848,14 @@ func (r runtime) linkerdInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.linkerdIntegrityFailure()
 	}
-	return r.fail("LINKERD_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("LINKERD_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) karmadaInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.karmadaIntegrityFailure()
 	}
-	return r.fail("KARMADA_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("KARMADA_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) concretePreparationIntegrityFailure(project string) int {
@@ -883,7 +883,7 @@ func (r runtime) argoCDInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.argoCDIntegrityFailure()
 	}
-	return r.fail("ARGO_CD_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("ARGO_CD_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }
 
 func (r runtime) argoCDIntegrityFailure() int {
@@ -894,5 +894,5 @@ func (r runtime) jaegerInputFailure(err error) int {
 	if errors.Is(err, currentbundle.ErrIntegrity) {
 		return r.fail("CNCF_PREPARATION_INTEGRITY_FAILURE", ExitIntegrity)
 	}
-	return r.fail("JAEGER_PREPARATION_INPUT_INVALID", ExitUsage)
+	return r.fail(withPermissionHint("JAEGER_PREPARATION_INPUT_INVALID", err), ExitUsage)
 }

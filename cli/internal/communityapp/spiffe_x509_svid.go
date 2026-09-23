@@ -53,7 +53,7 @@ func (r runtime) spiffeX509SVID(args []string) int {
 	}
 	raw, err := readCNCFPrivate(*certificate, 1<<20)
 	if err != nil {
-		return r.fail("certificate input failed private local admission", ExitUsage)
+		return r.fail(withPermissionHint("certificate input failed private local admission", err), ExitUsage)
 	}
 	rawDigest := digestCommunityBytes(raw)
 	if *certificateDigest != "" && *certificateDigest != rawDigest {
@@ -68,7 +68,7 @@ func (r runtime) spiffeX509SVID(args []string) int {
 	if replay {
 		expected, readErr := readCNCFPrivate(*replayPath, 4<<20)
 		if readErr != nil {
-			return r.fail("replay report failed private local admission", ExitUsage)
+			return r.fail(withPermissionHint("replay report failed private local admission", readErr), ExitUsage)
 		}
 		var result spiffex509knowledge.HistoricalReplay
 		if external {

@@ -217,7 +217,7 @@ func TestCNCFCLIReplayRequiresExactCanonicalJSONAndPrivateReport(t *testing.T) {
 	permissiveArgs := cncfArgs(input)
 	permissiveArgs = append(permissiveArgs, "--format", "json", "--input-digest", cncfDigest(raw), "--replay-report", permissive)
 	code, stdout, stderr = runCNCFCLI(t, permissiveArgs...)
-	if code != ExitUsage || stdout != "" || stderr != "prufyx: CNCF replay report failed local admission\n" {
+	if code != ExitUsage || stdout != "" || !strings.HasPrefix(stderr, "prufyx: CNCF replay report failed local admission: ") || !strings.Contains(stderr, "chmod 600") {
 		t.Fatalf("permissive replay code=%d stdout=%q stderr=%q", code, stdout, stderr)
 	}
 }

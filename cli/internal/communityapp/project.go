@@ -280,7 +280,7 @@ func (r runtime) prepareProjectInput(request projectArguments) (projectprepare.P
 	}
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return projectprepare.Prepared{}, r.fail("community project input failed private-file admission", ExitUsage)
+		return projectprepare.Prepared{}, r.fail(withPermissionHint("community project input failed private-file admission", err), ExitUsage)
 	}
 	var prepared projectprepare.Prepared
 	if request.mariadbResource != "" {

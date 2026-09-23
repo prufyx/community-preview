@@ -3,7 +3,7 @@
 These synthetic inputs exercise the exact containerd `1.7.28` to `2.0.0`
 selected-runtime constraint. Copy an example to a private file before checking
 it. Build `$PREVIEW_DIR/prufyx-community` as in the repository
-[quickstart](../../../../../README.md#quickstart-a-metallb-migration-fact):
+[quickstart](../../../../../README.md#another-worked-example-a-metallb-migration-fact):
 
 ```sh
 umask 077

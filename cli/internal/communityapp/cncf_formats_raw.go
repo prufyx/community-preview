@@ -15,7 +15,7 @@ import (
 func (r runtime) cncfNativeFormat(project, path, pin, from, to, operation string, now time.Time, format string, selection *knowledge.SelectionRequest, replayPath string) int {
 	raw, err := readCNCFPrivate(path, 1<<20)
 	if err != nil {
-		return r.fail("NATIVE_FORMAT_PREPARATION_INPUT_INVALID", ExitUsage)
+		return r.fail(withPermissionHint("NATIVE_FORMAT_PREPARATION_INPUT_INVALID", err), ExitUsage)
 	}
 	rawDigest := digestCommunityBytes(raw)
 	if pin != "" && pin != rawDigest {

@@ -11,6 +11,14 @@ Build the executable from source with the vendored Go modules. There is no
 official prebuilt binary, release feed, or automatic knowledge refresh for
 this preview.
 
+## Quickstart
+
+New to Prufyx? [`cli/docs/quickstart.md`](cli/docs/quickstart.md) takes you
+from a clean clone to a real **BLOCKED** verdict with a source citation, in
+under five minutes, using a Kubernetes API-removal check. It also explains
+what `PASS`/`BLOCKED`/`UNKNOWN` mean, why input files must be `chmod 600`,
+and how to wire the exit code into CI.
+
 Have a public GitHub project with useful release notes or changelogs? Start with
 the [local project onboarding guide](cli/docs/project-onboarding.md)
 or [suggest the repository](https://github.com/prufyx/community-preview/issues/new?template=project-knowledge.yml).
@@ -19,7 +27,7 @@ claim or executable check. Default sync requires a matching published GitHub
 Release. Repositories without Releases can instead use the guide's explicit,
 bounded Git-tag selection; it does not discover or infer tags.
 
-## Quickstart: a MetalLB migration fact
+## Another worked example: a MetalLB migration fact
 
 The example below uses the caller's proposed native Kubernetes JSON. It does
 not contact Kubernetes, a registry, or MetalLB.
