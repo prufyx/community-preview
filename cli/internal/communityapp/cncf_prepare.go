@@ -613,7 +613,7 @@ Exit 0: prepared; 11: unresolved preparation; 2: invalid input; 3: integrity fai
 	case "envoy":
 		prepared, err = cncfprepare.PrepareEnvoyBootstrap(raw, *from, *to, *envoyBootstrapSelected)
 	case "kubernetes":
-		prepared, err = cncfprepare.PrepareKubernetesFlowControl(raw, *from, *to, *distribution, *targetAPIApplyRequired, *resourceScopeComplete)
+		prepared, err = cncfprepare.PrepareKubernetesRemovedAPIs(raw, *from, *to, *distribution, *targetAPIApplyRequired, *resourceScopeComplete)
 	case "strimzi":
 		prepared, err = cncfprepare.PrepareStrimziKafkaResource(raw, *from, *to, *strimziDistribution, *targetKafkaCRDAdmissionRequired)
 	case "falco":
