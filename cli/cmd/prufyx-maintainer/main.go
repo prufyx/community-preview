@@ -24,6 +24,7 @@ import (
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releasehelpers"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/releaseworkflow"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/reviewrecord"
+	"github.com/prufyx/prufyx-cli/internal/maintainer/rulecheck"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecapture"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecorpus"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/stagingreceipt"
@@ -142,8 +143,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return &commandError{code: code, message: "evidence repin failed", printed: true}
 		}
 		return nil
+	case "rule":
+		if code := runRuleCheck(args[1:], stdout, stderr); code != 0 {
+			return &commandError{code: code, message: "rule validate failed", printed: true}
+		}
+		return nil
 	case "help", "-h", "--help":
-		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|corpus-attestation|review-record|public-source-capture|evidence|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
+		fmt.Fprintln(stdout, "usage: prufyx-maintainer <project|contribution|contribution-candidates|selected-source-import|source-corpus|corpus-attestation|review-record|public-source-capture|evidence|rule|export-knowledge|package-knowledge|knowledge-publish|knowledge-sign|support-inventory|release-gate|staging-receipt|release|local-kind|release-*> [options]")
 		return nil
 	default:
 		return usageError()
@@ -466,4 +472,22 @@ func runSupportInventory(args []string, stderr io.Writer) error {
 		return &commandError{code: 2, message: "support inventory: cannot commit generated outputs", err: err}
 	}
 	return nil
+}
+
+// runRuleCheck wires the "rule validate" subcommand: an offline-by-default
+// validator for a community-contributed rule candidate. It never writes to a
+// rules.json file and never publishes a claim; it only reports findings.
+func runRuleCheck(args []string, stdout, stderr io.Writer) int {
+	root, err := cliRoot()
+	if err != nil {
+		fmt.Fprintln(stderr, "rule: CLI root is unavailable")
+		return 2
+	}
+	defaults := rulecheck.CLIOptions{
+		ExistingRulesPaths: []string{
+			filepath.Join(root, "internal/cncfcheck/data/rules.json"),
+			filepath.Join(root, "internal/projectcheck/data/rules.json"),
+		},
+	}
+	return rulecheck.Run(args, stdout, stderr, defaults)
 }
