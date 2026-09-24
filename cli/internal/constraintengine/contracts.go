@@ -18,12 +18,16 @@ import (
 )
 
 const (
-	InputSchema    = "prufyx.io/operator-declared-constraint-input/v1alpha1"
-	RulesSchema    = "prufyx.io/deterministic-constraint-rules/v1alpha1"
-	ReportSchema   = "prufyx.io/deterministic-constraint-report/v1alpha1"
-	InputAuthority = "OPERATOR_DECLARED_MINIMIZED"
-	RulesAuthority = "DECLARED_RULE_SOURCE_REFERENCES"
-	EngineVersion  = "deterministic-constraint-engine-v1"
+	InputSchema = "prufyx.io/operator-declared-constraint-input/v1alpha1"
+	RulesSchema = "prufyx.io/deterministic-constraint-rules/v1alpha1"
+	// RulesSchemaRanged is carried by, and only by, a rule document holding at
+	// least one rule with a reviewed version range. Binaries that predate
+	// ranges reject it outright rather than reading a range as its anchor.
+	RulesSchemaRanged = "prufyx.io/deterministic-constraint-rules/v1alpha2"
+	ReportSchema      = "prufyx.io/deterministic-constraint-report/v1alpha1"
+	InputAuthority    = "OPERATOR_DECLARED_MINIMIZED"
+	RulesAuthority    = "DECLARED_RULE_SOURCE_REFERENCES"
+	EngineVersion     = "deterministic-constraint-engine-v1"
 
 	// ScopeDeclaration is the caller's statement that the declared component
 	// set is exactly the set under evaluation. It is checked against the
@@ -38,6 +42,10 @@ const (
 	// deliberately separate from EngineVersion: the four constraint operators
 	// and their semantics are unchanged by this mechanism.
 	ScopeContractVersion = "scope-completeness-contract-v1"
+	// ScopeContractVersionRanged adds the anchor-review condition for rule
+	// documents that carry ranges. Exact-only documents keep the v1 contract
+	// and its digest, so their reports replay byte-identically.
+	ScopeContractVersionRanged = "scope-completeness-contract-v2"
 
 	// AssessmentUnknown is the only aggregate a report without genuine
 	// scope-completeness evidence may carry.
@@ -252,9 +260,12 @@ type ruleCorpus struct {
 }
 
 type rule struct {
-	ID           string          `json:"id"`
-	Operator     string          `json:"operator"`
-	Subject      transition      `json:"subject"`
+	ID       string     `json:"id"`
+	Operator string     `json:"operator"`
+	Subject  transition `json:"subject"`
+	// Range is optional. When absent the rule marshals, digests, and matches
+	// exactly as it did before ranges existed.
+	Range        *VersionRange   `json:"range,omitempty"`
 	Condition    *factCondition  `json:"condition,omitempty"`
 	AppliesWhen  []factCondition `json:"appliesWhen,omitempty"`
 	Dependency   *componentCheck `json:"dependency,omitempty"`
@@ -305,6 +316,7 @@ type RuleSet struct {
 	document       ruleDocument
 	digest         string
 	registryDigest string
+	ranged         bool
 	seal           *ruleSetSeal
 }
 type ruleSetSeal struct{}
@@ -329,6 +341,20 @@ type Claim struct {
 	EvidenceFreshness  string           `json:"evidenceFreshness"`
 	RequiredFacts      []RequiredFact   `json:"requiredFacts"`
 	Sources            []SourceEvidence `json:"sources"`
+	// SubjectMatch is present only when the transition matched the rule's
+	// reviewed range rather than its exact anchor pair. Exact matches omit it,
+	// so exact-rule claims serialize exactly as before ranges existed.
+	SubjectMatch *SubjectMatch `json:"subjectMatch,omitempty"`
+}
+
+// SubjectMatch discloses a range match: the reviewed anchor pair and the
+// reviewed bounds the declared transition fell inside.
+type SubjectMatch struct {
+	Mode       string       `json:"mode"`
+	AnchorFrom string       `json:"anchorFrom"`
+	AnchorTo   string       `json:"anchorTo"`
+	From       VersionBound `json:"from"`
+	To         VersionBound `json:"to"`
 }
 
 type RequiredFact struct {
@@ -400,9 +426,29 @@ func engineContractDigest() string {
 	return digestBytes([]byte(EngineVersion + "\n" + InputSchema + "\n" + RulesSchema + "\n" + ReportSchema + "\n" + InputAuthority + "\n" + RulesAuthority + "\nappliesWhen\ncomparison:eq\ncomparison:gte\ncomparison:lte\ncomparison:lt\nforbid_predicate_value\nrequire_component_version\nrequire_intermediate_version\nforbid_target_version"))
 }
 
+// engineContractDigestRanged identifies the contract under which a rule
+// document with ranges is evaluated. It is a separate identity rather than a
+// replacement: a report over an exact-only document keeps the original digest
+// and replays byte-identically on this binary.
+func engineContractDigestRanged() string {
+	return digestBytes([]byte(EngineVersion + "\n" + InputSchema + "\n" + RulesSchemaRanged + "\n" + ReportSchema + "\n" + InputAuthority + "\n" + RulesAuthority + "\nappliesWhen\ncomparison:eq\ncomparison:gte\ncomparison:lte\ncomparison:lt\nforbid_predicate_value\nrequire_component_version\nrequire_intermediate_version\nforbid_target_version\nsubject:exact\nsubject:range\nclaim:subjectMatch\n" + rangeWidthPolicy + "\n" + basisVocabulary()))
+}
+
 // EngineContractDigest exposes the immutable scalar contract identity without
-// exposing mutable parser or registry state.
+// exposing mutable parser or registry state. It is the identity of the
+// exact-only contract.
 func EngineContractDigest() string { return engineContractDigest() }
+
+// EngineContractDigestRanged exposes the contract identity for rule documents
+// that carry reviewed version ranges.
+func EngineContractDigestRanged() string { return engineContractDigestRanged() }
+
+func (r RuleSet) engineDigest() string {
+	if r.ranged {
+		return engineContractDigestRanged()
+	}
+	return engineContractDigest()
+}
 
 // scopeContractDigest binds the scope-completeness vocabulary separately from
 // engineContractDigest, so reports that do not use scope keep byte-identical
@@ -413,6 +459,27 @@ func scopeContractDigest() string {
 
 // ScopeContractDigest exposes the scope-completeness contract identity.
 func ScopeContractDigest() string { return scopeContractDigest() }
+
+// scopeContractDigestRanged adds the anchor-review condition to the v1
+// vocabulary. It is used only with the ranged engine contract.
+func scopeContractDigestRanged() string {
+	return digestBytes([]byte(ScopeContractVersionRanged + "\n" + ScopeDeclaration + "\n" + CorpusAttestation + "\n" + AssessmentUnknown + "\n" + AssessmentBlocked + "\n" + AssessmentScopeCompletePass + "\n" + ApplicabilityApplicable + "\n" + ApplicabilityNotApplicable + "\n" + ApplicabilityUndetermined + "\n" + omissionWholeUpgradeScoped + "\n" + unresolvedTransitionNotAnchor))
+}
+
+// ScopeContractDigestRanged exposes the ranged scope-completeness identity.
+func ScopeContractDigestRanged() string { return scopeContractDigestRanged() }
+
+// scopeDigestFor returns the scope contract that pairs with an engine
+// contract, or "" for an unknown engine contract.
+func scopeDigestFor(engineDigest string) string {
+	switch engineDigest {
+	case engineContractDigest():
+		return scopeContractDigest()
+	case engineContractDigestRanged():
+		return scopeContractDigestRanged()
+	}
+	return ""
+}
 
 func digestJSON(value any) string { raw, _ := json.Marshal(value); return digestBytes(raw) }
 func digestBytes(raw []byte) string {
