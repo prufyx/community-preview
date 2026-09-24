@@ -74,7 +74,20 @@ var (
 	// vocabulary closed prevents a caller from relabelling a binary for a
 	// different platform (or inventing a profile that consumers cannot
 	// validate).
-	profileRE = regexp.MustCompile(`^linux-(?:amd64|arm64)$`)
+	//
+	// releaseProfileRE is the strict, Linux-only vocabulary produced by the
+	// signed-release pipeline (internal/maintainer/releaseworkflow). Its
+	// membership and semantics are unchanged by the addition of the
+	// community family below: a community profile can never match this
+	// pattern, so it can never be mistaken for, or pass a check that
+	// specifically requires, a signed-release profile.
+	releaseProfileRE = regexp.MustCompile(`^linux-(?:amd64|arm64)$`)
+	// communityProfileRE is the distinct, clearly-labeled family produced by
+	// the public GitHub Actions release workflow
+	// (.github/workflows/release.yml). It covers every OS/arch pair that
+	// workflow builds and reports itself honestly as a community build,
+	// never as a signed release.
+	communityProfileRE = regexp.MustCompile(`^community-(?:linux|darwin)-(?:amd64|arm64)$`)
 )
 
 // Report validates the values currently compiled into the package and
@@ -208,7 +221,7 @@ func (v linkerValues) validate() error {
 	if !digestRE.MatchString(v.allowlistDigest) {
 		return invalid("allowlistDigest", v.allowlistDigest, "sha256:<64 lowercase hex characters>")
 	}
-	if !profileRE.MatchString(v.buildProfile) {
+	if !releaseProfileRE.MatchString(v.buildProfile) && !communityProfileRE.MatchString(v.buildProfile) {
 		return invalid("buildProfile", v.buildProfile, "a lowercase path-free build profile")
 	}
 	if _, err := epochInstant(v.buildEpoch); err != nil {
@@ -219,6 +232,17 @@ func (v linkerValues) validate() error {
 	}
 	return nil
 }
+
+// IsReleaseProfile reports whether profile is one of the two Linux profiles
+// produced by the strict, signed-release pipeline
+// (internal/maintainer/releaseworkflow). A community profile never
+// satisfies this.
+func IsReleaseProfile(profile string) bool { return releaseProfileRE.MatchString(profile) }
+
+// IsCommunityProfile reports whether profile is a community-release profile
+// produced by the public release workflow (.github/workflows/release.yml).
+// It never satisfies IsReleaseProfile.
+func IsCommunityProfile(profile string) bool { return communityProfileRE.MatchString(profile) }
 
 func token(value string) bool {
 	if value == "" || len(value) > 256 || value == DevelopmentValue {

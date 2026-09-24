@@ -137,6 +137,18 @@ func TestIdentityEvidenceRequiresStrictDevelopmentOrReleaseShape(t *testing.T) {
 	}
 }
 
+// TestIdentityEvidenceRejectsCommunityProfile proves that a well-formed
+// community-release identity (as produced by .github/workflows/release.yml
+// and accepted by buildidentity for `prufyx version`) is still refused here,
+// where only the strict signed-release profile is trusted. A community
+// profile must never pass a check that requires a signed release.
+func TestIdentityEvidenceRejectsCommunityProfile(t *testing.T) {
+	community := []byte(`{"result":{"status":"OK","reasonCode":"build_identity_reported"},"data":{"version":"v1.2.3","releaseState":"release","sourceRevision":"abc1234567","sourceTreeDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","allowlistDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","buildProfile":"community-darwin-arm64","goVersion":"go1.26.8","candidateOnly":true}}`)
+	if _, err := validIdentity(community); err == nil {
+		t.Fatal("accepted a community-release profile where a signed-release profile is required")
+	}
+}
+
 func TestProofReceiptRetainsLegacyEvidenceBindings(t *testing.T) {
 	identity := identityEvidence{Version: "dev", ReleaseState: "development", SourceRevision: "unbound", SourceTreeDigest: "unbound", AllowlistDigest: "unbound", BuildProfile: "development", GoVersion: "go1.26.8", CandidateOnly: true}
 	receipt := proofReceipt("2026-09-11T00:00:00Z", "sha256:binary", "2026-09-11T00:00:01Z", "sha256:replay", identity)
