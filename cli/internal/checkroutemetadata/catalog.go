@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
+	"github.com/prufyx/prufyx-cli/internal/constraintengine"
 	"github.com/prufyx/prufyx-cli/internal/projectcheck"
 )
 
@@ -67,6 +68,16 @@ type Check struct {
 	To                      string `json:"to"`
 	GenericDeclarationRoute Route  `json:"genericDeclarationRoute"`
 	NativeDescriptor        Route  `json:"nativeDescriptor"`
+	// Range and MatchMode are present only for a rule with a reviewed range.
+	// MatchMode is "range" only when the query pair matched the range rather
+	// than the anchor pair. Native descriptors stay exact-pair.
+	Range     *constraintengine.VersionRange `json:"range,omitempty"`
+	MatchMode string                         `json:"matchMode,omitempty"`
+}
+
+// Transition returns the check's reviewed subject for the shared matcher.
+func (c Check) Transition() constraintengine.RuleTransition {
+	return constraintengine.RuleTransition{Component: c.Component, From: c.From, To: c.To, Range: c.Range}
 }
 
 type Result struct {
@@ -693,11 +704,14 @@ func genericRoute(family, project, from, to string) Route {
 	if family == FamilyCommunity {
 		return Route{State: RouteNotExposed, Limit: "Community embedded rules have no generic public canonical-input command."}
 	}
-	return Route{State: RouteExposed, Command: []Argument{literal("check"), literal("cncf"), literal("--project"), literal(project), file("--input"), timestamp("--now")}, Limit: "The canonical minimized declaration itself binds this exact identity's from/to pair; generic CLI --from/--to flags are not admitted."}
+	return Route{State: RouteExposed, Command: []Argument{literal("check"), literal("cncf"), literal("--project"), literal(project), file("--input"), timestamp("--now")}, Limit: "The canonical minimized declaration itself binds this identity's own from/to pair; generic CLI --from/--to flags are not admitted."}
 }
 
 // Discover returns all compiled source-rule identities, optionally narrowed by
-// project and exact from/to pair. It neither reads inputs nor evaluates rules.
+// project and a queried from/to pair. A queried pair narrows to identities the
+// range matcher accepts, whether that is the reviewed anchor or, for a rule
+// with a reviewed range, a transition inside it. It neither reads inputs nor
+// evaluates rules.
 func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) {
 	cncf, err := cncfcheck.EmbeddedRuleIdentities()
 	if err != nil {
@@ -740,21 +754,24 @@ func Discover(selectedProject, selectedFrom, selectedTo string) (Result, error) 
 		coverage = "NO_MATCHING_EMBEDDED_RULE"
 	}
 	result := Result{Schema: Schema, MetadataSource: "EMBEDDED_COMPILED_BUNDLES_ONLY", SourceOnlyState: "NOT_ENUMERATED", RuleCoverageState: coverage, Scope: Scope{IncludedFamilies: []string{FamilyCNCF, FamilyCommunity}, ExcludedFamilies: []string{"named_check", "standards_conformance", "target_preflight"}, CoverageMeaning: "exact embedded source-rule identity discovery only", SourceEvidenceFreshness: "NOT_EVALUATED"}, Query: Query{Project: selectedProject, From: selectedFrom, To: selectedTo}, NamedCheckHints: namedHints(selectedProject), Checks: make([]Check, 0, len(cncf)+len(community))}
-	appendIdentity := func(family, project, component, ruleID, from, to string) {
-		if projectFilter(selectedProject, selectedFrom, selectedTo, project, from, to) {
+	appendIdentity := func(family, project, component, ruleID, from, to string, subject constraintengine.RuleTransition) {
+		if projectFilter(selectedProject, selectedFrom, selectedTo, project, subject) {
 			return
 		}
-		item := Check{Family: family, Project: project, Component: component, RuleID: ruleID, From: from, To: to, GenericDeclarationRoute: genericRoute(family, project, from, to), NativeDescriptor: Route{State: DescriptorNone}}
+		item := Check{Family: family, Project: project, Component: component, RuleID: ruleID, From: from, To: to, GenericDeclarationRoute: genericRoute(family, project, from, to), NativeDescriptor: Route{State: DescriptorNone}, Range: subject.Range}
+		if selectedFrom != "" && selectedTo != "" && subject.Match(selectedFrom, selectedTo) == constraintengine.MatchRange {
+			item.MatchMode = string(constraintengine.MatchRange)
+		}
 		if descriptor, found := descriptors[identityKey(family, project, component, ruleID, from, to)]; found {
 			item.NativeDescriptor = Route{State: DescriptorExact, Command: descriptor.command, Limit: descriptor.limit, NativePass: descriptor.nativePass}
 		}
 		result.Checks = append(result.Checks, item)
 	}
 	for _, item := range cncf {
-		appendIdentity(FamilyCNCF, item.Project, item.Component, item.RuleID, item.From, item.To)
+		appendIdentity(FamilyCNCF, item.Project, item.Component, item.RuleID, item.From, item.To, item.Transition())
 	}
 	for _, item := range community {
-		appendIdentity(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To)
+		appendIdentity(FamilyCommunity, item.Project, item.Component, item.RuleID, item.From, item.To, item.Transition())
 	}
 	sort.Slice(result.Checks, func(i, j int) bool {
 		if result.Checks[i].Project != result.Checks[j].Project {
@@ -838,6 +855,15 @@ func namedHints(project string) []NamedCheckHint {
 	}
 }
 
-func projectFilter(selectedProject, selectedFrom, selectedTo, project, from, to string) bool {
-	return selectedProject != "" && selectedProject != project || selectedFrom != "" && selectedFrom != from || selectedTo != "" && selectedTo != to
+// projectFilter reports whether an identity is excluded by the query. Version
+// filters go through the shared matcher: with both versions the pair must
+// match the anchor or the reviewed range; with one, that side alone must.
+func projectFilter(selectedProject, selectedFrom, selectedTo, project string, subject constraintengine.RuleTransition) bool {
+	if selectedProject != "" && selectedProject != project {
+		return true
+	}
+	if selectedFrom != "" && selectedTo != "" {
+		return subject.Match(selectedFrom, selectedTo) == constraintengine.MatchNone
+	}
+	return selectedFrom != "" && !subject.MatchesFrom(selectedFrom) || selectedTo != "" && !subject.MatchesTo(selectedTo)
 }

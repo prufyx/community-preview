@@ -1,12 +1,51 @@
 package communityapp
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/prufyx/prufyx-cli/internal/checkroutemetadata"
 )
+
+// TestRenderCatalogCheckRangeMatchShowsModeNotAnchorCommand proves fix 1's
+// human-output half: a range match must print its match mode and must never
+// print the native route's exact-pair command, since that command is always
+// pinned to the anchor pair and would misdescribe the queried, off-anchor
+// pair as if it were the reviewed anchor's own transition.
+func TestRenderCatalogCheckRangeMatchShowsModeNotAnchorCommand(t *testing.T) {
+	item := checkroutemetadata.Check{
+		Project: "kubernetes", RuleID: "kubernetes.example", From: "1.24.0", To: "1.25.0",
+		MatchMode: "range",
+		NativeDescriptor: checkroutemetadata.Route{
+			State:   checkroutemetadata.DescriptorExact,
+			Command: []checkroutemetadata.Argument{{Kind: "literal", Literal: "check"}, {Kind: "literal", Literal: "cncf"}},
+		},
+		GenericDeclarationRoute: checkroutemetadata.Route{State: checkroutemetadata.RouteExposed},
+	}
+	var buf bytes.Buffer
+	renderCatalogCheck(&buf, item)
+	out := buf.String()
+	if !strings.Contains(out, "match mode: range") {
+		t.Fatalf("range match output missing match mode: %q", out)
+	}
+	if strings.Contains(out, "prufyx check cncf") {
+		t.Fatalf("range match output printed the anchor-pinned native command: %q", out)
+	}
+
+	anchorItem := item
+	anchorItem.MatchMode = ""
+	buf.Reset()
+	renderCatalogCheck(&buf, anchorItem)
+	anchorOut := buf.String()
+	if !strings.Contains(anchorOut, "prufyx check cncf") {
+		t.Fatalf("anchor match output missing the native command: %q", anchorOut)
+	}
+	if strings.Contains(anchorOut, "match mode:") {
+		t.Fatalf("anchor match output unexpectedly printed a match mode: %q", anchorOut)
+	}
+}
 
 func TestCatalogChecksPublicRouteReportsExactNativeBindings(t *testing.T) {
 	tests := []struct{ project, from, to, ruleID string }{
@@ -71,7 +110,7 @@ func TestCatalogChecksKnownWrongPairAndGenericCommunityBoundary(t *testing.T) {
 		t.Fatalf("community boundary=(%d,%q,%q)", code, stdout, stderr)
 	}
 	code, stdout, stderr = runCNCFCLI(t, "catalog", "checks", "--project", "envoy", "--from", "1.34.14", "--to", "1.38.4")
-	if code != ExitOK || stderr != "" || !strings.Contains(stdout, "known embedded project, but no matching exact") {
+	if code != ExitOK || stderr != "" || !strings.Contains(stdout, "known embedded project, but no matching source-rule transition") {
 		t.Fatalf("wrong pair=(%d,%q,%q)", code, stdout, stderr)
 	}
 }

@@ -22,8 +22,8 @@ func (r runtime) catalogChecks(args []string) int {
 	fs := flag.NewFlagSet("catalog checks", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	project := fs.String("project", "", "required exact project slug")
-	from := fs.String("from", "", "exact current version; requires --to")
-	to := fs.String("to", "", "exact target version; requires --from")
+	from := fs.String("from", "", "queried current version; requires --to")
+	to := fs.String("to", "", "queried target version; requires --from")
 	format := fs.String("format", "human", "human or json")
 	fromProvided := flagProvided(args, "from")
 	toProvided := flagProvided(args, "to")
@@ -43,7 +43,7 @@ func (r runtime) catalogChecks(args []string) int {
 	renderCatalogScope(r.stdout, result)
 	if len(result.Checks) == 0 {
 		if result.RuleCoverageState == "NO_MATCHING_EMBEDDED_RULE" {
-			fmt.Fprintln(r.stdout, "known embedded project, but no matching exact source-rule transition")
+			fmt.Fprintln(r.stdout, "known embedded project, but no matching source-rule transition (neither the reviewed anchor pair nor, where a rule carries one, its reviewed range)")
 		} else {
 			fmt.Fprintln(r.stdout, "no matching rule in this embedded source-rule catalog")
 		}
@@ -53,28 +53,40 @@ func (r runtime) catalogChecks(args []string) int {
 	}
 	fmt.Fprintf(r.stdout, "embedded source-rule identities: %d\n", len(result.Checks))
 	for _, item := range result.Checks {
-		fmt.Fprintf(r.stdout, "%s %s %s -> %s\n", item.Project, item.RuleID, item.From, item.To)
-		if item.NativeDescriptor.State == checkroutemetadata.DescriptorExact {
-			fmt.Fprintf(r.stdout, "  native route: %s\n", renderCatalogCommand(item.NativeDescriptor.Command))
-			if item.NativeDescriptor.NativePass != "" {
-				fmt.Fprintf(r.stdout, "  native PASS: %s\n", item.NativeDescriptor.NativePass)
-			}
-		} else {
-			fmt.Fprintf(r.stdout, "  native route: %s\n", item.NativeDescriptor.State)
-		}
-		fmt.Fprintf(r.stdout, "  generic declaration: %s\n", item.GenericDeclarationRoute.State)
-		if len(item.GenericDeclarationRoute.Command) != 0 {
-			fmt.Fprintf(r.stdout, "  generic command: %s\n", renderCatalogCommand(item.GenericDeclarationRoute.Command))
-		}
-		if item.GenericDeclarationRoute.Limit != "" {
-			fmt.Fprintf(r.stdout, "  generic limit: %s\n", item.GenericDeclarationRoute.Limit)
-		}
-		if item.NativeDescriptor.Limit != "" {
-			fmt.Fprintf(r.stdout, "  native limit: %s\n", item.NativeDescriptor.Limit)
-		}
+		renderCatalogCheck(r.stdout, item)
 	}
 	renderCatalogHints(r.stdout, result)
 	return ExitOK
+}
+
+// renderCatalogCheck prints one check's human-readable listing. A range
+// match (item.MatchMode == "range": the query pair fell inside the rule's
+// reviewed range rather than at its reviewed anchor) prints the match mode
+// and never the native route's exact-pair command, which is always pinned to
+// the anchor and would misdescribe the queried pair.
+func renderCatalogCheck(out io.Writer, item checkroutemetadata.Check) {
+	fmt.Fprintf(out, "%s %s %s -> %s\n", item.Project, item.RuleID, item.From, item.To)
+	if item.MatchMode == "range" {
+		fmt.Fprintf(out, "  match mode: range (query pair falls inside the reviewed range, not the reviewed anchor)\n")
+		fmt.Fprintf(out, "  native route: not shown for a range match; the native command is pinned to the reviewed anchor pair\n")
+	} else if item.NativeDescriptor.State == checkroutemetadata.DescriptorExact {
+		fmt.Fprintf(out, "  native route: %s\n", renderCatalogCommand(item.NativeDescriptor.Command))
+		if item.NativeDescriptor.NativePass != "" {
+			fmt.Fprintf(out, "  native PASS: %s\n", item.NativeDescriptor.NativePass)
+		}
+	} else {
+		fmt.Fprintf(out, "  native route: %s\n", item.NativeDescriptor.State)
+	}
+	fmt.Fprintf(out, "  generic declaration: %s\n", item.GenericDeclarationRoute.State)
+	if len(item.GenericDeclarationRoute.Command) != 0 {
+		fmt.Fprintf(out, "  generic command: %s\n", renderCatalogCommand(item.GenericDeclarationRoute.Command))
+	}
+	if item.GenericDeclarationRoute.Limit != "" {
+		fmt.Fprintf(out, "  generic limit: %s\n", item.GenericDeclarationRoute.Limit)
+	}
+	if item.NativeDescriptor.Limit != "" {
+		fmt.Fprintf(out, "  native limit: %s\n", item.NativeDescriptor.Limit)
+	}
 }
 
 func renderCatalogScope(out io.Writer, result checkroutemetadata.Result) {
