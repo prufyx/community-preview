@@ -265,7 +265,11 @@ func TestValidate_EveryPublishedEntryValidatesCleanly(t *testing.T) {
 					// ExistingRulesPaths deliberately omitted: this proves each
 					// entry's own structure and evidence are well-formed, not
 					// that it is unique against the pack it was taken from.
-					result, err := Validate(candidateFile(t, entry), Options{})
+					// AllowRange: true because this is the maintainer's own
+					// self-check against already-published, reviewed packs,
+					// which may carry a range; the public CLI a community
+					// contributor runs never sets it.
+					result, err := Validate(candidateFile(t, entry), Options{AllowRange: true})
 					if err != nil {
 						t.Fatalf("Validate returned error: %v", err)
 					}
@@ -275,6 +279,50 @@ func TestValidate_EveryPublishedEntryValidatesCleanly(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// --- Range: community-contribution refusal, maintainer self-check accepts --
+
+// firstRangedEntry returns the first entry in the cncfcheck pack that
+// carries a rule.range, so tests exercise a genuine reviewed range rather
+// than a hand-built approximation.
+func firstRangedEntry(t *testing.T) map[string]any {
+	t.Helper()
+	for _, entry := range realEntries(t, filepath.Join("..", "..", "cncfcheck", "data", "rules.json")) {
+		if _, ok := rule(entry)["range"]; ok {
+			return clone(t, entry)
+		}
+	}
+	t.Fatal("cncfcheck rules.json has no entry with a range")
+	return nil
+}
+
+func TestValidate_CommunityContributionRejectsRange(t *testing.T) {
+	entry := firstRangedEntry(t)
+	result, err := Validate(candidateFile(t, entry), Options{})
+	if err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	if result.Valid {
+		t.Fatal("expected a community-mode candidate with a range to be rejected")
+	}
+	for _, f := range result.Findings {
+		if f.Check == "range" && strings.Contains(f.Message, "maintainer") {
+			return
+		}
+	}
+	t.Fatalf("expected a %q finding naming the maintainer-only rule, got: %+v", "range", result.Findings)
+}
+
+func TestValidate_MaintainerSelfCheckAcceptsPublishedRange(t *testing.T) {
+	entry := firstRangedEntry(t)
+	result, err := Validate(candidateFile(t, entry), Options{AllowRange: true})
+	if err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("expected a real published ranged entry to validate cleanly with AllowRange, findings: %+v", result.Findings)
 	}
 }
 
@@ -416,7 +464,8 @@ func TestValidate_OfflineDefaultNeverCallsFetcher(t *testing.T) {
 
 // TestValidate_RangeNotAcceptedInContributions: a reviewed version range is
 // a maintainer-reviewed widening, never part of a community candidate. The
-// closed rule schema refuses the field.
+// default (community) mode refuses the field with a clear, actionable
+// message, rather than the engine's own generic rejection.
 func TestValidate_RangeNotAcceptedInContributions(t *testing.T) {
 	entry := firstRealEntry(t)
 	setRuleID(t, entry, "smoke.ranged.1-0-0-to-2-0-0")
@@ -425,5 +474,5 @@ func TestValidate_RangeNotAcceptedInContributions(t *testing.T) {
 		"to":     map[string]any{"gte": "2.0.0", "lt": "2.1.0"},
 		"bounds": []any{},
 	}
-	assertFinding(t, entry, "rule-schema")
+	assertFinding(t, entry, "range")
 }

@@ -78,16 +78,23 @@ type Fact struct {
 // internal/constraintengine/contracts.go so this package can strict-decode a
 // candidate's rule object field-by-field before handing it to ParseRuleSet.
 type ruleBody struct {
-	ID           string          `json:"id"`
-	Operator     string          `json:"operator"`
-	Subject      transition      `json:"subject"`
-	Condition    *factCondition  `json:"condition,omitempty"`
-	AppliesWhen  []factCondition `json:"appliesWhen,omitempty"`
-	Dependency   *componentCheck `json:"dependency,omitempty"`
-	Intermediate string          `json:"intermediate,omitempty"`
-	Evidence     evidenceBody    `json:"evidence"`
-	ReasonCode   string          `json:"reasonCode"`
-	NextAction   string          `json:"nextAction"`
+	ID       string     `json:"id"`
+	Operator string     `json:"operator"`
+	Subject  transition `json:"subject"`
+	// Range is optional, exactly as the engine's own rule schema has it. A
+	// maintainer adds it when publishing a reviewed range; a community
+	// contribution carrying one is rejected in checkEntry unless the caller
+	// opts in with Options.AllowRange (see there for the reuse discipline:
+	// the actual structural validation still runs through the engine's own
+	// constraintengine.ParseRuleSet, never reimplemented here).
+	Range        *constraintengine.VersionRange `json:"range,omitempty"`
+	Condition    *factCondition                 `json:"condition,omitempty"`
+	AppliesWhen  []factCondition                `json:"appliesWhen,omitempty"`
+	Dependency   *componentCheck                `json:"dependency,omitempty"`
+	Intermediate string                         `json:"intermediate,omitempty"`
+	Evidence     evidenceBody                   `json:"evidence"`
+	ReasonCode   string                         `json:"reasonCode"`
+	NextAction   string                         `json:"nextAction"`
 }
 
 type transition struct {
@@ -174,6 +181,15 @@ type Options struct {
 	// collisions. A candidate ID equal to any published rule ID, or to
 	// another candidate ID in the same file, is rejected.
 	ExistingRulesPaths []string
+	// AllowRange opts in to accepting a rule.range field. It is for the
+	// maintainer's own publish-time self-check against already-published,
+	// reviewed packs, never for the public "rule validate" CLI a community
+	// contributor runs: only a maintainer adds a range when publishing, so a
+	// community candidate carrying one is rejected with a clear message
+	// instead. When true, a candidate's range is not re-validated by hand
+	// here; it is checked exactly as the compiled engine checks a published
+	// rule, via constraintengine.ParseRuleSet in runEngineParse below.
+	AllowRange bool
 }
 
 // Validate parses and checks every entry in a candidate file. It returns a
@@ -195,7 +211,7 @@ func Validate(raw []byte, opts Options) (Result, error) {
 
 	seenInBatch := map[string]int{}
 	for index, entry := range entries {
-		bodyFindings, ruleID, valid := checkEntry(index, entry)
+		bodyFindings, ruleID, valid := checkEntry(index, entry, opts)
 		result.Findings = append(result.Findings, bodyFindings...)
 		if !valid {
 			continue
@@ -256,7 +272,7 @@ func decodeCandidates(raw []byte) ([]Entry, []Finding, error) {
 // returns the rule ID (empty if the rule body itself did not even decode)
 // and whether the entry is well-formed enough to be considered for
 // collision checking and span printing.
-func checkEntry(index int, entry Entry) ([]Finding, string, bool) {
+func checkEntry(index int, entry Entry, opts Options) ([]Finding, string, bool) {
 	var findings []Finding
 	add := func(check, format string, args ...any) {
 		findings = append(findings, Finding{EntryIndex: index, Check: check, Message: fmt.Sprintf(format, args...)})
@@ -339,6 +355,10 @@ func checkEntry(index int, entry Entry) ([]Finding, string, bool) {
 	}
 
 	ruleID := body.ID
+
+	if body.Range != nil && !opts.AllowRange {
+		addRule(ruleID, "range", "rule.range is not accepted from a community contribution; only a maintainer adds a reviewed range when publishing")
+	}
 
 	if !ruleIDPattern.MatchString(body.ID) {
 		addRule(ruleID, "rule-id", "rule.id %q does not match the engine's id pattern ^[a-z0-9][a-z0-9._-]{0,127}$", body.ID)
@@ -433,13 +453,21 @@ func runEngineParse(ruleRaw json.RawMessage, registry constraintengine.Registry)
 	placeholderRevision := "0000000000000000000000000000000000000c"
 	placeholderPolicyID := "community-rule-candidate-validator"
 	placeholderPolicyDigest := digestOf([]byte("prufyx community rule candidate validation placeholder policy"))
+	rules := []json.RawMessage{ruleRaw}
+	// The document's own schema tag must match whether this rule carries a
+	// range, exactly as the engine requires of a real published document;
+	// reuse the engine's own RulesSchemaFor rather than re-deriving it here.
+	schema, err := constraintengine.RulesSchemaFor(rules)
+	if err != nil {
+		return err
+	}
 	document := struct {
 		Schema       string            `json:"schema"`
 		Revision     string            `json:"revision"`
 		PolicyID     string            `json:"policyId"`
 		PolicyDigest string            `json:"policyDigest"`
 		Rules        []json.RawMessage `json:"rules"`
-	}{constraintengine.RulesSchema, placeholderRevision, placeholderPolicyID, placeholderPolicyDigest, []json.RawMessage{ruleRaw}}
+	}{schema, placeholderRevision, placeholderPolicyID, placeholderPolicyDigest, rules}
 	raw, err := json.Marshal(document)
 	if err != nil {
 		return err
