@@ -160,8 +160,11 @@ func ExternalProfileRequirements() (ProfileRequirements, error) {
 	if err != nil {
 		return ProfileRequirements{}, err
 	}
+	// PackSchema is the exact-only pack schema, whatever the embedded pack
+	// carries: an external pack uses the ranged schema if and only if it
+	// holds a rule with a reviewed range (validPackSchema).
 	return ProfileRequirements{
-		Schema: externalBundleSchema, PackSchema: base.pack.Schema,
+		Schema: externalBundleSchema, PackSchema: packSchema,
 		EngineCapabilityDigest: capability, PolicyID: base.pack.PolicyID,
 		PolicyDigest: base.pack.PolicyDigest, RegistryDigest: base.registry.Digest(),
 		LandscapeFileDigest: base.landscape.LandscapeFileDigest,
@@ -340,7 +343,7 @@ func validExternalRevision(value string) bool {
 }
 
 func validateExternalPack(base bundle, packValue rulePack, revision string) error {
-	if packValue.Schema != "prufyx.io/cncf-source-rule-pack/v1alpha1" || packValue.Revision != revision || packValue.PolicyID != base.pack.PolicyID || packValue.PolicyDigest != base.pack.PolicyDigest || packValue.LandscapeFileDigest != base.landscape.LandscapeFileDigest || packValue.RegistryDigest != base.registry.Digest() || len(packValue.Entries) > maxExternalEntries {
+	if !validPackSchema(packValue) || packValue.Revision != revision || packValue.PolicyID != base.pack.PolicyID || packValue.PolicyDigest != base.pack.PolicyDigest || packValue.LandscapeFileDigest != base.landscape.LandscapeFileDigest || packValue.RegistryDigest != base.registry.Digest() || len(packValue.Entries) > maxExternalEntries {
 		return ErrIntegrity
 	}
 	definitions := map[string]constraintengine.FactDefinition{}

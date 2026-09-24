@@ -176,7 +176,12 @@ func (b bundle) unfilteredRuleDocument(corpus []string) ([]byte, error) {
 		PolicyDigest string            `json:"policyDigest"`
 		Rules        []json.RawMessage `json:"rules"`
 		Corpus       *corpusBlock      `json:"corpus,omitempty"`
-	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules, nil}
+	}{"", b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules, nil}
+	schema, err := constraintengine.RulesSchemaFor(rules)
+	if err != nil {
+		return nil, ErrIntegrity
+	}
+	document.Schema = schema
 	if len(corpus) > 0 {
 		document.Corpus = &corpusBlock{Completeness: constraintengine.CorpusAttestation, Components: corpus}
 	}

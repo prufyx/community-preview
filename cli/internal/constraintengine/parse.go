@@ -132,9 +132,10 @@ func ParseRuleSet(raw []byte, registry Registry) (RuleSet, error) {
 	if err := decodeStrict(raw, &document); err != nil {
 		return RuleSet{}, err
 	}
-	if document.Schema != RulesSchema || !idRE.MatchString(document.Revision) || !idRE.MatchString(document.PolicyID) || !digestRE.MatchString(document.PolicyDigest) || len(document.Rules) > maxRules {
+	if (document.Schema != RulesSchema && document.Schema != RulesSchemaRanged) || !idRE.MatchString(document.Revision) || !idRE.MatchString(document.PolicyID) || !digestRE.MatchString(document.PolicyDigest) || len(document.Rules) > maxRules {
 		return RuleSet{}, fmt.Errorf("ruleset identity: %w", ErrInvalid)
 	}
+	ranged := false
 	for i, rule := range document.Rules {
 		if i > 0 && document.Rules[i-1].ID >= rule.ID {
 			return RuleSet{}, fmt.Errorf("rule order: %w", ErrInvalid)
@@ -142,11 +143,24 @@ func ParseRuleSet(raw []byte, registry Registry) (RuleSet, error) {
 		if err := validateRule(rule, registry); err != nil {
 			return RuleSet{}, fmt.Errorf("rule: %w", err)
 		}
+		ranged = ranged || rule.Range != nil
+	}
+	// The schema string states whether the document carries ranges, and it
+	// must be right in both directions: an exact-only schema never admits a
+	// range, and the ranged schema is never used without one, so every
+	// document has exactly one schema and one engine contract.
+	if ranged != (document.Schema == RulesSchemaRanged) {
+		return RuleSet{}, fmt.Errorf("ruleset schema does not match range use: %w", ErrInvalid)
+	}
+	if ranged {
+		if err := validateRangeOverlaps(document.Rules); err != nil {
+			return RuleSet{}, err
+		}
 	}
 	if err := validateCorpus(document); err != nil {
 		return RuleSet{}, err
 	}
-	return RuleSet{document: document, digest: digestJSON(document), registryDigest: registry.Digest(), seal: &ruleSetSeal{}}, nil
+	return RuleSet{document: document, digest: digestJSON(document), registryDigest: registry.Digest(), ranged: ranged, seal: &ruleSetSeal{}}, nil
 }
 
 // validateCorpus admits a completeness attestation only when the document can
@@ -177,11 +191,14 @@ func validateCorpus(document ruleDocument) error {
 }
 
 func validateRule(rule rule, registry Registry) error {
-	if !idRE.MatchString(rule.ID) || !reasonRE.MatchString(rule.ReasonCode) || !publicText(rule.NextAction) || !componentRE.MatchString(rule.Subject.Component) || !validVersion(rule.Subject.From) || !validVersion(rule.Subject.To) || rule.Subject.From == rule.Subject.To {
+	if !idRE.MatchString(rule.ID) || !reasonRE.MatchString(rule.ReasonCode) || !publicText(rule.NextAction) || !componentRE.MatchString(rule.Subject.Component) || !validVersion(rule.Subject.From) || !validVersion(rule.Subject.To) || sameVersion(rule.Subject.From, rule.Subject.To) {
 		return fmt.Errorf("rule base fields: %w", ErrInvalid)
 	}
 	if err := validateEvidence(rule.Evidence); err != nil {
 		return fmt.Errorf("rule evidence: %w", err)
+	}
+	if err := validateRange(rule); err != nil {
+		return err
 	}
 	if len(rule.AppliesWhen) > 8 {
 		return fmt.Errorf("applicability count: %w", ErrInvalid)
@@ -209,8 +226,17 @@ func validateRule(rule rule, registry Registry) error {
 		}
 		return validateDependency(*rule.Dependency)
 	case "require_intermediate_version":
-		if rule.Condition != nil || rule.Dependency != nil || !validVersion(rule.Intermediate) || rule.Intermediate == rule.Subject.From || rule.Intermediate == rule.Subject.To {
+		if rule.Condition != nil || rule.Dependency != nil || !validVersion(rule.Intermediate) || sameVersion(rule.Intermediate, rule.Subject.From) || sameVersion(rule.Intermediate, rule.Subject.To) {
 			return fmt.Errorf("intermediate structure: %w", ErrInvalid)
+		}
+		// With a range the intermediate must lie strictly between every
+		// matched pair: from.lt <= intermediate < to.gte.
+		if rule.Range != nil {
+			low, lowOK := compareVersions(rule.Range.From.Lt, rule.Intermediate)
+			high, highOK := compareVersions(rule.Intermediate, rule.Range.To.Gte)
+			if !lowOK || !highOK || low > 0 || high >= 0 {
+				return fmt.Errorf("intermediate outside range gap: %w", ErrInvalid)
+			}
 		}
 	case "forbid_target_version":
 		if rule.Condition != nil || rule.Dependency != nil || rule.Intermediate != "" {
@@ -392,12 +418,17 @@ func validateRuleShape(raw []byte) error {
 		return ErrInvalid
 	}
 	for _, ruleRaw := range rules {
-		rule, err := exactObject(ruleRaw, []string{"id", "operator", "subject", "evidence", "reasonCode", "nextAction"}, []string{"condition", "appliesWhen", "dependency", "intermediate"})
+		rule, err := exactObject(ruleRaw, []string{"id", "operator", "subject", "evidence", "reasonCode", "nextAction"}, []string{"condition", "appliesWhen", "dependency", "intermediate", "range"})
 		if err != nil {
 			return err
 		}
 		if _, err := exactObject(rule["subject"], []string{"component", "from", "to"}, nil); err != nil {
 			return err
+		}
+		if rangeRaw, ok := rule["range"]; ok {
+			if err := validateRangeShape(rangeRaw); err != nil {
+				return err
+			}
 		}
 		if condition, ok := rule["condition"]; ok {
 			if err := validateConditionShape(condition); err != nil {
@@ -431,6 +462,45 @@ func validateRuleShape(raw []byte) error {
 		for _, sourceRaw := range sources {
 			if _, err := exactObject(sourceRaw, []string{"id", "url", "revision", "contentDigest", "startLine", "endLine"}, nil); err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+// validateRangeShape gates the exact range shape: both sides with both
+// bounds, and exactly four bound citations, with no aliases, nulls, or extra
+// keys. Semantic checks follow in validateRange.
+func validateRangeShape(raw json.RawMessage) error {
+	object, err := exactObject(raw, []string{"from", "to", "bounds"}, nil)
+	if err != nil {
+		return err
+	}
+	for _, side := range []string{"from", "to"} {
+		bound, err := exactObject(object[side], []string{"gte", "lt"}, nil)
+		if err != nil {
+			return err
+		}
+		for _, key := range []string{"gte", "lt"} {
+			var value string
+			if json.Unmarshal(bound[key], &value) != nil {
+				return ErrInvalid
+			}
+		}
+	}
+	bounds, err := exactArray(object["bounds"])
+	if err != nil || len(bounds) != len(boundOrder) {
+		return ErrInvalid
+	}
+	for _, boundRaw := range bounds {
+		bound, err := exactObject(boundRaw, []string{"bound", "basis", "sourceId"}, nil)
+		if err != nil {
+			return err
+		}
+		for _, key := range []string{"bound", "basis", "sourceId"} {
+			var value string
+			if json.Unmarshal(bound[key], &value) != nil {
+				return ErrInvalid
 			}
 		}
 	}

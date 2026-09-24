@@ -105,7 +105,7 @@ func load() (bundle, error) {
 		return bundle{}, ErrIntegrity
 	}
 	result.packDigest, result.catalogueDigest = digest(packRaw), digest(landscapeRaw)
-	if result.landscape.Schema != "prufyx.io/cncf-landscape/v1" || len(result.landscape.Projects) != 255 || !digestPattern.MatchString(result.landscape.LandscapeFileDigest) || result.priority.Schema != "prufyx.io/cncf-priority/v1" || len(result.priority.Priority) != 30 || result.priority.LandscapeFileDigest != result.landscape.LandscapeFileDigest || result.pack.Schema != "prufyx.io/cncf-source-rule-pack/v1alpha1" || result.pack.LandscapeFileDigest != result.landscape.LandscapeFileDigest || result.pack.RegistryDigest != result.registry.Digest() {
+	if result.landscape.Schema != "prufyx.io/cncf-landscape/v1" || len(result.landscape.Projects) != 255 || !digestPattern.MatchString(result.landscape.LandscapeFileDigest) || result.priority.Schema != "prufyx.io/cncf-priority/v1" || len(result.priority.Priority) != 30 || result.priority.LandscapeFileDigest != result.landscape.LandscapeFileDigest || !validPackSchema(result.pack) || result.pack.LandscapeFileDigest != result.landscape.LandscapeFileDigest || result.pack.RegistryDigest != result.registry.Digest() {
 		return bundle{}, ErrIntegrity
 	}
 	identities := map[string]projectIdentity{}
@@ -171,6 +171,30 @@ func load() (bundle, error) {
 	return result, nil
 }
 
+const (
+	packSchema       = "prufyx.io/cncf-source-rule-pack/v1alpha1"
+	packSchemaRanged = "prufyx.io/cncf-source-rule-pack/v1alpha2"
+)
+
+// validPackSchema requires the pack schema to state whether the pack holds a
+// reviewed version range. A pack with no range keeps the original schema, so
+// its bytes and digest are unchanged; a pack with one carries the new schema,
+// which binaries that predate ranges reject.
+func validPackSchema(pack rulePack) bool {
+	rules := make([]json.RawMessage, 0, len(pack.Entries))
+	for _, entry := range pack.Entries {
+		rules = append(rules, entry.Rule)
+	}
+	ranged, err := constraintengine.AnyRanged(rules)
+	if err != nil {
+		return false
+	}
+	if ranged {
+		return pack.Schema == packSchemaRanged
+	}
+	return pack.Schema == packSchema
+}
+
 func (b bundle) ruleSet(project string) (constraintengine.RuleSet, error) {
 	rules := make([]json.RawMessage, 0)
 	for _, entry := range b.pack.Entries {
@@ -216,7 +240,12 @@ func (b bundle) ruleDocumentBytes(rules []json.RawMessage, corpus []string) ([]b
 		PolicyDigest string            `json:"policyDigest"`
 		Rules        []json.RawMessage `json:"rules"`
 		Corpus       *corpusBlock      `json:"corpus,omitempty"`
-	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules, nil}
+	}{"", b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules, nil}
+	schema, err := constraintengine.RulesSchemaFor(rules)
+	if err != nil {
+		return nil, ErrIntegrity
+	}
+	document.Schema = schema
 	if len(corpus) > 0 {
 		document.Corpus = &corpusBlock{Completeness: constraintengine.CorpusAttestation, Components: corpus}
 	}
@@ -309,11 +338,11 @@ func (b bundle) rulesForAdmittedInput(project string, raw []byte) (constrainteng
 		if entry.Project != project {
 			continue
 		}
-		var shape ruleShape
-		if json.Unmarshal(entry.Rule, &shape) != nil {
+		subject, err := constraintengine.RuleTransitionOf(entry.Rule)
+		if err != nil {
 			return constraintengine.RuleSet{}, ErrIntegrity
 		}
-		if current[shape.Subject.Component] == shape.Subject.From && proposed[shape.Subject.Component] == shape.Subject.To {
+		if subject.Match(current[subject.Component], proposed[subject.Component]) != constraintengine.MatchNone {
 			matched = append(matched, entry.Rule)
 		}
 	}

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/prufyx/prufyx-cli/internal/checkroutemetadata"
+	"github.com/prufyx/prufyx-cli/internal/constraintengine"
+	"github.com/prufyx/prufyx-cli/internal/currentbundle"
 	"github.com/prufyx/prufyx-cli/internal/localcollector"
 )
 
@@ -268,6 +270,50 @@ func TestNoNativeRouteIsFullySatisfiedByVersionAlone(t *testing.T) {
 		if len(missingDeclarations(route.NativeDescriptor.Command)) == 0 {
 			t.Fatalf("route %s/%s is fully satisfiable by version alone; update onecommand's fully-satisfied handling and the design note", route.Project, route.RuleID)
 		}
+	}
+}
+
+// rangedKubernetesRoute is a synthetic kubernetes-project check anchored at
+// 1.24.0 -> 1.25.0 with a reviewed range covering same-line patches either
+// side of the anchor. It carries no native descriptor, so the only thing
+// under test is the version gate in classifyKubernetes.
+func rangedKubernetesRoute() checkroutemetadata.Check {
+	return checkroutemetadata.Check{
+		Project: kubernetesProject,
+		From:    "1.24.0",
+		To:      "1.25.0",
+		Range: &constraintengine.VersionRange{
+			From: constraintengine.VersionBound{Gte: "1.24.0", Lt: "1.25.0"},
+			To:   constraintengine.VersionBound{Gte: "1.25.0", Lt: "1.26.0"},
+		},
+		NativeDescriptor: checkroutemetadata.Route{State: checkroutemetadata.DescriptorNone},
+	}
+}
+
+func kubernetesObservedBundle(value string) currentbundle.CurrentBundle {
+	return currentbundle.CurrentBundle{Environment: currentbundle.Environment{Kubernetes: currentbundle.FieldValue{State: "observed", Value: value}}}
+}
+
+// TestClassifyKubernetesRangeMatchIsNotApplicable proves fix 1: an observed
+// origin that falls inside a rule's reviewed range but is not the reviewed
+// anchor must never classify as applicable (fully satisfied or needing
+// declaration). Applicability -- and by extension the native command
+// onecommand hands back -- stays pinned to the reviewed anchor origin;
+// widening which origins a rule's verdict covers must never widen which
+// origins classify() and classifyKubernetes() call applicable.
+func TestClassifyKubernetesRangeMatchIsNotApplicable(t *testing.T) {
+	route := rangedKubernetesRoute()
+	inRangeNotAnchor := classifyKubernetes(CheckAssessment{Project: route.Project, RuleID: route.RuleID, From: route.From, To: route.To}, route, kubernetesObservedBundle("1.24.17"), false)
+	if inRangeNotAnchor.Applicability == ApplicableFullySatisfied || inRangeNotAnchor.Applicability == ApplicableNeedsDeclaration {
+		t.Fatalf("in-range non-anchor origin 1.24.17 classified applicable: %+v", inRangeNotAnchor)
+	}
+	if inRangeNotAnchor.Applicability != NotApplicableVersionMismatch {
+		t.Fatalf("applicability=%q, want NOT_APPLICABLE_VERSION_MISMATCH", inRangeNotAnchor.Applicability)
+	}
+
+	anchor := classifyKubernetes(CheckAssessment{Project: route.Project, RuleID: route.RuleID, From: route.From, To: route.To}, route, kubernetesObservedBundle("1.24.0"), false)
+	if anchor.Applicability != ApplicableFullySatisfied && anchor.Applicability != ApplicableNeedsDeclaration {
+		t.Fatalf("anchor origin 1.24.0 not classified applicable: %+v", anchor)
 	}
 }
 

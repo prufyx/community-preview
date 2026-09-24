@@ -424,7 +424,7 @@ func classify(route checkroutemetadata.Check, bundle currentbundle.CurrentBundle
 		return base
 	}
 	base.ObservedVersion = component.Version.Value
-	if component.Version.State != "exact" || component.Version.Value != route.From {
+	if component.Version.State != "exact" || !route.Transition().IsAnchorFrom(component.Version.Value) {
 		base.Applicability = NotApplicableVersionMismatch
 		base.Reason = "The component is present but its observed version does not match this check's declared origin version."
 		return base
@@ -440,7 +440,7 @@ func classifyKubernetes(base CheckAssessment, route checkroutemetadata.Check, bu
 		return base
 	}
 	base.ObservedVersion = kube.Value
-	if kube.Value != route.From {
+	if !route.Transition().IsAnchorFrom(kube.Value) {
 		base.Applicability = NotApplicableVersionMismatch
 		base.Reason = "The observed Kubernetes server version does not match this check's declared origin version."
 		return base

@@ -26,12 +26,12 @@ func Evaluate(input Input, rules RuleSet, now time.Time) (Report, error) {
 	}
 	inputDigest, _ := input.Digest()
 	ruleDigest, _ := rules.Digest()
-	scope, assessment := buildScopeCompleteness(input.document, rules.document, claims)
+	scope, assessment := buildScopeCompleteness(input.document, rules.document, claims, rules.engineDigest())
 	report := Report{
 		Schema: ReportSchema, Assessment: assessment, InputAuthority: InputAuthority, RulesAuthority: RulesAuthority,
 		EvaluatedAt: now.UTC().Format(time.RFC3339), InputDigest: inputDigest,
 		RuleSetDigest: ruleDigest, PolicyID: rules.document.PolicyID,
-		PolicyDigest: rules.document.PolicyDigest, EngineContractDigest: engineContractDigest(), RegistryDigest: input.registryDigest,
+		PolicyDigest: rules.document.PolicyDigest, EngineContractDigest: rules.engineDigest(), RegistryDigest: input.registryDigest,
 		Claims:            claims,
 		Omissions:         requiredOmissions(assessment),
 		ScopeCompleteness: scope,
@@ -59,11 +59,28 @@ func evaluateRule(input inputDocument, rule rule, now time.Time) Claim {
 		return claim
 	}
 	claim.EvidenceFreshness = "current"
-	if reason := subjectAvailability(input, rule.Subject); reason != "" {
+	mode, reason := subjectAvailability(input, rule.transition())
+	if reason != "" {
 		claim.Status, claim.ReasonCode = "UNKNOWN", reason
 		claim.NextAction = subjectAction(rule.Subject)
+		if rule.Range != nil {
+			claim.NextAction = rangeSubjectAction(rule.transition())
+		}
 		return claim
 	}
+	if mode == MatchRange {
+		// Every verdict reached through a range discloses it, whatever the
+		// status, so a range claim can never be read as an anchor review.
+		claim = evaluateMatchedRule(input, rule, claim)
+		discloseRangeMatch(&claim, rule)
+		return claim
+	}
+	return evaluateMatchedRule(input, rule, claim)
+}
+
+// evaluateMatchedRule decides a rule whose evidence is current and whose
+// subject matched the declared transition.
+func evaluateMatchedRule(input inputDocument, rule rule, claim Claim) Claim {
 	for _, applicability := range rule.AppliesWhen {
 		fact, found := findFact(input, applicability.Side, applicability.Component, applicability.FactID)
 		if !found || fact.State != "declared" {
@@ -120,20 +137,37 @@ func evaluateRule(input inputDocument, rule rule, now time.Time) Claim {
 	return claim
 }
 
-func subjectAvailability(input inputDocument, subject transition) string {
+// subjectAvailability is the engine's single subject gate. Claims and scope
+// applicability both call it, and it decides membership only through the
+// shared matcher.
+func subjectAvailability(input inputDocument, subject RuleTransition) (MatchMode, string) {
 	current, currentFound := findComponent(input, "current", subject.Component)
 	proposed, proposedFound := findComponent(input, "proposed", subject.Component)
 	if !currentFound || !proposedFound {
-		return "RULE_SUBJECT_COMPONENT_MISSING"
+		return MatchNone, "RULE_SUBJECT_COMPONENT_MISSING"
 	}
-	if current.Version != subject.From || proposed.Version != subject.To {
-		return "RULE_TRANSITION_NOT_REVIEWED"
+	mode := subject.Match(current.Version, proposed.Version)
+	if mode == MatchNone {
+		return MatchNone, "RULE_TRANSITION_NOT_REVIEWED"
 	}
-	return ""
+	return mode, ""
+}
+
+func rangeSubjectAction(subject RuleTransition) string {
+	return boundedAction(fmt.Sprintf(rangeSubjectActionTemplate, subject.Component, subject.Range.From.Gte, subject.Range.From.Lt, subject.Range.To.Gte, subject.Range.To.Lt), "no rule for declared transition; retain actual versions and request reviewed coverage")
 }
 
 func subjectAction(subject transition) string {
 	return boundedAction(fmt.Sprintf("no rule for declared pair; reviewed scope %s %s -> %s; retain actual versions and request coverage", subject.Component, subject.From, subject.To), "no rule for declared transition; retain actual versions and request reviewed coverage")
+}
+
+func discloseRangeMatch(claim *Claim, rule rule) {
+	claim.SubjectMatch = &SubjectMatch{Mode: subjectMatchModeRange, AnchorFrom: rule.Subject.From, AnchorTo: rule.Subject.To, From: rule.Range.From, To: rule.Range.To}
+	action := boundedAction(claim.NextAction+fmt.Sprintf(rangeNextActionSuffixTemplate, rule.Subject.From, rule.Subject.To), "")
+	if action == "" {
+		action = boundedAction(claim.NextAction+rangeNextActionSuffixShort, claim.NextAction)
+	}
+	claim.NextAction = action
 }
 
 func factAction(condition factCondition) string {
@@ -224,7 +258,7 @@ func issueReport(report Report) Report {
 // independently re-derive that same assessment. No block, no verdict —
 // however many claims passed. See legalAssessment.
 func MarshalReport(report Report) ([]byte, error) {
-	if report.seal == nil || report.Schema != ReportSchema || !legalAssessment(report) || report.InputAuthority != InputAuthority || report.RulesAuthority != RulesAuthority || report.EngineContractDigest != engineContractDigest() || !digestRE.MatchString(report.InputDigest) || !digestRE.MatchString(report.RuleSetDigest) || !digestRE.MatchString(report.PolicyDigest) || !digestRE.MatchString(report.RegistryDigest) || !validClaims(report.Claims) || !sameOmissions(report.Omissions, requiredOmissions(report.Assessment)) {
+	if report.seal == nil || report.Schema != ReportSchema || !legalAssessment(report) || report.InputAuthority != InputAuthority || report.RulesAuthority != RulesAuthority || scopeDigestFor(report.EngineContractDigest) == "" || !validClaimMatches(report) || !digestRE.MatchString(report.InputDigest) || !digestRE.MatchString(report.RuleSetDigest) || !digestRE.MatchString(report.PolicyDigest) || !digestRE.MatchString(report.RegistryDigest) || !validClaims(report.Claims) || !sameOmissions(report.Omissions, requiredOmissions(report.Assessment)) {
 		return nil, ErrIntegrity
 	}
 	raw, err := json.Marshal(report)
@@ -239,6 +273,28 @@ func validClaims(claims []Claim) bool {
 		reviewed, reviewedErr := parseUTC(claim.EvidenceReviewedAt)
 		validUntil, validUntilErr := parseUTC(claim.EvidenceValidUntil)
 		if (i > 0 && claims[i-1].RuleID >= claim.RuleID) || !idRE.MatchString(claim.RuleID) || !digestRE.MatchString(claim.RuleDigest) || (claim.Status != "PASS" && claim.Status != "BLOCKED" && claim.Status != "UNKNOWN") || !reasonRE.MatchString(claim.ReasonCode) || !publicText(claim.NextAction) || !validRequiredFacts(claim.RequiredFacts) || reviewedErr != nil || validUntilErr != nil || !validUntil.After(reviewed) || (claim.EvidenceFreshness != "current" && claim.EvidenceFreshness != "stale" && claim.EvidenceFreshness != "withdrawn" && claim.EvidenceFreshness != "clock_before_review") {
+			return false
+		}
+	}
+	return true
+}
+
+// validClaimMatches binds range disclosures to the engine contract: a report
+// under the exact-only contract carries none, and every disclosure present is
+// a well-formed range that holds its own anchor.
+func validClaimMatches(report Report) bool {
+	for _, claim := range report.Claims {
+		match := claim.SubjectMatch
+		if match == nil {
+			continue
+		}
+		if report.EngineContractDigest != engineContractDigestRanged() || match.Mode != subjectMatchModeRange || claim.Status == "UNKNOWN" && claim.ReasonCode == "RULE_TRANSITION_NOT_REVIEWED" {
+			return false
+		}
+		if !validVersion(match.AnchorFrom) || !validVersion(match.AnchorTo) || !inBound(match.AnchorFrom, match.From) || !inBound(match.AnchorTo, match.To) {
+			return false
+		}
+		if c, ok := compareVersions(match.From.Lt, match.To.Gte); !ok || c > 0 {
 			return false
 		}
 	}

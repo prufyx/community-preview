@@ -413,3 +413,17 @@ func TestValidate_OfflineDefaultNeverCallsFetcher(t *testing.T) {
 		t.Fatalf("expected offline validation to pass without a fetcher: %+v", result.Findings)
 	}
 }
+
+// TestValidate_RangeNotAcceptedInContributions: a reviewed version range is
+// a maintainer-reviewed widening, never part of a community candidate. The
+// closed rule schema refuses the field.
+func TestValidate_RangeNotAcceptedInContributions(t *testing.T) {
+	entry := firstRealEntry(t)
+	setRuleID(t, entry, "smoke.ranged.1-0-0-to-2-0-0")
+	rule(entry)["range"] = map[string]any{
+		"from":   map[string]any{"gte": "1.0.0", "lt": "1.1.0"},
+		"to":     map[string]any{"gte": "2.0.0", "lt": "2.1.0"},
+		"bounds": []any{},
+	}
+	assertFinding(t, entry, "rule-schema")
+}

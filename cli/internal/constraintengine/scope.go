@@ -29,7 +29,7 @@ func ruleApplicability(input inputDocument, scope map[string]struct{}, candidate
 	if _, inScope := scope[candidate.Subject.Component]; !inScope {
 		return applicabilityOutOfScope, ""
 	}
-	if reason := subjectAvailability(input, candidate.Subject); reason != "" {
+	if _, reason := subjectAvailability(input, candidate.transition()); reason != "" {
 		return ApplicabilityNotApplicable, reason
 	}
 	for _, applicability := range candidate.AppliesWhen {
@@ -52,7 +52,7 @@ func ruleApplicability(input inputDocument, scope map[string]struct{}, candidate
 // claims is positionally aligned with rules.Rules, as issued by Evaluate. It
 // returns the block and the aggregate that block supports; with no block the
 // aggregate stays UNKNOWN.
-func buildScopeCompleteness(input inputDocument, rules ruleDocument, claims []Claim) (*ScopeCompleteness, string) {
+func buildScopeCompleteness(input inputDocument, rules ruleDocument, claims []Claim, engineDigest string) (*ScopeCompleteness, string) {
 	if input.Scope == nil || rules.Corpus == nil || len(claims) != len(rules.Rules) {
 		return nil, AssessmentUnknown
 	}
@@ -106,7 +106,7 @@ func buildScopeCompleteness(input inputDocument, rules ruleDocument, claims []Cl
 	}
 	result := &ScopeCompleteness{
 		Declaration: ScopeDeclaration, CorpusAttestation: CorpusAttestation,
-		ContractDigest: scopeContractDigest(), RuleSetRevision: rules.Revision,
+		ContractDigest: scopeDigestFor(engineDigest), RuleSetRevision: rules.Revision,
 		OutOfScopeRules: outOfScope, Components: components,
 	}
 	assessment, unresolved, err := deriveAssessment(result, claims)
@@ -126,13 +126,28 @@ func buildScopeCompleteness(input inputDocument, rules ruleDocument, claims []Cl
 // refuses to turn zero or incomplete relations into a pass.
 func deriveAssessment(scope *ScopeCompleteness, claims []Claim) (string, string, error) {
 	statuses := make(map[string]string, len(claims))
+	rangeMatched := make(map[string]bool, len(claims))
 	for _, claim := range claims {
 		statuses[claim.RuleID] = claim.Status
+		rangeMatched[claim.RuleID] = claim.SubjectMatch != nil
 	}
 	required, verified := 0, 0
 	blockers := []validation.VerifiedBlocker{}
-	unattested, undetermined, emptyComponent := false, false, false
+	unattested, undetermined, emptyComponent, notAnchorReviewed := false, false, false, false
 	for _, component := range scope.Components {
+		// Completeness stays anchor-only: a component's transition must
+		// equal the reviewed anchor pair of at least one evaluated rule. A
+		// transition reached only through ranges may still be BLOCKED, but it
+		// cannot be SCOPE_COMPLETE_PASS, because nobody reviewed that pair.
+		anchorReviewed := false
+		for _, ruleID := range component.EvaluatedRuleIDs {
+			if !rangeMatched[ruleID] {
+				anchorReviewed = true
+			}
+		}
+		if len(component.EvaluatedRuleIDs) != 0 && !anchorReviewed {
+			notAnchorReviewed = true
+		}
 		if !component.CorpusAttested {
 			unattested = true
 		}
@@ -168,6 +183,8 @@ func deriveAssessment(scope *ScopeCompleteness, claims []Claim) (string, string,
 		unresolved = unresolvedApplicability
 	case emptyComponent:
 		unresolved = unresolvedNoApplicableRule
+	case notAnchorReviewed:
+		unresolved = unresolvedTransitionNotAnchor
 	}
 	decision, err := validation.ReduceDecision(validation.DecisionInput{
 		RequiredEvidence: required, VerifiedEvidence: verified, ApplicableEvidence: verified,
@@ -191,8 +208,8 @@ func deriveAssessment(scope *ScopeCompleteness, claims []Claim) (string, string,
 
 // validScopeBlock checks the structural invariants the integrity gate needs
 // before it re-derives an assessment from the block.
-func validScopeBlock(scope *ScopeCompleteness, claims []Claim) bool {
-	if scope.Declaration != ScopeDeclaration || scope.CorpusAttestation != CorpusAttestation || scope.ContractDigest != scopeContractDigest() || !idRE.MatchString(scope.RuleSetRevision) {
+func validScopeBlock(scope *ScopeCompleteness, claims []Claim, engineDigest string) bool {
+	if scope.Declaration != ScopeDeclaration || scope.CorpusAttestation != CorpusAttestation || scope.ContractDigest == "" || scope.ContractDigest != scopeDigestFor(engineDigest) || !idRE.MatchString(scope.RuleSetRevision) {
 		return false
 	}
 	if scope.Resolved != (scope.UnresolvedReason == "") || (scope.UnresolvedReason != "" && !reasonRE.MatchString(scope.UnresolvedReason)) {
@@ -265,7 +282,7 @@ func legalAssessment(report Report) bool {
 	if report.ScopeCompleteness == nil {
 		return report.Assessment == AssessmentUnknown
 	}
-	if !validScopeBlock(report.ScopeCompleteness, report.Claims) {
+	if !validScopeBlock(report.ScopeCompleteness, report.Claims, report.EngineContractDigest) {
 		return false
 	}
 	assessment, unresolved, err := deriveAssessment(report.ScopeCompleteness, report.Claims)
