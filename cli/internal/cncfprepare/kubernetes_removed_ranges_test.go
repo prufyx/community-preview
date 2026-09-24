@@ -167,31 +167,36 @@ func k8sCheckRuleRange(t *testing.T, rule k8sPackRule, major, minor uint64) {
 	}
 }
 
-// TestK8sRemovalSelectionIsAnchorOnly: today's published rule pack carries no
-// range (see the top-level range-count check), so default selection must
-// match only the reviewed anchor pair, M.(m-1).0 -> M.m.0, exactly as it did
-// before minor-crossing selection existed. An off-anchor pair on the same
-// minor crossing -- same-line patch differences either side of the anchor --
-// must select nothing by default and must fall through to the flow-control
-// preparer, so its prepared output (reason, canonical input bytes, and
-// digest) stays byte-identical to a pair with no reviewed removals at all.
-func TestK8sRemovalSelectionIsAnchorOnly(t *testing.T) {
+// TestK8sRemovalSelectionCrossesTheMinorLine: default selection now matches
+// any pair that crosses exactly one reviewed minor boundary, any patch of
+// the previous line to any patch of the target line -- not only the anchor
+// pair M.(m-1).0 -> M.m.0. A same-line patch upgrade, a downgrade, a
+// multi-minor jump, a major crossing, or a non-release version still selects
+// nothing, and falls through to the flow-control preparer unchanged.
+func TestK8sRemovalSelectionCrossesTheMinorLine(t *testing.T) {
 	want125 := KubernetesRemovedAPIFacts("1.24.0", "1.25.0")
 	if len(want125) != 7 {
 		t.Fatalf("1.25 facts=%v", want125)
 	}
-	prepared := prepareK8s(t, k8sList(k8sDoc("batch/v1beta1", "CronJob")), "1.24.0", "1.25.0", true)
-	wantBool(t, k8sProposedFacts(t, prepared), k8sFact("cronjob_v1beta1"), true)
-	if prepared.Reason != ReasonKubernetesRemovedGVKPresent {
-		t.Fatalf("anchor pair reason=%s", prepared.Reason)
-	}
 	for _, pair := range [][2]string{
+		{"1.24.0", "1.25.0"},
 		{"1.24.17", "1.25.3"},
 		{"1.24.99", "1.25.0"},
 		{"1.24.0", "1.25.99"},
 		{"1.24.4294967295", "1.25.4294967295"},
+	} {
+		prepared := prepareK8s(t, k8sList(k8sDoc("batch/v1beta1", "CronJob")), pair[0], pair[1], true)
+		wantBool(t, k8sProposedFacts(t, prepared), k8sFact("cronjob_v1beta1"), true)
+		if prepared.Reason != ReasonKubernetesRemovedGVKPresent {
+			t.Fatalf("%v: reason=%s", pair, prepared.Reason)
+		}
+		if got := KubernetesRemovedAPIFacts(pair[0], pair[1]); strings.Join(got, ",") != strings.Join(want125, ",") {
+			t.Fatalf("%v selected %v, want %v", pair, got, want125)
+		}
+	}
+	for _, pair := range [][2]string{
 		{"1.25.1", "1.25.4"},  // same-line patch upgrade
-		{"1.25.0", "1.25.3"},  // from.lt just outside
+		{"1.25.0", "1.25.3"},  // same-line, at the target line already
 		{"1.23.99", "1.25.3"}, // multi-minor jump
 		{"1.24.17", "1.26.0"}, // multi-minor jump
 		{"1.25.3", "1.24.17"}, // downgrade
@@ -202,45 +207,42 @@ func TestK8sRemovalSelectionIsAnchorOnly(t *testing.T) {
 		{"1.24.0", "1.25.0-rc.1"},
 	} {
 		if got := KubernetesRemovedAPIFacts(pair[0], pair[1]); len(got) != 0 {
-			t.Fatalf("%v selected %v, want none by default", pair, got)
+			t.Fatalf("%v selected %v, want none", pair, got)
+		}
+		doc := k8sList(k8sDoc("batch/v1beta1", "CronJob"))
+		got, gotErr := PrepareKubernetesRemovedAPIs(doc, pair[0], pair[1], "official_upstream", true, true)
+		want, wantErr := PrepareKubernetesFlowControl(doc, pair[0], pair[1], "official_upstream", true, true)
+		if (gotErr == nil) != (wantErr == nil) || got.Reason != want.Reason || got.State != want.State || !bytes.Equal(got.CanonicalInputJSON, want.CanonicalInputJSON) || got.InputDigest != want.InputDigest {
+			t.Fatalf("%v: expected the flow-control preparer's output unchanged", pair)
 		}
 	}
 }
 
-// TestK8sOffAnchorPairMatchesPreRangeBehaviour is the byte-identity proof for
-// fix 2: 1.24.17 -> 1.25.3 crosses into the 1.25 minor line but is not the
-// reviewed anchor pair 1.24.0 -> 1.25.0. Its prepared output must be exactly
-// what the flow-control preparer alone produces -- the same reason, state,
-// canonical input bytes, and digest as before minor-crossing selection
-// existed -- so every existing report for this pair is unchanged.
-func TestK8sOffAnchorPairMatchesPreRangeBehaviour(t *testing.T) {
+// TestK8sOffAnchorPairMatchesCrossingBehaviour is the byte-identity proof for
+// fix 2 now that crossing selection is the default: 1.24.17 -> 1.25.3 crosses
+// into the 1.25 minor line but is not the reviewed anchor pair
+// 1.24.0 -> 1.25.0. Its prepared output must match the anchor pair's own
+// output byte for byte (same reason, state, and canonical fact shape), since
+// both are on the same reviewed line and the CronJob GVK is present in both.
+func TestK8sOffAnchorPairMatchesCrossingBehaviour(t *testing.T) {
 	doc := k8sList(k8sDoc("batch/v1beta1", "CronJob"))
-	from, to := "1.24.17", "1.25.3"
-	for _, complete := range []bool{true, false} {
-		got, gotErr := PrepareKubernetesRemovedAPIs(doc, from, to, "official_upstream", true, complete)
-		want, wantErr := PrepareKubernetesFlowControl(doc, from, to, "official_upstream", true, complete)
-		if gotErr != nil || wantErr != nil {
-			t.Fatalf("complete=%v: unexpected error got=%v want=%v", complete, gotErr, wantErr)
-		}
-		if got.Reason != want.Reason {
-			t.Fatalf("complete=%v: reason got=%s want=%s", complete, got.Reason, want.Reason)
-		}
-		if got.State != want.State {
-			t.Fatalf("complete=%v: state got=%s want=%s", complete, got.State, want.State)
-		}
-		if !bytes.Equal(got.CanonicalInputJSON, want.CanonicalInputJSON) {
-			t.Fatalf("complete=%v: canonical input bytes diverged:\ngot:  %s\nwant: %s", complete, got.CanonicalInputJSON, want.CanonicalInputJSON)
-		}
-		if got.InputDigest != want.InputDigest {
-			t.Fatalf("complete=%v: input digest got=%s want=%s", complete, got.InputDigest, want.InputDigest)
-		}
+	anchor, anchorErr := PrepareKubernetesRemovedAPIs(doc, "1.24.0", "1.25.0", "official_upstream", true, true)
+	offAnchor, offAnchorErr := PrepareKubernetesRemovedAPIs(doc, "1.24.17", "1.25.3", "official_upstream", true, true)
+	if anchorErr != nil || offAnchorErr != nil {
+		t.Fatalf("unexpected error anchor=%v offAnchor=%v", anchorErr, offAnchorErr)
 	}
+	if anchor.Reason != offAnchor.Reason || anchor.State != offAnchor.State {
+		t.Fatalf("off-anchor pair diverged: got state=%s reason=%s want state=%s reason=%s", offAnchor.State, offAnchor.Reason, anchor.State, anchor.Reason)
+	}
+	if anchor.Reason != ReasonKubernetesRemovedGVKPresent {
+		t.Fatalf("anchor reason=%s", anchor.Reason)
+	}
+	wantBool(t, k8sProposedFacts(t, offAnchor), k8sFact("cronjob_v1beta1"), true)
 }
 
-// TestK8sRemovalsForCrossedMinorLineReady exercises the not-yet-wired
-// minor-crossing selector directly, so it stays correct -- and demonstrably
-// not dead code -- while nothing on the default path calls it. It will be
-// switched on together with the widened rules that reviewed a range.
+// TestK8sRemovalsForCrossedMinorLineReady exercises the minor-crossing
+// selector directly -- the selector the default path now calls -- alongside
+// KubernetesRemovedAPIFacts and PrepareKubernetesRemovedAPIs above.
 func TestK8sRemovalsForCrossedMinorLineReady(t *testing.T) {
 	want125 := KubernetesRemovedAPIFacts("1.24.0", "1.25.0")
 	for _, pair := range [][2]string{{"1.24.0", "1.25.0"}, {"1.24.17", "1.25.3"}, {"1.24.99", "1.25.0"}, {"1.24.0", "1.25.99"}, {"1.24.4294967295", "1.25.4294967295"}} {

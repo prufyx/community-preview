@@ -34,15 +34,24 @@ func TestProjectFilterUsesTheSharedMatcher(t *testing.T) {
 	}
 }
 
-// TestDiscoverPatchPairOnUnrangedPack: with no reviewed range published, a
-// patch pair finds no rule, and the anchor pair is unchanged.
-func TestDiscoverPatchPairOnUnrangedPack(t *testing.T) {
+// TestDiscoverPatchPairOnRangedPack: with the published Kubernetes removal
+// ranges, an off-anchor patch pair on a reviewed line, such as
+// 1.24.17 -> 1.25.3, now matches the same seven rules as the anchor pair
+// itself, each disclosing its range match; the anchor pair's own checks are
+// unaffected. A pair with no reviewed range at all, the 1.32 flow-control
+// line, still finds no rule.
+func TestDiscoverPatchPairOnRangedPack(t *testing.T) {
 	patch, err := Discover("kubernetes", "1.24.17", "1.25.3")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if patch.RuleCoverageState != "NO_MATCHING_EMBEDDED_RULE" || len(patch.Checks) != 0 {
+	if patch.RuleCoverageState != "MATCHED" || len(patch.Checks) != 7 {
 		t.Fatalf("patch pair=%+v", patch)
+	}
+	for _, check := range patch.Checks {
+		if check.Range == nil || check.MatchMode != "range" {
+			t.Fatalf("ranged check missing range fields: %+v", check)
+		}
 	}
 	anchor, err := Discover("kubernetes", "1.24.0", "1.25.0")
 	if err != nil {
@@ -52,8 +61,15 @@ func TestDiscoverPatchPairOnUnrangedPack(t *testing.T) {
 		t.Fatalf("anchor checks=%d", len(anchor.Checks))
 	}
 	for _, check := range anchor.Checks {
-		if check.Range != nil || check.MatchMode != "" {
-			t.Fatalf("unranged check carries range fields: %+v", check)
+		if check.Range == nil {
+			t.Fatalf("anchor check missing its published range: %+v", check)
 		}
+	}
+	noRule, err := Discover("kubernetes", "1.31.17", "1.32.3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if noRule.RuleCoverageState != "NO_MATCHING_EMBEDDED_RULE" || len(noRule.Checks) != 0 {
+		t.Fatalf("flow-control off-anchor pair=%+v", noRule)
 	}
 }

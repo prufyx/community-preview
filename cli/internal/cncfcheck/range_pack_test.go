@@ -78,29 +78,55 @@ func kubernetesInput(t *testing.T, from, to string, cronJobPresent bool) []byte 
 
 var rangeReviewClock = time.Date(2026, 9, 23, 12, 36, 0, 0, time.UTC)
 
-// TestPackSchemaStatesRangeUse: the embedded pack has no range and keeps the
-// original schema; a pack that gains a range must carry the new schema, and a
-// pack without one may not.
+// withoutRanges strips the range field from every entry's rule, so tests can
+// exercise the exact-only schema gate against a pack derived from the real
+// published one rather than a hand-built approximation.
+func withoutRanges(t *testing.T, pack rulePack) rulePack {
+	t.Helper()
+	entries := append([]Entry(nil), pack.Entries...)
+	for index, entry := range entries {
+		var value map[string]json.RawMessage
+		if err := json.Unmarshal(entry.Rule, &value); err != nil {
+			t.Fatal(err)
+		}
+		if _, has := value["range"]; !has {
+			continue
+		}
+		delete(value, "range")
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries[index].Rule = raw
+	}
+	pack.Entries = entries
+	return pack
+}
+
+// TestPackSchemaStatesRangeUse: the embedded pack now carries the 24
+// published Kubernetes removal ranges, so it uses the ranged schema. A pack
+// with every range stripped back out must revert to the original schema, and
+// a pack in either state is rejected under the other schema string.
 func TestPackSchemaStatesRangeUse(t *testing.T) {
 	base, err := load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if base.pack.Schema != packSchema || !validPackSchema(base.pack) {
+	if base.pack.Schema != packSchemaRanged || !validPackSchema(base.pack) {
 		t.Fatalf("embedded pack schema=%s", base.pack.Schema)
 	}
-	ranged := withAnchorOnlyRange(t, base.pack, cronJobRuleID)
-	if validPackSchema(ranged) {
-		t.Fatal("ranged pack accepted under the exact-only schema")
+	unranged := withoutRanges(t, base.pack)
+	if validPackSchema(unranged) {
+		t.Fatal("unranged pack accepted under the ranged schema")
 	}
-	ranged.Schema = packSchemaRanged
-	if !validPackSchema(ranged) {
-		t.Fatal("ranged pack rejected under the ranged schema")
+	unranged.Schema = packSchema
+	if !validPackSchema(unranged) {
+		t.Fatal("unranged pack rejected under the exact-only schema")
 	}
 	exact := base.pack
-	exact.Schema = packSchemaRanged
+	exact.Schema = packSchema
 	if validPackSchema(exact) {
-		t.Fatal("exact-only pack accepted under the ranged schema")
+		t.Fatal("ranged pack accepted under the exact-only schema")
 	}
 }
 
@@ -178,12 +204,14 @@ func TestRangeAwarePrefilterSelectsThroughTheMatcher(t *testing.T) {
 	if _, err := MarshalReport(report); err != nil {
 		t.Fatal(err)
 	}
-	// Rules selected without the ranged rule render under the exact schema.
-	exactOnly, err := ranged.rulesForAdmittedInput("kubernetes", kubernetesInput(t, "1.21.0", "1.22.0", true))
+	// Rules selected for a pair with no ranged rule -- the 1.32 flow-control
+	// rule stays exact-only by design (see EXCLUDED in the ranges tooling) --
+	// still render under the exact schema.
+	exactOnly, err := ranged.rulesForAdmittedInput("kubernetes", kubernetesInput(t, "1.31.0", "1.32.0", true))
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := constraintengine.Evaluate(mustInput(t, ranged, kubernetesInput(t, "1.21.0", "1.22.0", true)), exactOnly, rangeReviewClock)
+	engine, err := constraintengine.Evaluate(mustInput(t, ranged, kubernetesInput(t, "1.31.0", "1.32.0", true)), exactOnly, rangeReviewClock)
 	if err != nil || engine.EngineContractDigest != constraintengine.EngineContractDigest() {
 		t.Fatalf("exact selection digest=%s err=%v", engine.EngineContractDigest, err)
 	}
@@ -198,22 +226,49 @@ func mustInput(t *testing.T, b bundle, raw []byte) constraintengine.Input {
 	return input
 }
 
-// TestUnrangedPackNeverWidens: with the published pack, an in-range patch pair
-// such as 1.24.17 -> 1.25.3 decides nothing. Every claim stays UNKNOWN and the
-// exit code stays UNKNOWN, whatever the declared fact says.
-func TestUnrangedPackNeverWidens(t *testing.T) {
-	for _, present := range []bool{false, true} {
-		report, err := Check("kubernetes", kubernetesInput(t, "1.24.17", "1.25.3", present), rangeReviewClock)
+// TestPublishedRangeWidensSelectionAndClaims: with the published pack, an
+// off-anchor pair on a reviewed line, such as 1.24.17 -> 1.25.3, now selects
+// every rule on that line through the shared matcher's range mode. The
+// cronjob rule decides (its fact is the only one this synthetic input
+// declares); the other six rules on the same line also match the transition
+// (SubjectMatch present, mode "range") but stay UNKNOWN for lack of their own
+// declared fact, never a false PASS or BLOCKED. Whole-upgrade scope-complete
+// PASS is still out of reach with an incomplete fact set.
+func TestPublishedRangeWidensSelectionAndClaims(t *testing.T) {
+	for _, tc := range []struct {
+		present     bool
+		wantExit    int
+		wantCronjob string
+	}{
+		{true, 10, "BLOCKED"},
+		{false, 11, "PASS"},
+	} {
+		report, err := Check("kubernetes", kubernetesInput(t, "1.24.17", "1.25.3", tc.present), rangeReviewClock)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if len(report.Check.Claims) != 7 {
+			t.Fatalf("present=%v: claims=%d, want 7", tc.present, len(report.Check.Claims))
+		}
 		for _, claim := range report.Check.Claims {
-			if claim.Status != "UNKNOWN" || claim.SubjectMatch != nil {
-				t.Fatalf("claim=%+v", claim)
+			if claim.SubjectMatch == nil || claim.SubjectMatch.Mode != "range" || claim.SubjectMatch.AnchorFrom != "1.24.0" || claim.SubjectMatch.AnchorTo != "1.25.0" {
+				t.Fatalf("present=%v: claim %s subjectMatch=%+v", tc.present, claim.RuleID, claim.SubjectMatch)
+			}
+			if claim.RuleID == cronJobRuleID {
+				if claim.Status != tc.wantCronjob {
+					t.Fatalf("present=%v: cronjob status=%s want %s", tc.present, claim.Status, tc.wantCronjob)
+				}
+				continue
+			}
+			if claim.Status != "UNKNOWN" || claim.ReasonCode != "RULE_FACT_UNAVAILABLE" {
+				t.Fatalf("present=%v: claim %s status=%s reason=%s", tc.present, claim.RuleID, claim.Status, claim.ReasonCode)
 			}
 		}
-		if ClaimExit(report) != 11 || report.Check.EngineContractDigest != constraintengine.EngineContractDigest() {
-			t.Fatalf("exit=%d digest=%s", ClaimExit(report), report.Check.EngineContractDigest)
+		if got := ClaimExit(report); got != tc.wantExit {
+			t.Fatalf("present=%v: exit=%d want %d", tc.present, got, tc.wantExit)
+		}
+		if report.Check.EngineContractDigest != constraintengine.EngineContractDigestRanged() {
+			t.Fatalf("present=%v: digest=%s", tc.present, report.Check.EngineContractDigest)
 		}
 	}
 	scoped := strings.Replace(string(kubernetesInput(t, "1.24.17", "1.25.3", false)), `}]}]}}`, `}]}]},"scope":{"declaration":"`+constraintengine.ScopeDeclaration+`","components":["pkg:github/kubernetes/kubernetes"]}}`, 1)

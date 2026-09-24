@@ -1,5 +1,5 @@
 {
-  "schema": "prufyx.io/cncf-source-rule-pack/v1alpha1",
+  "schema": "prufyx.io/cncf-source-rule-pack/v1alpha2",
   "revision": "cncf-2026-09-13.2",
   "policyId": "cncf-source-preview-v1",
   "policyDigest": "sha256:59fb35dd1cf0241cb704b10de6d8040cd584da29fb17443a353bab4542aeb83d",
@@ -7902,6 +7902,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-admissionwebhook-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-admissionwebhook-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-admissionwebhook-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -7920,6 +7952,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 170,
               "endLine": 185
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -7948,6 +7988,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-apiservice-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-apiservice-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-apiservice-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -7966,6 +8038,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 208,
               "endLine": 214
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -7994,6 +8074,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-crd-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-crd-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-crd-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8012,6 +8124,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 187,
               "endLine": 206
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8040,6 +8160,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-cronjob-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-cronjob-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-cronjob-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8058,6 +8210,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 87,
               "endLine": 93
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8086,6 +8246,38 @@
           "from": "1.26.0",
           "to": "1.27.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.26.0",
+            "lt": "1.27.0"
+          },
+          "to": {
+            "gte": "1.27.0",
+            "lt": "1.28.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v127-csistoragecapacity-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v127-csistoragecapacity-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v127-csistoragecapacity-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8104,6 +8296,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 55,
               "endLine": 61
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8132,6 +8332,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-csr-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-csr-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-csr-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8150,6 +8382,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 232,
               "endLine": 247
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8178,6 +8418,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-endpointslice-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-endpointslice-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-endpointslice-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8196,6 +8468,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 95,
               "endLine": 104
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8224,6 +8504,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-event-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-event-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-event-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8242,6 +8554,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 106,
               "endLine": 126
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8270,6 +8590,38 @@
           "from": "1.25.0",
           "to": "1.26.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "to": {
+            "gte": "1.26.0",
+            "lt": "1.27.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v126-flowcontrol-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v126-flowcontrol-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v126-flowcontrol-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8296,6 +8648,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 40,
               "endLine": 49
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8324,6 +8684,38 @@
           "from": "1.28.0",
           "to": "1.29.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.28.0",
+            "lt": "1.29.0"
+          },
+          "to": {
+            "gte": "1.29.0",
+            "lt": "1.30.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v129-flowcontrol-v1beta2"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v129-flowcontrol-v1beta2"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v129-flowcontrol-v1beta2"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8342,6 +8734,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 40,
               "endLine": 49
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8416,6 +8816,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-hpa-v2beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-hpa-v2beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-hpa-v2beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8434,6 +8866,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 128,
               "endLine": 135
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8462,6 +8902,38 @@
           "from": "1.25.0",
           "to": "1.26.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "to": {
+            "gte": "1.26.0",
+            "lt": "1.27.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v126-hpa-v2beta2"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v126-hpa-v2beta2"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v126-hpa-v2beta2"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8480,6 +8952,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 75,
               "endLine": 82
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8554,6 +9034,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingress-extensions-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingress-extensions-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-ingress-extensions-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8572,6 +9084,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 257,
               "endLine": 269
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8600,6 +9120,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingress-networking-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingress-networking-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-ingress-networking-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8618,6 +9170,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 257,
               "endLine": 269
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8646,6 +9206,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingressclass-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-ingressclass-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-ingressclass-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8664,6 +9256,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 271,
               "endLine": 277
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8692,6 +9292,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-lease-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-lease-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-lease-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8710,6 +9342,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 249,
               "endLine": 255
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8738,6 +9378,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-pdb-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-pdb-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-pdb-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8756,6 +9428,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 137,
               "endLine": 146
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8784,6 +9464,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-priorityclass-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-priorityclass-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-priorityclass-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8802,6 +9514,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 288,
               "endLine": 294
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8830,6 +9550,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-psp-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-psp-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-psp-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8848,6 +9600,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 148,
               "endLine": 156
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8876,6 +9636,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-rbac-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-rbac-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-rbac-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8894,6 +9686,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 279,
               "endLine": 286
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8922,6 +9722,38 @@
           "from": "1.24.0",
           "to": "1.25.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.24.0",
+            "lt": "1.25.0"
+          },
+          "to": {
+            "gte": "1.25.0",
+            "lt": "1.26.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-runtimeclass-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v125-runtimeclass-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v125-runtimeclass-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8940,6 +9772,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 158,
               "endLine": 164
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -8968,6 +9808,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-storage-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-storage-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-storage-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -8986,6 +9858,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 296,
               "endLine": 306
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -9014,6 +9894,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-subjectaccessreview-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-subjectaccessreview-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-subjectaccessreview-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -9032,6 +9944,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 223,
               "endLine": 230
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },
@@ -9060,6 +9980,38 @@
           "from": "1.21.0",
           "to": "1.22.0"
         },
+        "range": {
+          "from": {
+            "gte": "1.21.0",
+            "lt": "1.22.0"
+          },
+          "to": {
+            "gte": "1.22.0",
+            "lt": "1.23.0"
+          },
+          "bounds": [
+            {
+              "bound": "from.gte",
+              "basis": "PREVIOUS_MINOR_LINE",
+              "sourceId": "kubernetes-website-version-skew-upgrade-order"
+            },
+            {
+              "bound": "from.lt",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-tokenreview-v1beta1"
+            },
+            {
+              "bound": "to.gte",
+              "basis": "REMOVED_IN_RELEASE",
+              "sourceId": "kubernetes-website-v122-tokenreview-v1beta1"
+            },
+            {
+              "bound": "to.lt",
+              "basis": "TARGET_SERIES",
+              "sourceId": "kubernetes-website-v122-tokenreview-v1beta1"
+            }
+          ]
+        },
         "condition": {
           "side": "proposed",
           "component": "pkg:github/kubernetes/kubernetes",
@@ -9078,6 +10030,14 @@
               "contentDigest": "sha256:96f34a49cbdd7bd53008cc7b7cc8aff58c373ad323e64eef0155cbbc44494f61",
               "startLine": 216,
               "endLine": 221
+            },
+            {
+              "id": "kubernetes-website-version-skew-upgrade-order",
+              "url": "https://github.com/kubernetes/website/blob/9f1af2971c32124bff0a1f42255ba5a2f3c8a16f/content/en/releases/version-skew-policy.md",
+              "revision": "9f1af2971c32124bff0a1f42255ba5a2f3c8a16f",
+              "contentDigest": "sha256:7d33809eeb313cbd589018a8dde893974065c50f5ee8cde27d99e879d0dde81f",
+              "startLine": 189,
+              "endLine": 193
             }
           ]
         },

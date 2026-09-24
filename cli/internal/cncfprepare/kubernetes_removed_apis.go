@@ -31,12 +31,14 @@ type kubernetesRemoval struct {
 
 // kubernetesRemovalsByTargetMinor maps a target minor line to the reviewed
 // removals that take effect when a cluster crosses into it. The default path
-// (kubernetesRemovalsForAnchor, via kubernetesRemovalsByTransition) selects
-// only the reviewed anchor pair, M.(m-1).0 -> M.m.0. A not-yet-wired
-// alternative, kubernetesRemovalsForCrossedMinorLine, selects a line by
-// crossing exactly one minor boundary from any patch of the previous line to
-// any patch of the target line. The 1.32 line is handled by
-// PrepareKubernetesFlowControl and deliberately absent here.
+// (kubernetesRemovalsForCrossedMinorLine) selects a line by crossing exactly
+// one minor boundary from any patch of the previous line to any patch of the
+// target line; the published rules carry a range that constrains which of
+// those crossings actually decide. kubernetesRemovalsForAnchor, the older,
+// narrower selector, is kept for kubernetesRemovalsByTransition and the drift
+// tests that compare the table against the rule pack's own anchors. The 1.32
+// line is handled by PrepareKubernetesFlowControl and deliberately absent
+// here.
 var kubernetesRemovalsByTargetMinor = map[string][]kubernetesRemoval{
 	"1.22": {
 		{Fact: "component.kubernetes.admissionwebhook_v1beta1_removed_gvk_present", Group: "admissionregistration.k8s.io", Kinds: []string{"MutatingWebhookConfiguration", "ValidatingWebhookConfiguration"}, Removed: "v1beta1", Served: []string{"v1"}},
@@ -90,13 +92,9 @@ var kubernetesRemovalsByTransition = func() map[[2]string][]kubernetesRemoval {
 }()
 
 // kubernetesRemovalsForAnchor selects the removals for exactly the reviewed
-// anchor pair, M.(m-1).0 -> M.m.0. This is the default selection: every
-// published rule in this table is pinned to its anchor pair, so an off-anchor
-// pair such as M.(m-1).x -> M.m.y (x, y != 0) selects nothing here, exactly as
-// it did before minor-crossing selection existed. This keeps prepared output
-// and its canonical input digest byte-identical to that earlier behaviour for
-// every pair until minor-crossing selection is deliberately switched on
-// alongside the widened rules that justify it.
+// anchor pair, M.(m-1).0 -> M.m.0. It is no longer on the default path; it
+// remains for kubernetesRemovalsByTransition and the drift tests that check
+// the table against the rule pack's own anchors.
 func kubernetesRemovalsForAnchor(from, to string) ([]kubernetesRemoval, bool) {
 	removals, reviewed := kubernetesRemovalsByTransition[[2]string{from, to}]
 	return removals, reviewed
@@ -107,8 +105,11 @@ func kubernetesRemovalsForAnchor(from, to string) ([]kubernetesRemoval, bool) {
 // M.(m-1).x to any M.m.y. A same-line patch upgrade, a downgrade, a
 // multi-minor jump, or a major crossing selects nothing. Selection never
 // widens the reviewed rules: a rule still decides only transitions its own
-// subject matches. Nothing on the default path calls this yet; it is kept
-// ready for when the rule pack itself is widened with reviewed ranges.
+// subject (including its published range) matches. This is the default
+// selection now that the rule pack carries reviewed ranges: it emits facts
+// for every crossing pair on a reviewed line, and the engine's own range
+// evaluation is what actually decides whether a given off-anchor pair is
+// BLOCKED, PASS, or UNKNOWN.
 func kubernetesRemovalsForCrossedMinorLine(from, to string) ([]kubernetesRemoval, bool) {
 	line, ok := kubernetesCrossedMinorLine(from, to)
 	if !ok {
@@ -144,11 +145,11 @@ func kubernetesVersionParts(value string) ([3]uint64, bool) {
 	return parts, true
 }
 
-// KubernetesRemovedAPIFacts returns the fact IDs this adapter can derive for an
-// exact transition, in table order. It is empty for any pair without reviewed
-// removals.
+// KubernetesRemovedAPIFacts returns the fact IDs this adapter can derive for a
+// transition that crosses a reviewed minor line, in table order. It is empty
+// for any pair that does not cross exactly one reviewed minor line.
 func KubernetesRemovedAPIFacts(from, to string) []string {
-	removals, _ := kubernetesRemovalsForAnchor(from, to)
+	removals, _ := kubernetesRemovalsForCrossedMinorLine(from, to)
 	facts := make([]string, 0, len(removals))
 	for _, removal := range removals {
 		facts = append(facts, removal.Fact)
@@ -157,11 +158,12 @@ func KubernetesRemovedAPIFacts(from, to string) []string {
 }
 
 // PrepareKubernetesRemovedAPIs converts a bounded caller-selected rendered apply
-// set to one canonical fact per reviewed API removal for the exact transition.
-// It never reads a cluster. Pairs without a reviewed removal table, including
-// 1.31.0 -> 1.32.0, keep the established flow-control behaviour unchanged.
+// set to one canonical fact per reviewed API removal for a transition that
+// crosses exactly one reviewed minor line. It never reads a cluster. Pairs
+// that do not cross a reviewed minor line, including 1.31.0 -> 1.32.0 and any
+// multi-minor jump, keep the established flow-control behaviour unchanged.
 func PrepareKubernetesRemovedAPIs(raw []byte, from, to, distribution string, targetApplyRequired, complete bool) (Prepared, error) {
-	removals, reviewed := kubernetesRemovalsForAnchor(from, to)
+	removals, reviewed := kubernetesRemovalsForCrossedMinorLine(from, to)
 	if !reviewed {
 		return PrepareKubernetesFlowControl(raw, from, to, distribution, targetApplyRequired, complete)
 	}
