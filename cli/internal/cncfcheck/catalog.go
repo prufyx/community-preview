@@ -3,6 +3,8 @@ package cncfcheck
 import (
 	"encoding/json"
 	"sort"
+
+	"github.com/prufyx/prufyx-cli/internal/constraintengine"
 )
 
 // RuleIdentity is the stable public identity of one rule already admitted by
@@ -13,6 +15,13 @@ type RuleIdentity struct {
 	RuleID    string `json:"ruleId"`
 	From      string `json:"from"`
 	To        string `json:"to"`
+	// Range is present only for a rule with a reviewed version range.
+	Range *constraintengine.VersionRange `json:"range,omitempty"`
+}
+
+// Transition returns the identity's reviewed subject for the shared matcher.
+func (r RuleIdentity) Transition() constraintengine.RuleTransition {
+	return constraintengine.RuleTransition{Component: r.Component, From: r.From, To: r.To, Range: r.Range}
 }
 
 // EmbeddedRuleIdentities returns every integrity-checked embedded rule in a
@@ -25,17 +34,13 @@ func EmbeddedRuleIdentities() ([]RuleIdentity, error) {
 	result := make([]RuleIdentity, 0, len(b.pack.Entries))
 	for _, entry := range b.pack.Entries {
 		var shape struct {
-			ID      string `json:"id"`
-			Subject struct {
-				Component string `json:"component"`
-				From      string `json:"from"`
-				To        string `json:"to"`
-			} `json:"subject"`
+			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(entry.Rule, &shape); err != nil || shape.ID == "" || shape.Subject.Component == "" || shape.Subject.From == "" || shape.Subject.To == "" {
+		subject, err := constraintengine.RuleTransitionOf(entry.Rule)
+		if err != nil || json.Unmarshal(entry.Rule, &shape) != nil || shape.ID == "" || subject.Component == "" || subject.From == "" || subject.To == "" {
 			return nil, ErrIntegrity
 		}
-		result = append(result, RuleIdentity{Project: entry.Project, Component: shape.Subject.Component, RuleID: shape.ID, From: shape.Subject.From, To: shape.Subject.To})
+		result = append(result, RuleIdentity{Project: entry.Project, Component: subject.Component, RuleID: shape.ID, From: subject.From, To: subject.To, Range: subject.Range})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Project != result[j].Project {

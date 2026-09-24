@@ -504,11 +504,52 @@ func transition(rule map[string]any) (map[string]any, error) {
 	if err != nil || !a || !b || !versionRE.MatchString(from) || !versionRE.MatchString(to) {
 		return nil, invalid("invalid rule transition")
 	}
-	return map[string]any{"component": component, "from": from, "to": to, "semantics": "exact_declared_endpoints_only"}, nil
+	result := map[string]any{"component": component, "from": from, "to": to, "semantics": "exact_declared_endpoints_only"}
+	if rawRange, ranged := rule["range"]; ranged {
+		// A reviewed range is recorded as the rule declares it; the anchor
+		// endpoints stay the reviewed identity. The engine enforces the range
+		// guards; this inventory only reports the declared bounds.
+		value, ok := object(rawRange)
+		fromBound, fromOK := object(value["from"])
+		toBound, toOK := object(value["to"])
+		if !ok || !fromOK || !toOK {
+			return nil, invalid("invalid rule range")
+		}
+		bounds := map[string]any{}
+		for name, bound := range map[string]map[string]any{"from": fromBound, "to": toBound} {
+			gte, gteOK := stringValue(bound["gte"])
+			lt, ltOK := stringValue(bound["lt"])
+			if !gteOK || !ltOK || !versionRE.MatchString(gte) || !versionRE.MatchString(lt) {
+				return nil, invalid("invalid rule range bound")
+			}
+			bounds[name] = map[string]any{"gte": gte, "lt": lt}
+		}
+		result["semantics"] = "exact_anchor_endpoints_and_reviewed_half_open_range"
+		result["range"] = bounds
+	}
+	return result, nil
+}
+
+// packSchemaMatchesRanges accepts the ranged pack schema exactly when at least
+// one rule declares a range, mirroring the embedded pack loaders.
+func packSchemaMatchesRanges(rules map[string]any, exactSchema, rangedSchema string) bool {
+	entries, _ := array(rules["entries"])
+	ranged := false
+	for _, item := range entries {
+		entry, _ := object(item)
+		rule, _ := object(entry["rule"])
+		if _, ok := rule["range"]; ok {
+			ranged = true
+		}
+	}
+	if ranged {
+		return rules["schema"] == rangedSchema
+	}
+	return rules["schema"] == exactSchema
 }
 
 func genericProjects(rules map[string]any, identities map[string]identity, preparers map[string]bool) ([]map[string]any, int, error) {
-	if rules["schema"] != "prufyx.io/cncf-source-rule-pack/v1alpha1" {
+	if !packSchemaMatchesRanges(rules, "prufyx.io/cncf-source-rule-pack/v1alpha1", "prufyx.io/cncf-source-rule-pack/v1alpha2") {
 		return nil, 0, invalid("invalid rule-pack schema")
 	}
 	entries, ok := array(rules["entries"])
@@ -706,7 +747,7 @@ var nativeCNCFInputMetadata = map[string][]nativeCNCFInputRoute{
 }
 
 func communityProjects(rules, registry map[string]any) ([]map[string]any, int, error) {
-	if rules["schema"] != "prufyx.io/community-project-source-rule-pack/v1alpha1" || registry["schema"] != "prufyx.io/community-project-registry/v1alpha1" {
+	if !packSchemaMatchesRanges(rules, "prufyx.io/community-project-source-rule-pack/v1alpha1", "prufyx.io/community-project-source-rule-pack/v1alpha2") || registry["schema"] != "prufyx.io/community-project-registry/v1alpha1" {
 		return nil, 0, invalid("invalid community-project source schema")
 	}
 	rawIdentities, ok := array(registry["projects"])

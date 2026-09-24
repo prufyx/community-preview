@@ -32,6 +32,10 @@ func externalFixture(t *testing.T, entries []Entry) []byte {
 	pack := base.pack
 	pack.Revision = "1"
 	pack.Entries = entries
+	pack.Schema = packSchema
+	if !validPackSchema(pack) {
+		pack.Schema = packSchemaRanged
+	}
 	raw, err := json.Marshal(externalFixtureDocument{Schema: externalBundleSchema, Revision: "1", Purpose: "operator_provided", EngineCapabilityDigest: capability, Pack: pack})
 	if err != nil {
 		t.Fatal(err)

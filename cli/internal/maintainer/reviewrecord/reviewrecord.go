@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/prufyx/prufyx-cli/internal/cncfcheck"
+	"github.com/prufyx/prufyx-cli/internal/constraintengine"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/contribution"
 	"github.com/prufyx/prufyx-cli/internal/maintainer/sourcecorpus"
 )
@@ -96,9 +97,14 @@ type ruleDocument struct {
 	Subject struct {
 		Component, From, To string
 	} `json:"subject"`
+	Range    *constraintengine.VersionRange `json:"range"`
 	Evidence struct {
 		Sources []ruleSource `json:"sources"`
 	} `json:"evidence"`
+}
+
+func (r ruleDocument) transition() constraintengine.RuleTransition {
+	return constraintengine.RuleTransition{Component: r.Subject.Component, From: r.Subject.From, To: r.Subject.To, Range: r.Range}
 }
 
 type ruleSource struct {
@@ -208,7 +214,7 @@ func verifyRaw(r record, recordValue any, packetRaw, packetReceipt, sourceReceip
 	}
 
 	bundle, ruleRaw, rule, err := exactSelectedRule(targetRaw, r.Subject.KnowledgeRevision, r.Subject.Project, r.Subject.RuleID)
-	if err != nil || rule.Subject.From != transition[0] || rule.Subject.To != transition[1] || !sameRuleAndPacket(rule.Evidence.Sources, packet) {
+	if err != nil || !rule.transition().IsAnchor(transition[0], transition[1]) || !sameRuleAndPacket(rule.Evidence.Sources, packet) {
 		return nil, errRejected
 	}
 
@@ -529,6 +535,8 @@ func selectedVectors(raw []byte, project, ruleID string) (any, vectorGroup, erro
 
 func evaluateVectors(bundle cncfcheck.ExternalBundle, rule ruleDocument, group vectorGroup, at time.Time) (map[string]int64, error) {
 	counts := map[string]int64{"PASS": 0, "BLOCKED": 0, "UNKNOWN": 0, "wrongCurrent": 0, "wrongTarget": 0}
+	subject := rule.transition()
+	observed := make([]vectorObservation, 0, len(group.Cases))
 	seenNames := map[string]bool{}
 	seenInputs := map[string]bool{}
 	for _, c := range group.Cases {
@@ -558,17 +566,64 @@ func evaluateVectors(bundle cncfcheck.ExternalBundle, rule ruleDocument, group v
 		}
 		counts[c.Status]++
 		current, proposed := componentVersions(c.Input, rule.Subject.Component)
-		if c.Status == "UNKNOWN" && current != "" && current != rule.Subject.From {
+		if c.Status == "UNKNOWN" && current != "" && !subject.MatchesFrom(current) {
 			counts["wrongCurrent"]++
 		}
-		if c.Status == "UNKNOWN" && proposed != "" && proposed != rule.Subject.To {
+		if c.Status == "UNKNOWN" && proposed != "" && !subject.MatchesTo(proposed) {
 			counts["wrongTarget"]++
 		}
+		observed = append(observed, vectorObservation{current: current, proposed: proposed, status: c.Status})
+	}
+	if subject.Range != nil && !rangeBoundsCovered(*subject.Range, observed) {
+		return nil, errRejected
 	}
 	if counts["PASS"] < 1 || counts["BLOCKED"] < 1 || counts["UNKNOWN"] < 1 || counts["wrongCurrent"] < 1 || counts["wrongTarget"] < 1 {
 		return nil, errRejected
 	}
 	return counts, nil
+}
+
+type vectorObservation struct{ current, proposed, status string }
+
+// rangeBoundsCovered generalizes the wrongCurrent/wrongTarget requirement to
+// a reviewed range: at each of the four bounds there must be one vector just
+// inside, which decides (PASS or BLOCKED), and one just outside, which stays
+// UNKNOWN, with the other side of the pair inside its range.
+//
+//   - gte inside: the side equals gte. gte outside: the side is below gte.
+//   - lt inside: the side is inside the range and above gte.
+//     lt outside: the side equals lt.
+func rangeBoundsCovered(rng constraintengine.VersionRange, observed []vectorObservation) bool {
+	var fromGteIn, fromGteOut, fromLtIn, fromLtOut, toGteIn, toGteOut, toLtIn, toLtOut bool
+	for _, o := range observed {
+		decided := o.status == "PASS" || o.status == "BLOCKED"
+		unknown := o.status == "UNKNOWN"
+		if rng.To.Contains(o.proposed) {
+			switch {
+			case decided && constraintengine.SameVersion(o.current, rng.From.Gte):
+				fromGteIn = true
+			case unknown && constraintengine.VersionLess(o.current, rng.From.Gte):
+				fromGteOut = true
+			case decided && rng.From.Contains(o.current) && constraintengine.VersionLess(rng.From.Gte, o.current):
+				fromLtIn = true
+			case unknown && constraintengine.SameVersion(o.current, rng.From.Lt):
+				fromLtOut = true
+			}
+		}
+		if rng.From.Contains(o.current) {
+			switch {
+			case decided && constraintengine.SameVersion(o.proposed, rng.To.Gte):
+				toGteIn = true
+			case unknown && constraintengine.VersionLess(o.proposed, rng.To.Gte):
+				toGteOut = true
+			case decided && rng.To.Contains(o.proposed) && constraintengine.VersionLess(rng.To.Gte, o.proposed):
+				toLtIn = true
+			case unknown && constraintengine.SameVersion(o.proposed, rng.To.Lt):
+				toLtOut = true
+			}
+		}
+	}
+	return fromGteIn && fromGteOut && fromLtIn && fromLtOut && toGteIn && toGteOut && toLtIn && toLtOut
 }
 
 func componentVersions(raw []byte, component string) (string, string) {

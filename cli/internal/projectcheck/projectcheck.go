@@ -122,6 +122,13 @@ type RuleIdentity struct {
 	RuleID    string `json:"ruleId"`
 	From      string `json:"from"`
 	To        string `json:"to"`
+	// Range is present only for a rule with a reviewed version range.
+	Range *constraintengine.VersionRange `json:"range,omitempty"`
+}
+
+// Transition returns the identity's reviewed subject for the shared matcher.
+func (r RuleIdentity) Transition() constraintengine.RuleTransition {
+	return constraintengine.RuleTransition{Component: r.Component, From: r.From, To: r.To, Range: r.Range}
 }
 
 // EmbeddedRuleIdentities returns every integrity-checked embedded community
@@ -134,10 +141,11 @@ func EmbeddedRuleIdentities() ([]RuleIdentity, error) {
 	result := make([]RuleIdentity, 0, len(b.pack.Entries))
 	for _, entry := range b.pack.Entries {
 		var binding ruleBinding
-		if err := json.Unmarshal(entry.Rule, &binding); err != nil || binding.ID == "" || binding.Subject.Component == "" || binding.Subject.From == "" || binding.Subject.To == "" {
+		subject, err := constraintengine.RuleTransitionOf(entry.Rule)
+		if err != nil || json.Unmarshal(entry.Rule, &binding) != nil || binding.ID == "" || subject.Component == "" || subject.From == "" || subject.To == "" {
 			return nil, ErrIntegrity
 		}
-		result = append(result, RuleIdentity{Project: entry.Project, Component: binding.Subject.Component, RuleID: binding.ID, From: binding.Subject.From, To: binding.Subject.To})
+		result = append(result, RuleIdentity{Project: entry.Project, Component: subject.Component, RuleID: binding.ID, From: subject.From, To: subject.To, Range: subject.Range})
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Project != result[j].Project {
@@ -196,7 +204,7 @@ func loadRaw(registryRaw, packRaw []byte, factDefinitions []constraintengine.Fac
 		return bundle{}, ErrIntegrity
 	}
 	b.registryDigest, b.packDigest = digest(registryRaw), digest(packRaw)
-	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || b.pack.Schema != "prufyx.io/community-project-source-rule-pack/v1alpha1" || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 8 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
+	if b.registryDocument.Schema != "prufyx.io/community-project-registry/v1alpha1" || !validPackSchema(b.pack) || b.pack.PolicyID != "community-project-source-preview-v1" || b.pack.PolicyDigest != digest([]byte(PolicyDeclaration)) || len(b.registryDocument.Projects) != 8 || len(b.pack.Entries) < len(b.registryDocument.Projects) {
 		return bundle{}, ErrIntegrity
 	}
 	b.identities = map[string]identity{}
@@ -293,10 +301,11 @@ func (b bundle) ruleSetSelected(project, from, to, requestedRuleID string) (cons
 			continue
 		}
 		var binding ruleBinding
-		if json.Unmarshal(e.Rule, &binding) != nil {
+		subject, err := constraintengine.RuleTransitionOf(e.Rule)
+		if err != nil || json.Unmarshal(e.Rule, &binding) != nil {
 			return constraintengine.RuleSet{}, 0, "", ErrIntegrity
 		}
-		if (from == "" && to == "" || binding.Subject.From == from && binding.Subject.To == to) && (requestedRuleID == "" || binding.ID == requestedRuleID) {
+		if (from == "" && to == "" || subject.Match(from, to) != constraintengine.MatchNone) && (requestedRuleID == "" || binding.ID == requestedRuleID) {
 			rules = append(rules, e.Rule)
 			if requestedRuleID != "" {
 				selectedRuleID = binding.ID
@@ -309,7 +318,12 @@ func (b bundle) ruleSetSelected(project, from, to, requestedRuleID string) (cons
 		PolicyID     string            `json:"policyId"`
 		PolicyDigest string            `json:"policyDigest"`
 		Rules        []json.RawMessage `json:"rules"`
-	}{constraintengine.RulesSchema, b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules}
+	}{"", b.pack.Revision, b.pack.PolicyID, b.pack.PolicyDigest, rules}
+	schema, err := constraintengine.RulesSchemaFor(rules)
+	if err != nil {
+		return constraintengine.RuleSet{}, 0, "", ErrIntegrity
+	}
+	doc.Schema = schema
 	raw, err := json.Marshal(doc)
 	if err != nil {
 		return constraintengine.RuleSet{}, 0, "", ErrIntegrity
@@ -499,4 +513,28 @@ func Component(project string) (string, error) {
 func digest(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+const (
+	packSchema       = "prufyx.io/community-project-source-rule-pack/v1alpha1"
+	packSchemaRanged = "prufyx.io/community-project-source-rule-pack/v1alpha2"
+)
+
+// validPackSchema requires the pack schema to state whether the pack holds a
+// reviewed version range. A pack with no range keeps the original schema and
+// digest; a pack with one carries the new schema, which binaries that predate
+// ranges reject.
+func validPackSchema(pack packDocument) bool {
+	rules := make([]json.RawMessage, 0, len(pack.Entries))
+	for _, e := range pack.Entries {
+		rules = append(rules, e.Rule)
+	}
+	ranged, err := constraintengine.AnyRanged(rules)
+	if err != nil {
+		return false
+	}
+	if ranged {
+		return pack.Schema == packSchemaRanged
+	}
+	return pack.Schema == packSchema
 }
