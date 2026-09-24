@@ -33,6 +33,12 @@ func TestVersionAndTargetAdmission(t *testing.T) {
 	if _, _, err := target("darwin-arm64"); err == nil {
 		t.Fatal("accepted unsupported target")
 	}
+	// The public community release workflow stamps a distinct
+	// "community-<os>-<arch>" profile family (see buildidentity). The
+	// strict, signed-release pipeline must never accept it as a target.
+	if _, _, err := target("community-linux-amd64"); err == nil {
+		t.Fatal("accepted a community-release profile as a signed-release target")
+	}
 }
 
 func TestGoTestCommandKeepsOutputStreamsSeparate(t *testing.T) {
