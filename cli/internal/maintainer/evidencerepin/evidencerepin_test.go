@@ -284,7 +284,7 @@ func TestResolveCurrentCommitLightweightTag(t *testing.T) {
 		"/repos/argoproj/argo-cd/releases?per_page=10": {[]byte(`[{"tag_name":"v3.5.2","draft":false}]`), 200},
 		"/repos/argoproj/argo-cd/git/ref/tags/v3.5.2":  {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
 	}}
-	tag, commit, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
+	tag, commit, _, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
 	if err != nil {
 		t.Fatalf("ResolveCurrentCommit: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestResolveCurrentCommitSkipsPrereleases(t *testing.T) {
 		"/repos/argoproj/argo-cd/releases?per_page=10": {[]byte(`[{"tag_name":"v3.6.0-rc1","draft":false,"prerelease":true},{"tag_name":"v3.5.2","draft":false,"prerelease":false}]`), 200},
 		"/repos/argoproj/argo-cd/git/ref/tags/v3.5.2":  {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
 	}}
-	tag, commit, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
+	tag, commit, _, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
 	if err != nil {
 		t.Fatalf("ResolveCurrentCommit: %v", err)
 	}
@@ -320,7 +320,7 @@ func TestResolveCurrentCommitAnnotatedTagPeels(t *testing.T) {
 		"/repos/argoproj/argo-cd/git/ref/tags/v3.5.2":      {[]byte(`{"object":{"sha":"` + annotatedSHA + `","type":"tag"}}`), 200},
 		"/repos/argoproj/argo-cd/git/tags/" + annotatedSHA: {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
 	}}
-	_, commit, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
+	_, commit, _, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
 	if err != nil {
 		t.Fatalf("ResolveCurrentCommit: %v", err)
 	}
@@ -335,10 +335,10 @@ func TestResolveCurrentCommitFallsBackToTags(t *testing.T) {
 		status int
 	}{
 		"/repos/example/no-releases/releases?per_page=10": {[]byte(`[]`), 200},
-		"/repos/example/no-releases/tags?per_page=1":      {[]byte(`[{"name":"v1.0.0"}]`), 200},
+		"/repos/example/no-releases/tags?per_page=30":     {[]byte(`[{"name":"v1.0.0"}]`), 200},
 		"/repos/example/no-releases/git/ref/tags/v1.0.0":  {[]byte(`{"object":{"sha":"` + commitA + `","type":"commit"}}`), 200},
 	}}
-	tag, commit, err := ResolveCurrentCommit(context.Background(), fetcher, "example", "no-releases")
+	tag, commit, _, err := ResolveCurrentCommit(context.Background(), fetcher, "example", "no-releases")
 	if err != nil {
 		t.Fatalf("ResolveCurrentCommit: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestResolveCurrentCommitRateLimited(t *testing.T) {
 	}{
 		"/repos/argoproj/argo-cd/releases?per_page=10": {[]byte(`{"message":"API rate limit exceeded"}`), 403},
 	}}
-	_, _, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
+	_, _, _, err := ResolveCurrentCommit(context.Background(), fetcher, "argoproj", "argo-cd")
 	if !errors.Is(err, errRateLimited) {
 		t.Fatalf("expected rate-limited error, got %v", err)
 	}
@@ -391,7 +391,7 @@ func TestBuildWorklistBatchAttestableArithmetic(t *testing.T) {
 		"/argoproj/argo-cd/" + commitC + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBodyContentChanged},
 	}
 	state := newState()
-	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), nil)
+	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), DefaultMaxAge, nil)
 	if err != nil {
 		t.Fatalf("BuildWorklist: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestBuildWorklistFalsificationConditionFires(t *testing.T) {
 		"/argoproj/argo-cd/" + commitA + "/a.go": {Kind: "HTTP_200", StatusCode: 200, Body: oldBodyContentChanged},
 	}
 	state := newState()
-	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), nil)
+	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, blobFetcher, fixedNow(), DefaultMaxAge, nil)
 	if err != nil {
 		t.Fatalf("BuildWorklist: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestBuildWorklistRateLimitDegradesGracefully(t *testing.T) {
 		"/repos/owner1/repo1/releases?per_page=10": {[]byte(`{"message":"rate limited"}`), 403},
 	}}
 	state := newState()
-	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), nil)
+	worklist, err := BuildWorklist(context.Background(), citations, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), DefaultMaxAge, nil)
 	if err != nil {
 		t.Fatalf("BuildWorklist: %v", err)
 	}
@@ -503,7 +503,7 @@ func TestStateRoundTripResumesWithoutReclassifying(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
-	if _, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), nil); err != nil {
+	if _, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), DefaultMaxAge, nil); err != nil {
 		t.Fatalf("BuildWorklist: %v", err)
 	}
 	if err := SaveState(statePath, state); err != nil {
@@ -521,7 +521,7 @@ func TestStateRoundTripResumesWithoutReclassifying(t *testing.T) {
 		body   []byte
 		status int
 	}{}}
-	worklist, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, resumed, blankFetcher, fakeBlobFetcher{}, fixedNow(), nil)
+	worklist, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, resumed, blankFetcher, fakeBlobFetcher{}, fixedNow(), DefaultMaxAge, nil)
 	if err != nil {
 		t.Fatalf("BuildWorklist resume: %v", err)
 	}
@@ -631,5 +631,291 @@ func TestRunNeverWritesRulePack(t *testing.T) {
 	}
 	if string(before) != string(after) {
 		t.Fatalf("rule pack was modified by evidence repin")
+	}
+}
+
+// --- Freshness (--max-age) regression tests -------------------------------
+
+// TestFreshStateResumesWithoutReclassifying pins down the "still fresh"
+// half of the freshness contract: a repo resolution and citation
+// classification recorded well within --max-age must resume exactly as
+// before (no API calls, no reclassification, timestamps untouched).
+func TestFreshStateResumesWithoutReclassifying(t *testing.T) {
+	citation := Citation{RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1", Owner: "owner1", Repo: "repo1", Path: "x", OldCommit: commitA, OldDigest: "sha256:x", StartLine: 1, EndLine: 1}
+	resolvedAt := fixedNow()().Add(-1 * time.Hour).UTC().Format(time.RFC3339)
+	classifiedAt := resolvedAt
+
+	state := newState()
+	state.Repos["owner1/repo1"] = RepoResolution{
+		Owner: "owner1", Repo: "repo1", Status: repoResolved,
+		CurrentTag: "v1", CurrentCommit: commitA, ResolvedAt: resolvedAt,
+	}
+	state.Results[citation.key()] = ClassResult{
+		RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1",
+		Owner: "owner1", Repo: "repo1", Path: "x",
+		OldCommit: commitA, NewCommit: commitA, OldStart: 1, OldEnd: 1,
+		Class: ClassNoNewRelease, ClassifiedAt: classifiedAt,
+	}
+
+	blankAPIFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{}}
+	worklist, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, state, blankAPIFetcher, fakeBlobFetcher{}, fixedNow(), 72*time.Hour, nil)
+	if err != nil {
+		t.Fatalf("BuildWorklist: %v", err)
+	}
+	if len(blankAPIFetcher.calls) != 0 {
+		t.Fatalf("expected a fresh repo resolution to resume with no API calls, got %v", blankAPIFetcher.calls)
+	}
+	if len(worklist.Citations) != 1 {
+		t.Fatalf("expected 1 citation, got %+v", worklist.Citations)
+	}
+	got := worklist.Citations[0]
+	if got.Stale {
+		t.Fatalf("fresh result must not be marked stale, got %+v", got)
+	}
+	if got.ClassifiedAt != classifiedAt {
+		t.Fatalf("fresh result's ClassifiedAt must be preserved untouched, want %s got %s", classifiedAt, got.ClassifiedAt)
+	}
+	if worklist.Repos[0].ResolvedAt != resolvedAt || worklist.Repos[0].Stale {
+		t.Fatalf("fresh repo resolution must be preserved untouched, got %+v", worklist.Repos[0])
+	}
+}
+
+// TestStaleStateIsRecomputedNotReStamped is the core regression for the
+// "stale state reused as fresh" bug: a repo resolution and its dependent
+// citation classification recorded well outside --max-age must never be
+// silently re-emitted under this run's fresh GeneratedAt timestamp. When
+// this run CAN reach the repo (no earlier rate limit), it must recompute
+// the resolution and the classification, picking up a new current commit
+// and a new timestamp - not just repeat the old answer.
+//
+// This test fails on the pre-fix code: the old code's only check before
+// reusing a repo resolution was `existing.Status == repoResolved`, with no
+// age check at all, so it would skip re-resolution entirely and the
+// citation result would be reused unchanged (still pointing at the OLD
+// commit) while GeneratedAt on the worklist moved forward to "now" -
+// exactly the stale-reported-as-fresh defect this fix closes.
+func TestStaleStateIsRecomputedNotReStamped(t *testing.T) {
+	citation := Citation{RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1", Owner: "owner1", Repo: "repo1", Path: "x", OldCommit: commitA, OldDigest: "sha256:x", StartLine: 1, EndLine: 1}
+	staleResolvedAt := fixedNow()().Add(-100 * time.Hour).UTC().Format(time.RFC3339) // older than the 72h bound
+
+	state := newState()
+	state.Repos["owner1/repo1"] = RepoResolution{
+		Owner: "owner1", Repo: "repo1", Status: repoResolved,
+		CurrentTag: "v1", CurrentCommit: commitA, ResolvedAt: staleResolvedAt,
+	}
+	state.Results[citation.key()] = ClassResult{
+		RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1",
+		Owner: "owner1", Repo: "repo1", Path: "x",
+		OldCommit: commitA, NewCommit: commitA, OldStart: 1, OldEnd: 1,
+		Class: ClassNoNewRelease, ClassifiedAt: staleResolvedAt,
+	}
+
+	// Upstream has since published a new release: this run must actually
+	// see it once it re-resolves, rather than trusting the stale cache.
+	apiFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/owner1/repo1/releases?per_page=10": {[]byte(`[{"tag_name":"v2","draft":false}]`), 200},
+		"/repos/owner1/repo1/git/ref/tags/v2":      {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
+	}}
+
+	worklist, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), 72*time.Hour, nil)
+	if err != nil {
+		t.Fatalf("BuildWorklist: %v", err)
+	}
+	if len(apiFetcher.calls) == 0 {
+		t.Fatalf("expected a stale repo resolution to be re-resolved (an API call), got none")
+	}
+	if got := worklist.Repos[0]; got.CurrentCommit != commitB || got.ResolvedAt == staleResolvedAt {
+		t.Fatalf("expected the stale repo resolution to be recomputed against the new release, got %+v", got)
+	}
+	if len(worklist.Citations) != 1 {
+		t.Fatalf("expected 1 citation, got %+v", worklist.Citations)
+	}
+	got := worklist.Citations[0]
+	if got.NewCommit != commitB {
+		t.Fatalf("expected the stale classification to be recomputed against the new commit %s, got %+v", commitB, got)
+	}
+	if got.ClassifiedAt == staleResolvedAt || got.ClassifiedAt == "" {
+		t.Fatalf("expected a fresh ClassifiedAt, got %q (stale was %q)", got.ClassifiedAt, staleResolvedAt)
+	}
+	if got.Stale {
+		t.Fatalf("a successfully recomputed result must not be marked stale, got %+v", got)
+	}
+}
+
+// TestStaleStateMarkedStaleWhenUnrecomputable covers the other half of the
+// stale-state contract: when this run truly cannot recompute a stale entry
+// (an earlier repository in the same run hit the GitHub API rate limit,
+// so no further api.github.com requests are attempted), the stale entry
+// must be reported as stale rather than silently re-stamped as current.
+func TestStaleStateMarkedStaleWhenUnrecomputable(t *testing.T) {
+	// "aaa/rate-limited" sorts first alphabetically and has no prior state,
+	// so BuildWorklist attempts it first and hits the rate limit,
+	// preventing any further repo-resolution attempts this run.
+	rateLimitedCitation := Citation{RulePack: "p", RuleID: "r0", Project: "a", SourceID: "s0", Owner: "aaa", Repo: "rate-limited", Path: "x", OldCommit: commitA, OldDigest: "sha256:x", StartLine: 1, EndLine: 1}
+	// "bbb/stale-repo" sorts second and already has a stale resolved entry
+	// in state; it must never be attempted (rate limit already tripped),
+	// so it must come out marked stale, with its original timestamps.
+	staleCitation := Citation{RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1", Owner: "bbb", Repo: "stale-repo", Path: "x", OldCommit: commitA, OldDigest: "sha256:x", StartLine: 1, EndLine: 1}
+
+	staleResolvedAt := fixedNow()().Add(-200 * time.Hour).UTC().Format(time.RFC3339)
+	state := newState()
+	state.Repos["bbb/stale-repo"] = RepoResolution{
+		Owner: "bbb", Repo: "stale-repo", Status: repoResolved,
+		CurrentTag: "v1", CurrentCommit: commitA, ResolvedAt: staleResolvedAt,
+	}
+	state.Results[staleCitation.key()] = ClassResult{
+		RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1",
+		Owner: "bbb", Repo: "stale-repo", Path: "x",
+		OldCommit: commitA, NewCommit: commitA, OldStart: 1, OldEnd: 1,
+		Class: ClassNoNewRelease, ClassifiedAt: staleResolvedAt,
+	}
+
+	apiFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/aaa/rate-limited/releases?per_page=10": {[]byte(`{"message":"rate limited"}`), 403},
+	}}
+
+	worklist, err := BuildWorklist(context.Background(), []Citation{rateLimitedCitation, staleCitation}, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), 72*time.Hour, nil)
+	if err != nil {
+		t.Fatalf("BuildWorklist: %v", err)
+	}
+	for _, call := range apiFetcher.calls {
+		if strings.Contains(call, "stale-repo") {
+			t.Fatalf("expected no attempt on the repo behind the rate limit, got call %q", call)
+		}
+	}
+
+	var staleRepo *RepoResolution
+	for i := range worklist.Repos {
+		if worklist.Repos[i].Repo == "stale-repo" {
+			staleRepo = &worklist.Repos[i]
+		}
+	}
+	if staleRepo == nil {
+		t.Fatalf("expected a repo resolution for stale-repo, got %+v", worklist.Repos)
+	}
+	if !staleRepo.Stale {
+		t.Fatalf("expected the unrecomputable stale repo resolution to be marked stale, got %+v", staleRepo)
+	}
+	if staleRepo.ResolvedAt != staleResolvedAt {
+		t.Fatalf("a stale-but-unrecomputable repo resolution must never be re-stamped, want %s got %s", staleResolvedAt, staleRepo.ResolvedAt)
+	}
+
+	var staleResult *ClassResult
+	for i := range worklist.Citations {
+		if worklist.Citations[i].Repo == "stale-repo" {
+			staleResult = &worklist.Citations[i]
+		}
+	}
+	if staleResult == nil {
+		t.Fatalf("expected a classification for the stale-repo citation, got %+v", worklist.Citations)
+	}
+	if !staleResult.Stale {
+		t.Fatalf("expected the unrecomputable stale classification to be marked stale, got %+v", staleResult)
+	}
+	if staleResult.ClassifiedAt != staleResolvedAt {
+		t.Fatalf("a stale-but-unrecomputable classification must never be re-stamped, want %s got %s", staleResolvedAt, staleResult.ClassifiedAt)
+	}
+
+	if worklist.Summary.OldestResolvedAt != staleResolvedAt {
+		t.Fatalf("expected the worklist summary to report the oldest resolution time %s, got %q", staleResolvedAt, worklist.Summary.OldestResolvedAt)
+	}
+}
+
+// --- Tag-fallback marker regression tests ----------------------------------
+
+// TestResolveCurrentCommitTagFallbackReportsResolution locks down that
+// ResolveCurrentCommit itself reports when it had to fall back to the tags
+// list (no GitHub Releases published) versus resolving from Releases.
+func TestResolveCurrentCommitTagFallbackReportsResolution(t *testing.T) {
+	fetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/example/no-releases/releases?per_page=10": {[]byte(`[]`), 200},
+		"/repos/example/no-releases/tags?per_page=30":     {[]byte(`[{"name":"v1.0.0"}]`), 200},
+		"/repos/example/no-releases/git/ref/tags/v1.0.0":  {[]byte(`{"object":{"sha":"` + commitA + `","type":"commit"}}`), 200},
+	}}
+	_, _, resolution, err := ResolveCurrentCommit(context.Background(), fetcher, "example", "no-releases")
+	if err != nil {
+		t.Fatalf("ResolveCurrentCommit: %v", err)
+	}
+	if resolution != resolutionTagFallback {
+		t.Fatalf("expected resolution marker %q for a tags-fallback resolution, got %q", resolutionTagFallback, resolution)
+	}
+
+	releasesFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/argoproj/argo-cd/releases?per_page=10": {[]byte(`[{"tag_name":"v3.5.2","draft":false}]`), 200},
+		"/repos/argoproj/argo-cd/git/ref/tags/v3.5.2":  {[]byte(`{"object":{"sha":"` + commitB + `","type":"commit"}}`), 200},
+	}}
+	_, _, releaseResolution, err := ResolveCurrentCommit(context.Background(), releasesFetcher, "argoproj", "argo-cd")
+	if err != nil {
+		t.Fatalf("ResolveCurrentCommit: %v", err)
+	}
+	if releaseResolution != "" {
+		t.Fatalf("expected no resolution marker for a Releases-based resolution, got %q", releaseResolution)
+	}
+}
+
+// TestBuildWorklistMarksTagFallbackInOutput proves the marker required so
+// downstream batch re-attestation can refuse a tag-fallback resolution
+// actually reaches the worklist: both the RepoResolution and every
+// ClassResult classified against it must carry
+// resolution: "tag_fallback".
+func TestBuildWorklistMarksTagFallbackInOutput(t *testing.T) {
+	citation := Citation{RulePack: "p", RuleID: "r1", Project: "a", SourceID: "s1", Owner: "example", Repo: "no-releases", Path: "x", OldCommit: commitA, OldDigest: "sha256:x", StartLine: 1, EndLine: 1}
+	apiFetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		"/repos/example/no-releases/releases?per_page=10": {[]byte(`[]`), 200},
+		"/repos/example/no-releases/tags?per_page=30":     {[]byte(`[{"name":"v1.0.0"}]`), 200},
+		"/repos/example/no-releases/git/ref/tags/v1.0.0":  {[]byte(`{"object":{"sha":"` + commitA + `","type":"commit"}}`), 200},
+	}}
+	state := newState()
+	worklist, err := BuildWorklist(context.Background(), []Citation{citation}, nil, 0, state, apiFetcher, fakeBlobFetcher{}, fixedNow(), DefaultMaxAge, nil)
+	if err != nil {
+		t.Fatalf("BuildWorklist: %v", err)
+	}
+	if len(worklist.Repos) != 1 || worklist.Repos[0].Resolution != resolutionTagFallback {
+		t.Fatalf("expected the repo resolution to carry the tag_fallback marker, got %+v", worklist.Repos)
+	}
+	if len(worklist.Citations) != 1 || worklist.Citations[0].Resolution != resolutionTagFallback {
+		t.Fatalf("expected the citation classification to carry the tag_fallback marker, got %+v", worklist.Citations)
+	}
+}
+
+// TestLatestTagPicksHighestVersionNotFirstListed guards the correctness
+// fix to the tags fallback itself: GitHub's tags-list endpoint has no
+// documented recency ordering, so trusting positional order (as the old
+// per_page=1 code did) can select an old tag whenever the API happens to
+// return it first, e.g. "v9.0.0" ahead of "v10.0.0" under a lexicographic
+// ordering. latestTag must rank candidates by parsed version instead.
+func TestLatestTagPicksHighestVersionNotFirstListed(t *testing.T) {
+	fetcher := &fakeAPIFetcher{responses: map[string]struct {
+		body   []byte
+		status int
+	}{
+		// v9.0.0 listed first (as an arbitrarily-ordered API response
+		// might return it), v10.0.0 numerically newer but listed second.
+		"/repos/example/versioned/tags?per_page=30": {[]byte(`[{"name":"v9.0.0"},{"name":"v10.0.0"},{"name":"v2.0.0"}]`), 200},
+	}}
+	got, err := latestTag(context.Background(), fetcher, "example", "versioned")
+	if err != nil {
+		t.Fatalf("latestTag: %v", err)
+	}
+	if got != "v10.0.0" {
+		t.Fatalf("expected the numerically highest version v10.0.0, got %q", got)
 	}
 }
