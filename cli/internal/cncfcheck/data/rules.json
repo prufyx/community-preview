@@ -3245,7 +3245,7 @@
           }
         ],
         "evidence": {
-          "state": "active",
+          "state": "withdrawn",
           "reviewedAt": "2026-09-11T00:25:14Z",
           "validUntil": "2026-12-10T00:25:14Z",
           "sources": [

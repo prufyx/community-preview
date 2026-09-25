@@ -6016,7 +6016,7 @@
             ]
           }
         },
-        "status": "PASS"
+        "status": "UNKNOWN"
       },
       {
         "name": "planned-named-resolution-short",
@@ -6053,7 +6053,7 @@
             ]
           }
         },
-        "status": "BLOCKED"
+        "status": "UNKNOWN"
       },
       {
         "name": "missing-or-other-operation",
