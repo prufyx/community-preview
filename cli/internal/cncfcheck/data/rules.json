@@ -3245,7 +3245,7 @@
           }
         ],
         "evidence": {
-          "state": "active",
+          "state": "withdrawn",
           "reviewedAt": "2026-09-11T00:25:14Z",
           "validUntil": "2026-12-10T00:25:14Z",
           "sources": [
@@ -7271,7 +7271,7 @@
           "reviewedAt": "2026-09-09T03:24:02Z",
           "sources": [
             {
-              "contentDigest": "sha256:f131cd0be0c8ac145aa940588a9ce53941873bd26ad6eae3829a69cf9b52d79d",
+              "contentDigest": "sha256:b46f806938456f92af605e9e7361201a3d139f81a086cc24a972ef82f513758c",
               "endLine": 169,
               "id": "source-507245020dbb-crd-cluster-155",
               "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
@@ -7279,7 +7279,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/charts/karmada/_crds/bases/policy/policy.karmada.io_clusterpropagationpolicies.yaml"
             },
             {
-              "contentDigest": "sha256:f131cd0be0c8ac145aa940588a9ce53941873bd26ad6eae3829a69cf9b52d79d",
+              "contentDigest": "sha256:d6d86476d0ca15e850645937c0e775145520bd6d134b91f823b536d80e5ff770",
               "endLine": 166,
               "id": "source-507245020dbb-crd-policy-152",
               "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
@@ -7287,7 +7287,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/charts/karmada/_crds/bases/policy/policy.karmada.io_propagationpolicies.yaml"
             },
             {
-              "contentDigest": "sha256:bf8e6b197f181b4e2f81e41feb0c480f591202aa552232c5210a4fbee926fe98",
+              "contentDigest": "sha256:cbc29097d24c9325efb54e479325d2c98592a876525e3aea8abd6314237c19b2",
               "endLine": 365,
               "id": "source-507245020dbb-types-279",
               "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
@@ -7295,7 +7295,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/pkg/apis/policy/v1alpha1/propagation_types.go"
             },
             {
-              "contentDigest": "sha256:b7f0869f1f273c502eb5c9d3021af50ec3241ba0b0990197a61e662e3de6db03",
+              "contentDigest": "sha256:3ea034e57591985e4e4894259e992d46070d4dce5652ec55ec543739cd978504",
               "endLine": 357,
               "id": "source-507245020dbb-validation-328",
               "revision": "507245020dbbdfe13077a92120ed6ed5edcf90ca",
@@ -7303,7 +7303,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/507245020dbbdfe13077a92120ed6ed5edcf90ca/pkg/util/validation/validation.go"
             },
             {
-              "contentDigest": "sha256:253912e5ed870c689c2e1c41c26c7855e496a10e1f1114860b550f8139d553fa",
+              "contentDigest": "sha256:8a3861f1ba5eaafe63ee960f5657d523d49c2f5293f5a7953b096efdd75ed7fa",
               "endLine": 167,
               "id": "source-6d7b233a54d5-crd-cluster-156",
               "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
@@ -7311,7 +7311,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/charts/karmada/_crds/bases/policy/policy.karmada.io_clusterpropagationpolicies.yaml"
             },
             {
-              "contentDigest": "sha256:253912e5ed870c689c2e1c41c26c7855e496a10e1f1114860b550f8139d553fa",
+              "contentDigest": "sha256:182996d58e88842060894f79f792b60b5103b5afb00b5b3313b68f8f515aa097",
               "endLine": 164,
               "id": "source-6d7b233a54d5-crd-policy-153",
               "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
@@ -7319,7 +7319,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/charts/karmada/_crds/bases/policy/policy.karmada.io_propagationpolicies.yaml"
             },
             {
-              "contentDigest": "sha256:00442b8bab95e638d41de6a48f43ab10a834e8e7d81eec4c05506685bda72944",
+              "contentDigest": "sha256:73d337c4532235757bd9f89fc45d3110570acd97f30567baa9cd311bf1082f23",
               "endLine": 339,
               "id": "source-6d7b233a54d5-types-279",
               "revision": "6d7b233a54d59c8473803901768153f6e4353d02",
@@ -7327,7 +7327,7 @@
               "url": "https://github.com/karmada-io/karmada/blob/6d7b233a54d59c8473803901768153f6e4353d02/pkg/apis/policy/v1alpha1/propagation_types.go"
             },
             {
-              "contentDigest": "sha256:8e0c28dd970e6a9d999ae80ab06e2dc1996134f2258a23af6d13151d94058c12",
+              "contentDigest": "sha256:0f307b97f406ea5011c51e5884edefd93e426fab35c582b258e286ac0fdd8efc",
               "endLine": 351,
               "id": "source-6d7b233a54d5-validation-328",
               "revision": "6d7b233a54d59c8473803901768153f6e4353d02",

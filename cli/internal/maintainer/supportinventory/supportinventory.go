@@ -548,55 +548,68 @@ func packSchemaMatchesRanges(rules map[string]any, exactSchema, rangedSchema str
 	return rules["schema"] == exactSchema
 }
 
-func genericProjects(rules map[string]any, identities map[string]identity, preparers map[string]bool) ([]map[string]any, int, error) {
+// genericProjects reads the embedded CNCF source-rule pack. A rule whose
+// evidence is withdrawn contributes no executable capability (its claim is
+// always UNKNOWN, so it establishes no support): it is excluded from the
+// returned projects and from ruleCount, but is still reported by the
+// withdrawn return value so the generated inventory can say explicitly why
+// coverage shrank, rather than silently dropping it.
+func genericProjects(rules map[string]any, identities map[string]identity, preparers map[string]bool) ([]map[string]any, int, []map[string]any, error) {
 	if !packSchemaMatchesRanges(rules, "prufyx.io/cncf-source-rule-pack/v1alpha1", "prufyx.io/cncf-source-rule-pack/v1alpha2") {
-		return nil, 0, invalid("invalid rule-pack schema")
+		return nil, 0, nil, invalid("invalid rule-pack schema")
 	}
 	entries, ok := array(rules["entries"])
 	if !ok || len(entries) == 0 {
-		return nil, 0, invalid("missing rule entries")
+		return nil, 0, nil, invalid("missing rule entries")
 	}
 	grouped := map[string][]any{}
 	seen := map[string]bool{}
+	var withdrawn []map[string]any
+	ruleCount := 0
 	for _, item := range entries {
 		entry, ok := object(item)
 		if !ok {
-			return nil, 0, invalid("invalid rule entry")
+			return nil, 0, nil, invalid("invalid rule entry")
 		}
 		project, _ := stringValue(entry["project"])
 		if _, ok := identities[project]; !ok {
-			return nil, 0, invalid("rule project absent from landscape")
+			return nil, 0, nil, invalid("rule project absent from landscape")
 		}
 		rule, ok := object(entry["rule"])
 		if !ok {
-			return nil, 0, invalid("invalid rule")
+			return nil, 0, nil, invalid("invalid rule")
 		}
 		id, _ := stringValue(rule["id"])
 		if !idRE.MatchString(id) || seen[id] {
-			return nil, 0, invalid("duplicate rule")
+			return nil, 0, nil, invalid("duplicate rule")
 		}
 		seen[id] = true
 		evidence, ok := object(rule["evidence"])
-		if !ok || evidence["state"] != "active" {
-			return nil, 0, invalid("inactive evidence")
+		if !ok || (evidence["state"] != "active" && evidence["state"] != "withdrawn") {
+			return nil, 0, nil, invalid("inactive evidence")
+		}
+		if evidence["state"] == "withdrawn" {
+			withdrawn = append(withdrawn, map[string]any{"ruleID": id, "project": project, "family": "cncf_embedded_source_rule", "reasonCode": "RULE_EVIDENCE_WITHDRAWN"})
+			continue
 		}
 		sources, ok := array(evidence["sources"])
 		if !ok || len(sources) == 0 {
-			return nil, 0, invalid("missing evidence")
+			return nil, 0, nil, invalid("missing evidence")
 		}
 		normalized := make([]any, 0, len(sources))
 		for _, source := range sources {
 			v, err := sourceRecord(source, project)
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, nil, err
 			}
 			normalized = append(normalized, v)
 		}
 		tr, err := transition(rule)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		grouped[project] = append(grouped[project], map[string]any{"ruleID": id, "transition": tr, "evidence": normalized, "evidenceState": "active", "limit": "Scoped operator-declared constraint; a PASS, BLOCKED, or UNKNOWN claim never proves whole-upgrade safety or runtime behavior."})
+		ruleCount++
 	}
 	names := make([]string, 0, len(grouped))
 	for name := range grouped {
@@ -607,10 +620,10 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 	for _, project := range names {
 		id := identities[project]
 		if id.repository == "" {
-			return nil, 0, invalid("executable project lacks repository")
+			return nil, 0, nil, invalid("executable project lacks repository")
 		}
 		if _, err := httpsURL(id.repository, true); err != nil {
-			return nil, 0, err
+			return nil, 0, nil, err
 		}
 		sort.Slice(grouped[project], func(i, j int) bool {
 			return grouped[project][i].(map[string]any)["ruleID"].(string) < grouped[project][j].(map[string]any)["ruleID"].(string)
@@ -660,7 +673,8 @@ func genericProjects(rules map[string]any, identities map[string]identity, prepa
 		}
 		projects = append(projects, map[string]any{"projectID": project, "displayName": id.name, "repositoryURL": id.repository, "supportState": "executable", "capabilities": []any{capability}, "selectedSourceRecords": []any{}})
 	}
-	return projects, len(entries), nil
+	sort.Slice(withdrawn, func(i, j int) bool { return withdrawn[i]["ruleID"].(string) < withdrawn[j]["ruleID"].(string) })
+	return projects, ruleCount, withdrawn, nil
 }
 
 func nativeCNCFRoutes(project string) ([]nativeCNCFInputRoute, bool) {
@@ -1263,7 +1277,7 @@ func Generate(cfg Config) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	generic, ruleCount, err := genericProjects(inputs[0].value, identities, preparers)
+	generic, ruleCount, genericWithdrawn, err := genericProjects(inputs[0].value, identities, preparers)
 	if err != nil {
 		return nil, "", err
 	}
@@ -1378,7 +1392,11 @@ func Generate(cfg Config) ([]byte, string, error) {
 	if latestContractDigest != "" {
 		inputDigests["certManagerLatestSourceContract"] = latestContractDigest
 	}
-	inventory := map[string]any{"schema": Schema, "inputDigests": inputDigests, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfRuleProjects": len(generic), "communityProjectSourceRules": communityRuleCount, "communityProjectRuleProjects": len(community), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active CNCF source-rule pack; exact declared endpoints only", "communityProjectRules": "separate embedded maintainer-reviewed external-project registry; CNCF membership is not asserted and external updates are unavailable", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "wholeUpgrade": "UNKNOWN"}, "projects": projectList}
+	withdrawnRules := make([]any, 0, len(genericWithdrawn))
+	for _, item := range genericWithdrawn {
+		withdrawnRules = append(withdrawnRules, item)
+	}
+	inventory := map[string]any{"schema": Schema, "inputDigests": inputDigests, "selectedSourceProvenance": provenance, "counts": map[string]any{"cncfSourceRules": ruleCount, "cncfSourceRulesWithdrawn": len(genericWithdrawn), "cncfRuleProjects": len(generic), "communityProjectSourceRules": communityRuleCount, "communityProjectRuleProjects": len(community), "namedChecks": 2, "namedCheckProjects": 2, "conformanceProfiles": 2, "conformanceProjects": 2, "targetPreflightProfiles": 1, "targetPreflightProjects": 1, "executableProjects": executable, "selectedSourceRecords": len(selected), "selectedSourceProjects": len(selectedByProject), "selectedSourceOnlyProjects": sourceOnly}, "scope": map[string]any{"cncfRules": "embedded active CNCF source-rule pack; exact declared endpoints only", "communityProjectRules": "separate embedded maintainer-reviewed external-project registry; CNCF membership is not asserted and external updates are unavailable", "namedChecks": "embedded local source contracts; exact reviewed transitions only", "conformanceProfiles": "named standards subsets without invented from/to transitions", "targetPreflightProfiles": "named target-only planned-operation setting checks without invented from/to transitions", "selectedSourceRecords": "retained public-source records; source selection alone does not create executable upgrade support", "withdrawnRules": "rule evidence found unverifiable after publication; withdrawn from executable coverage, listed here rather than silently dropped", "wholeUpgrade": "UNKNOWN"}, "withdrawnRules": withdrawnRules, "projects": projectList}
 	raw, err := canonical(inventory)
 	if err != nil {
 		return nil, "", err
@@ -1417,7 +1435,7 @@ func uniqueSorted(items []string) []string {
 func renderMarkdown(inventory map[string]any) string {
 	counts := inventory["counts"].(map[string]any)
 	n := func(k string) int { return counts[k].(int) }
-	lines := []string{"# Community support inventory", "", "Generated by `cmd/prufyx-maintainer`; do not edit by hand.", "", "This inventory separates executable scoped checks from selected public-source records. Catalogue discovery identities are not support entries. A scoped result never proves a whole upgrade safe or runtime behavior.", "", fmt.Sprintf("- CNCF embedded source rules: **%d** across **%d** projects.", n("cncfSourceRules"), n("cncfRuleProjects")), fmt.Sprintf("- Community-project embedded source rules: **%d** across **%d** projects; CNCF membership is not asserted.", n("communityProjectSourceRules"), n("communityProjectRuleProjects")), fmt.Sprintf("- Named local checks: **%d** across **%d** projects.", n("namedChecks"), n("namedCheckProjects")), fmt.Sprintf("- Standards-conformance profiles: **%d** across **%d** projects; these are not version-transition checks.", n("conformanceProfiles"), n("conformanceProjects")), fmt.Sprintf("- Target-preflight profiles: **%d** across **%d** projects; these are not version-transition checks.", n("targetPreflightProfiles"), n("targetPreflightProjects")), fmt.Sprintf("- Executable-project union: **%d** projects.", n("executableProjects")), fmt.Sprintf("- Selected retained public-source records: **%d** across **%d** projects; **%d** are source-only and have no executable-support capability.", n("selectedSourceRecords"), n("selectedSourceProjects"), n("selectedSourceOnlyProjects")), "", "## Executable projects", "", "| Project | Executable capability | Exact reviewed transition(s) | Pinned evidence | Local preparer | Limits |", "| --- | --- | --- | --- | --- |"}
+	lines := []string{"# Community support inventory", "", "Generated by `cmd/prufyx-maintainer`; do not edit by hand.", "", "This inventory separates executable scoped checks from selected public-source records. Catalogue discovery identities are not support entries. A scoped result never proves a whole upgrade safe or runtime behavior.", "", fmt.Sprintf("- CNCF embedded source rules: **%d** across **%d** projects; **%d** withdrawn (unverifiable evidence) and excluded from executable coverage.", n("cncfSourceRules"), n("cncfRuleProjects"), n("cncfSourceRulesWithdrawn")), fmt.Sprintf("- Community-project embedded source rules: **%d** across **%d** projects; CNCF membership is not asserted.", n("communityProjectSourceRules"), n("communityProjectRuleProjects")), fmt.Sprintf("- Named local checks: **%d** across **%d** projects.", n("namedChecks"), n("namedCheckProjects")), fmt.Sprintf("- Standards-conformance profiles: **%d** across **%d** projects; these are not version-transition checks.", n("conformanceProfiles"), n("conformanceProjects")), fmt.Sprintf("- Target-preflight profiles: **%d** across **%d** projects; these are not version-transition checks.", n("targetPreflightProfiles"), n("targetPreflightProjects")), fmt.Sprintf("- Executable-project union: **%d** projects.", n("executableProjects")), fmt.Sprintf("- Selected retained public-source records: **%d** across **%d** projects; **%d** are source-only and have no executable-support capability.", n("selectedSourceRecords"), n("selectedSourceProjects"), n("selectedSourceOnlyProjects")), "", "## Executable projects", "", "| Project | Executable capability | Exact reviewed transition(s) | Pinned evidence | Local preparer | Limits |", "| --- | --- | --- | --- | --- |"}
 	projects := inventory["projects"].([]any)
 	for _, rawProject := range projects {
 		project := rawProject.(map[string]any)
@@ -1507,6 +1525,15 @@ func renderMarkdown(inventory map[string]any) string {
 	}
 	if !found {
 		lines = append(lines, "| — | — | — |")
+	}
+	lines = append(lines, "", "## Withdrawn rules", "", "These embedded source rules were found to have unverifiable evidence after publication (the recorded evidence no longer matches the corpus digest convention) and were withdrawn: their claim is always `UNKNOWN` and they establish no executable support, unlike the rules above. They are listed here, not silently dropped from this inventory.", "", "| Rule ID | Project | Family | Reason |", "| --- | --- | --- | --- |")
+	withdrawnRules, _ := array(inventory["withdrawnRules"])
+	if len(withdrawnRules) == 0 {
+		lines = append(lines, "| — | — | — | — |")
+	}
+	for _, rawWithdrawn := range withdrawnRules {
+		withdrawn := rawWithdrawn.(map[string]any)
+		lines = append(lines, fmt.Sprintf("| `%s` | %s | %s | %s |", markdownCell(withdrawn["ruleID"].(string)), markdownCell(withdrawn["project"].(string)), markdownCell(withdrawn["family"].(string)), markdownCell(withdrawn["reasonCode"].(string))))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }

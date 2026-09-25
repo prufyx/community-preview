@@ -396,7 +396,12 @@ func checkEntry(index int, entry Entry, opts Options) ([]Finding, string, bool) 
 		checkFactReference(fmt.Sprintf("rule.appliesWhen[%d]", i), &body.AppliesWhen[i])
 	}
 
-	if body.Evidence.State != "active" {
+	// A community candidate must always declare active evidence: submitting
+	// a brand-new rule as already withdrawn makes no sense. AllowRange (see
+	// its doc comment) marks this call as the maintainer's own self-check
+	// against an already-published, reviewed pack, where a rule may have
+	// been withdrawn after publication; that path also accepts "withdrawn".
+	if body.Evidence.State != "active" && !(opts.AllowRange && body.Evidence.State == "withdrawn") {
 		addRule(ruleID, "evidence-state", "rule.evidence.state must be \"active\" for a new candidate, got %q", body.Evidence.State)
 	}
 	if len(body.Evidence.Sources) == 0 {
