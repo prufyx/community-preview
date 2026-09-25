@@ -167,11 +167,34 @@ func TestValidate_ConditionFactNotInRequiredFacts(t *testing.T) {
 	assertFinding(t, entry, "fact-reference")
 }
 
-func TestValidate_EvidenceStateNotActive(t *testing.T) {
+// TestValidate_CommunityContributionRejectsWithdrawnEvidence: a brand-new
+// community candidate must always declare active evidence. Submitting a
+// rule that is already withdrawn makes no sense, so the default (community)
+// mode refuses it.
+func TestValidate_CommunityContributionRejectsWithdrawnEvidence(t *testing.T) {
 	entry := firstRealEntry(t)
 	setRuleID(t, entry, "smoke.withdrawn.1-0-0-to-2-0-0")
 	rule(entry)["evidence"].(map[string]any)["state"] = "withdrawn"
 	assertFinding(t, entry, "evidence-state")
+}
+
+// TestValidate_MaintainerSelfCheckAcceptsWithdrawnEvidence: a rule already
+// published may later be withdrawn (unverifiable evidence discovered after
+// publication). The maintainer self-check against an already-published pack
+// (AllowRange: true, mirroring the range distinction above) accepts it.
+func TestValidate_MaintainerSelfCheckAcceptsWithdrawnEvidence(t *testing.T) {
+	entry := firstRealEntry(t)
+	setRuleID(t, entry, "smoke.withdrawn.1-0-0-to-2-0-0")
+	rule(entry)["evidence"].(map[string]any)["state"] = "withdrawn"
+	result, err := Validate(candidateFile(t, entry), Options{AllowRange: true})
+	if err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+	for _, f := range result.Findings {
+		if f.Check == "evidence-state" {
+			t.Fatalf("expected no evidence-state finding for a maintainer self-check of withdrawn evidence, got: %+v", result.Findings)
+		}
+	}
 }
 
 func TestValidate_RuleIDCollidesWithExistingPack(t *testing.T) {
