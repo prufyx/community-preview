@@ -73,8 +73,12 @@ func TestCRIOArtifactNameRawExternalAuthorityAndHistoricalReplay(t *testing.T) {
 	if code != ExitUnknown || stderr != "" || !strings.Contains(output, "no embedded rule was used") {
 		t.Fatalf("no fallback code=%d err=%q out=%s", code, stderr, output)
 	}
+	// The embedded rule's evidence is withdrawn (unverifiable vendored
+	// distribution/reference citations), so the embedded route now always
+	// reports UNKNOWN (RULE_EVIDENCE_WITHDRAWN) regardless of the supplied
+	// reference shape; it no longer BLOCKs on a short reference.
 	code, output, stderr = runCNCFCLI(t, crioRawArgs(path, "named-reference-resolution", "human")...)
-	if code != ExitBlocked || stderr != "" {
+	if code != ExitUnknown || stderr != "" {
 		t.Fatalf("embedded code=%d err=%q out=%s", code, stderr, output)
 	}
 	code, output, stderr = runCNCFCLI(t, append(crioExternalArgs(f, path, "1.34.0", "1.35.0", "human"), "--now", "2026-09-11T03:00:00Z")...)
@@ -83,15 +87,20 @@ func TestCRIOArtifactNameRawExternalAuthorityAndHistoricalReplay(t *testing.T) {
 	}
 
 	f.import2(t)
+	// The synthetic fixture rule (knowledgefixture.GenerateCRIOConstraints)
+	// clones the real embedded cri-o rule, including its now-withdrawn
+	// evidence, so this external/synthetic route is UNKNOWN
+	// (RULE_EVIDENCE_WITHDRAWN) the same way the embedded route is, for
+	// both a short and a fully-qualified reference.
 	synthetic := crioExternalArgs(f, path, knowledgefixture.SyntheticCRIOFrom, knowledgefixture.SyntheticCRIOTo, "json")
 	code, report, stderr := runCNCFCLI(t, append(synthetic, "--image-status-request-digest", digestCommunityBytes(blockedRaw))...)
-	if code != ExitBlocked || stderr != "" || !json.Valid([]byte(report)) || strings.Contains(report, "PRIVATE_CRIO_EXTERNAL") {
+	if code != ExitUnknown || stderr != "" || !json.Valid([]byte(report)) || strings.Contains(report, "PRIVATE_CRIO_EXTERNAL") {
 		t.Fatalf("current code=%d err=%q out=%s", code, stderr, report)
 	}
 	fixedRaw := []byte(`{"image":{"image":"registry.example/repository/widget:v1"},"secret":"PRIVATE_CRIO_EXTERNAL"}`)
 	writeCNCFFileAt(t, path, fixedRaw)
 	code, fixed, stderr := runCNCFCLI(t, append(synthetic, "--image-status-request-digest", digestCommunityBytes(fixedRaw))...)
-	if code != ExitOK || stderr != "" || !json.Valid([]byte(fixed)) {
+	if code != ExitUnknown || stderr != "" || !json.Valid([]byte(fixed)) {
 		t.Fatalf("fixed code=%d err=%q out=%s", code, stderr, fixed)
 	}
 
@@ -107,8 +116,11 @@ func TestCRIOArtifactNameRawExternalAuthorityAndHistoricalReplay(t *testing.T) {
 			t.Fatalf("missing %s code=%d stdout=%q stderr=%q", option, code, output, stderr)
 		}
 	}
+	// The replayed report still MATCHes (it was saved from this same,
+	// now-withdrawn synthetic rule), but its own aggregate readiness is
+	// UNKNOWN rather than BLOCKED, so the exit code follows that.
 	code, output, stderr = runCNCFCLI(t, replay...)
-	if code != ExitBlocked || stderr != "" || !strings.Contains(output, "historical external CRI-O named-reference replay: MATCH") || !strings.Contains(output, "saved report binds minimized intent and reference classification") {
+	if code != ExitUnknown || stderr != "" || !strings.Contains(output, "historical external CRI-O named-reference replay: MATCH") || !strings.Contains(output, "saved report binds minimized intent and reference classification") {
 		t.Fatalf("replay code=%d err=%q out=%s", code, stderr, output)
 	}
 	assertCRIORedacted(t, output, path)

@@ -21,9 +21,16 @@ func TestCRIOArtifactNameRawEditAndRepeat(t *testing.T) {
 	path := filepath.Join(dir, "image-status-request.json")
 	shortRaw := []byte(`{"image":{"image":"private-repository/widget:v1"},"auth":{"password":"PRIVATE_CRIO"}}`)
 	writeCNCFFileAt(t, path, shortRaw)
+	// The embedded rule's evidence is withdrawn (unverifiable vendored
+	// distribution/reference citations), so the embedded route now always
+	// reports UNKNOWN (RULE_EVIDENCE_WITHDRAWN), whether the supplied
+	// reference is short or fully qualified: editing the request no longer
+	// changes the verdict. The rest of this test's invariants (redaction,
+	// the checker never modifying the supplied file, repeat idempotency)
+	// still hold and are still exercised.
 	args := crioRawArgs(path, "named-reference-resolution", "human")
 	code, before, stderr := runCNCFCLI(t, args...)
-	if code != ExitBlocked || stderr != "" || !strings.Contains(before, "short explicit-tag reference") || !strings.Contains(before, "scoped result: BLOCKED") || !strings.Contains(before, "aggregate readiness: UNKNOWN") {
+	if code != ExitUnknown || stderr != "" || !strings.Contains(before, "short explicit-tag reference") || !strings.Contains(before, "scoped result: UNKNOWN (RULE_EVIDENCE_WITHDRAWN)") || !strings.Contains(before, "aggregate readiness: UNKNOWN") {
 		t.Fatalf("code=%d stderr=%q output=%s", code, stderr, before)
 	}
 	assertCRIORedacted(t, before, path)
@@ -34,12 +41,12 @@ func TestCRIOArtifactNameRawEditAndRepeat(t *testing.T) {
 	fullRaw := []byte(`{"image":{"image":"registry.example/repository/widget:v1"},"auth":{"password":"PRIVATE_CRIO"}}`)
 	writeCNCFFileAt(t, path, fullRaw)
 	code, after, stderr := runCNCFCLI(t, args...)
-	if code != ExitOK || stderr != "" || !strings.Contains(after, "fully-qualified explicit-tag reference") || !strings.Contains(after, "scoped result: PASS") || !strings.Contains(after, "aggregate readiness: UNKNOWN") {
+	if code != ExitUnknown || stderr != "" || !strings.Contains(after, "fully-qualified explicit-tag reference") || !strings.Contains(after, "scoped result: UNKNOWN (RULE_EVIDENCE_WITHDRAWN)") || !strings.Contains(after, "aggregate readiness: UNKNOWN") {
 		t.Fatalf("code=%d stderr=%q output=%s", code, stderr, after)
 	}
 	assertCRIORedacted(t, after, path)
 	code, repeated, stderr := runCNCFCLI(t, args...)
-	if code != ExitOK || stderr != "" || repeated != after {
+	if code != ExitUnknown || stderr != "" || repeated != after {
 		t.Fatalf("repeat code=%d stderr=%q equal=%t", code, stderr, repeated == after)
 	}
 	entries, _ := os.ReadDir(dir)
@@ -83,7 +90,7 @@ func TestCRIOArtifactNameRawUnknownPrivacyAndModeGuards(t *testing.T) {
 	base := crioRawArgs(path, "named-reference-resolution", "json")
 	matching := append(append([]string{}, base...), "--image-status-request-digest", digestCommunityBytes(raw))
 	code, out, errout = runCNCFCLI(t, matching...)
-	if code != ExitOK || errout != "" || !json.Valid([]byte(out)) || strings.Contains(out, "PRIVATE_CRIO") {
+	if code != ExitUnknown || errout != "" || !json.Valid([]byte(out)) || strings.Contains(out, "PRIVATE_CRIO") {
 		t.Fatalf("matching code=%d stderr=%q output=%s", code, errout, out)
 	}
 	badDigest := "sha256:" + strings.Repeat("0", 64)
