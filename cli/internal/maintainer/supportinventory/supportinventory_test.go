@@ -523,6 +523,62 @@ func TestSupportInventory_CephUsesSelectedCurrentMetadata(t *testing.T) {
 	t.Fatal("Ceph inventory entry missing")
 }
 
+// TestSupportInventory_WithdrawnRuleIsExcludedButListed exercises the real
+// embedded corpus, where cri-o.artifact-short-name-rejected.1-35 is the
+// project's only CNCF rule and has withdrawn evidence (unverifiable vendored
+// distribution/reference citations). It establishes no executable claim, so
+// the generator must not silently drop it: it excludes it from the
+// project's executable capability (cri-o has no other CNCF rule, so cri-o
+// itself carries no "executable" cncf_embedded_source_rule capability) while
+// still reporting it explicitly in withdrawnRules and the withdrawn counts.
+func TestSupportInventory_WithdrawnRuleIsExcludedButListed(t *testing.T) {
+	cfg, _ := repositoryConfig(t)
+	raw, markdown, err := Generate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Counts struct {
+			CNCFSourceRules          int `json:"cncfSourceRules"`
+			CNCFSourceRulesWithdrawn int `json:"cncfSourceRulesWithdrawn"`
+		} `json:"counts"`
+		WithdrawnRules []struct {
+			RuleID     string `json:"ruleID"`
+			Project    string `json:"project"`
+			Family     string `json:"family"`
+			ReasonCode string `json:"reasonCode"`
+		} `json:"withdrawnRules"`
+		Projects []struct {
+			ProjectID    string `json:"projectID"`
+			Capabilities []struct {
+				Kind string `json:"kind"`
+			} `json:"capabilities"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Counts.CNCFSourceRulesWithdrawn != 1 {
+		t.Fatalf("expected exactly one withdrawn CNCF rule, got %d", document.Counts.CNCFSourceRulesWithdrawn)
+	}
+	if len(document.WithdrawnRules) != 1 || document.WithdrawnRules[0].RuleID != "cri-o.artifact-short-name-rejected.1-35" || document.WithdrawnRules[0].Project != "cri-o" || document.WithdrawnRules[0].Family != "cncf_embedded_source_rule" || document.WithdrawnRules[0].ReasonCode != "RULE_EVIDENCE_WITHDRAWN" {
+		t.Fatalf("unexpected withdrawnRules entry: %#v", document.WithdrawnRules)
+	}
+	for _, project := range document.Projects {
+		if project.ProjectID != "cri-o" {
+			continue
+		}
+		for _, cap := range project.Capabilities {
+			if cap.Kind == "embedded_cncf_source_rule" {
+				t.Fatalf("cri-o still carries an executable cncf_embedded_source_rule capability despite its only rule being withdrawn: %#v", project.Capabilities)
+			}
+		}
+	}
+	if !strings.Contains(markdown, "## Withdrawn rules") || !strings.Contains(markdown, "cri-o.artifact-short-name-rejected.1-35") || !strings.Contains(markdown, "RULE_EVIDENCE_WITHDRAWN") {
+		t.Fatalf("expected markdown to list the withdrawn cri-o rule explicitly")
+	}
+}
+
 func TestSupportInventory_Generate_MatchesAcceptedInventory(t *testing.T) {
 	cfg, root := repositoryConfig(t)
 	jsonOutput, markdownOutput, err := Generate(cfg)
