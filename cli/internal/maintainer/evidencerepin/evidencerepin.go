@@ -90,6 +90,20 @@ const (
 	repoPendingRateLimited = "PENDING_RATE_LIMITED"
 	repoPendingError       = "PENDING_ERROR"
 	repoNoReleasesOrTags   = "NO_RELEASES_OR_TAGS"
+
+	// resolutionTagFallback marks a RepoResolution or ClassResult whose
+	// current-commit resolution came from the tags fallback rather than
+	// from GitHub Releases (see ResolveCurrentCommit and latestTag). The
+	// tags list endpoint carries no documented recency guarantee, so a
+	// tag-fallback resolution is weaker evidence than a Releases-based one
+	// and must be machine-identifiable so downstream batch re-attestation
+	// can refuse it.
+	resolutionTagFallback = "tag_fallback"
+
+	// DefaultMaxAge is the freshness bound applied when --max-age is not
+	// given: a repo resolution or citation classification older than this
+	// is stale and must be recomputed rather than resumed as current.
+	DefaultMaxAge = 72 * time.Hour
 )
 
 var (
@@ -250,6 +264,16 @@ type RepoResolution struct {
 	CurrentCommit string `json:"currentCommit,omitempty"`
 	Detail        string `json:"detail,omitempty"`
 	ResolvedAt    string `json:"resolvedAt,omitempty"`
+	// Resolution is resolutionTagFallback when CurrentCommit came from the
+	// tags fallback rather than GitHub Releases, so downstream tooling can
+	// treat it as weaker evidence. Empty means Releases resolved it.
+	Resolution string `json:"resolution,omitempty"`
+	// Stale is true when this resolution is older than the run's --max-age
+	// bound but could not be refreshed this run (for example because an
+	// earlier repository in the same run hit the GitHub API rate limit).
+	// A stale resolution is reported as-is, never silently re-stamped with
+	// a new ResolvedAt.
+	Stale bool `json:"stale,omitempty"`
 }
 
 var errRateLimited = errors.New("github api rate limited")
@@ -258,26 +282,31 @@ var errRateLimited = errors.New("github api rate limited")
 // (falling back to its most recent tag when the project publishes no
 // GitHub Releases) and resolves that tag to a commit SHA. It makes at most
 // three api.github.com requests and never guesses or searches beyond the
-// single most-recent release or tag.
-func ResolveCurrentCommit(ctx context.Context, fetcher APIFetcher, owner, repo string) (tag, commit string, err error) {
+// single most-recent release, or the tags fallback described on latestTag.
+// resolution is resolutionTagFallback when the tags fallback was used
+// (weaker evidence: see latestTag), or "" when GitHub Releases resolved it.
+func ResolveCurrentCommit(ctx context.Context, fetcher APIFetcher, owner, repo string) (tag, commit, resolution string, err error) {
 	tag, err = latestReleaseTag(ctx, fetcher, owner, repo)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if tag == "" {
 		tag, err = latestTag(ctx, fetcher, owner, repo)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
+		}
+		if tag != "" {
+			resolution = resolutionTagFallback
 		}
 	}
 	if tag == "" {
-		return "", "", nil
+		return "", "", "", nil
 	}
 	commit, err = resolveTagCommit(ctx, fetcher, owner, repo, tag)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return tag, commit, nil
+	return tag, commit, resolution, nil
 }
 
 func apiGet(ctx context.Context, fetcher APIFetcher, path string) ([]byte, error) {
@@ -330,8 +359,61 @@ func latestReleaseTag(ctx context.Context, fetcher APIFetcher, owner, repo strin
 	return "", nil
 }
 
+// tagsFallbackPageSize bounds the single tags-list request used when a
+// project publishes no GitHub Releases. GitHub's tags list endpoint carries
+// no documented sort guarantee (unlike the releases endpoint, which is
+// creation-date descending): a repo can return its tags in an order that is
+// not version-recency order at all, so naively taking the first entry (as
+// this fallback used to under per_page=1) can select an older tag, e.g.
+// "v9.0.0" sorting ahead of "v10.0.0" under a lexicographic ordering. To
+// stay correct without adding API requests, this fetches a wider single
+// page and ranks candidates by their parsed dotted-numeric version instead
+// of trusting positional order.
+const tagsFallbackPageSize = "30"
+
+var tagVersionPattern = regexp.MustCompile(`\d+(?:\.\d+){1,3}`)
+
+// parseTagVersion extracts a dotted numeric version from a tag name (for
+// example "v1.2.3" -> [1,2,3]) for recency comparison. ok is false when the
+// tag name contains no such pattern.
+func parseTagVersion(tag string) (parts []int, ok bool) {
+	match := tagVersionPattern.FindString(tag)
+	if match == "" {
+		return nil, false
+	}
+	for _, segment := range strings.Split(match, ".") {
+		n, err := strconv.Atoi(segment)
+		if err != nil {
+			return nil, false
+		}
+		parts = append(parts, n)
+	}
+	return parts, true
+}
+
+// compareTagVersions returns -1, 0, or 1 comparing a to b component-wise,
+// treating a missing trailing component as 0 (so "1.2" == "1.2.0").
+func compareTagVersions(a, b []int) int {
+	for i := 0; i < len(a) || i < len(b); i++ {
+		var x, y int
+		if i < len(a) {
+			x = a[i]
+		}
+		if i < len(b) {
+			y = b[i]
+		}
+		if x != y {
+			if x < y {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
 func latestTag(ctx context.Context, fetcher APIFetcher, owner, repo string) (string, error) {
-	body, err := apiGet(ctx, fetcher, "/repos/"+owner+"/"+repo+"/tags?per_page=1")
+	body, err := apiGet(ctx, fetcher, "/repos/"+owner+"/"+repo+"/tags?per_page="+tagsFallbackPageSize)
 	if err != nil {
 		return "", err
 	}
@@ -344,7 +426,22 @@ func latestTag(ctx context.Context, fetcher APIFetcher, owner, repo string) (str
 	if err := json.Unmarshal(body, &tags); err != nil || len(tags) == 0 {
 		return "", nil
 	}
-	return tags[0].Name, nil
+	// Prefer the numerically highest parsed version among candidates that
+	// parse as one; a strictly-greater comparison keeps the first API-order
+	// occurrence on ties, matching the old behaviour when nothing (or only
+	// one entry) parses as a version.
+	best := tags[0].Name
+	bestVersion, bestOK := parseTagVersion(best)
+	for _, candidate := range tags[1:] {
+		version, ok := parseTagVersion(candidate.Name)
+		if !ok {
+			continue
+		}
+		if !bestOK || compareTagVersions(version, bestVersion) > 0 {
+			best, bestVersion, bestOK = candidate.Name, version, true
+		}
+	}
+	return best, nil
 }
 
 func resolveTagCommit(ctx context.Context, fetcher APIFetcher, owner, repo, tag string) (string, error) {
@@ -433,6 +530,21 @@ type ClassResult struct {
 	NewEnd    int    `json:"newEndLine,omitempty"`
 	Class     string `json:"class"`
 	Detail    string `json:"detail,omitempty"`
+	// ClassifiedAt is when this classification was computed, RFC3339 UTC.
+	// It is set once and never silently re-stamped on resume: a reused
+	// result keeps its original ClassifiedAt.
+	ClassifiedAt string `json:"classifiedAt,omitempty"`
+	// Resolution is resolutionTagFallback when the repo's current commit
+	// came from the tags fallback rather than GitHub Releases (see
+	// RepoResolution.Resolution); this is weaker evidence and must be
+	// refusable by downstream batch re-attestation.
+	Resolution string `json:"resolution,omitempty"`
+	// Stale is true when this result is older than the run's --max-age
+	// bound but could not be recomputed this run (its repo's resolution is
+	// itself stale and unrefreshed, typically due to a rate limit earlier
+	// in the same run). A stale result is reported as-is, with its original
+	// ClassifiedAt, never silently re-stamped as current.
+	Stale bool `json:"stale,omitempty"`
 }
 
 // costRank orders the worklist cheapest-reviewer-cost first: batch-attestable
@@ -666,6 +778,50 @@ type Summary struct {
 	// (FILE_IDENTICAL+SPAN_IDENTICAL+NO_NEW_RELEASE)/Classified.
 	BatchAttestableFraction float64 `json:"batchAttestableFraction"`
 	FalsificationMet        bool    `json:"falsificationConditionMet"`
+	// OldestResolvedAt is the oldest RepoResolution.ResolvedAt among this
+	// run's repos, RFC3339 UTC, so a reader can see at a glance how stale
+	// the least-fresh repository resolution behind this worklist is,
+	// regardless of the run's own GeneratedAt timestamp. Empty when no repo
+	// resolution carries a timestamp.
+	OldestResolvedAt string `json:"oldestResolvedAt,omitempty"`
+}
+
+// isFresh reports whether an RFC3339 UTC timestamp is within maxAge of now.
+// An empty or unparsable timestamp is never fresh: absence of a recorded
+// time must not be treated as "just resolved".
+func isFresh(timestamp string, now time.Time, maxAge time.Duration) bool {
+	if timestamp == "" {
+		return false
+	}
+	parsed, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		return false
+	}
+	return now.Sub(parsed) <= maxAge
+}
+
+// oldestResolvedAt returns the earliest ResolvedAt among repos, or "" if
+// none carry a parsable timestamp.
+func oldestResolvedAt(repos []RepoResolution) string {
+	var oldest time.Time
+	found := false
+	for _, repo := range repos {
+		if repo.ResolvedAt == "" {
+			continue
+		}
+		parsed, err := time.Parse(time.RFC3339, repo.ResolvedAt)
+		if err != nil {
+			continue
+		}
+		if !found || parsed.Before(oldest) {
+			oldest = parsed
+			found = true
+		}
+	}
+	if !found {
+		return ""
+	}
+	return oldest.UTC().Format(time.RFC3339)
 }
 
 func summarize(results []ClassResult) Summary {
@@ -758,6 +914,8 @@ var worklistLimitations = []string{
 	"a repository's \"current release commit\" is its single most recent non-draft GitHub Release, or its single most recent tag when the project publishes no Releases; this is a proxy for \"upstream now\", not a guarantee of the true latest stable line",
 	"SPAN_MOVED, CONTENT_CHANGED, PATH_GONE, and CORPUS_DIGEST_MISMATCH all require a human reviewer; this tool only narrows where reviewer time goes",
 	"CORPUS_DIGEST_MISMATCH means the file fetched at the citation's own pinned commit does not hash to the recorded contentDigest (or is not reachable there at all); this is a corpus integrity problem, not citation drift, and should be investigated separately",
+	"a repo resolution or citation classification resumed from --state is reported as current only if it is within --max-age of this run; an older entry is either recomputed or, when this run could not recompute it, kept and marked \"stale\": true rather than reported as fresh",
+	"a repo resolution with \"resolution\": \"tag_fallback\" was resolved from the tags list, not from GitHub Releases; the tags list endpoint carries no documented recency guarantee, so this is weaker evidence and should not be treated as batch-attestable without review",
 }
 
 // BuildWorklist filters citations by project/limit, resolves each unique
@@ -766,7 +924,15 @@ var worklistLimitations = []string{
 // the updated state. It stops issuing further api.github.com requests as
 // soon as one is rate-limited, so the run degrades to partial, resumable
 // results instead of failing outright.
-func BuildWorklist(ctx context.Context, citations []Citation, projects []string, limit int, state *State, apiFetcher APIFetcher, blobFetcher sourcecapture.Fetcher, now func() time.Time, progress io.Writer) (Worklist, error) {
+//
+// maxAge is the freshness bound: a repo resolution or citation
+// classification already in state is resumed as current only when it is
+// still PENDING or was resolved/classified within maxAge of now(). An
+// entry older than that is recomputed when this run is able to (i.e. no
+// earlier rate limit blocked it), or otherwise kept and marked Stale in the
+// returned worklist rather than being silently re-stamped as fresh under
+// this run's GeneratedAt.
+func BuildWorklist(ctx context.Context, citations []Citation, projects []string, limit int, state *State, apiFetcher APIFetcher, blobFetcher sourcecapture.Fetcher, now func() time.Time, maxAge time.Duration, progress io.Writer) (Worklist, error) {
 	filtered := filterCitations(citations, projects, limit)
 	// Wrap once per run: many citations across a corpus cite the same
 	// file (shared old blob, and sometimes shared new blob too), and
@@ -786,14 +952,18 @@ func BuildWorklist(ctx context.Context, citations []Citation, projects []string,
 
 	rateLimited := false
 	for _, key := range repoOrder {
-		if existing, ok := state.Repos[key]; ok && existing.Status == repoResolved {
+		if existing, ok := state.Repos[key]; ok && existing.Status == repoResolved && isFresh(existing.ResolvedAt, now(), maxAge) {
+			// Still fresh: resume without re-resolving or re-stamping.
 			continue
 		}
 		if rateLimited {
+			// Cannot attempt more resolutions this run; leave whatever is
+			// already in state untouched (fresh-or-not is settled below,
+			// when building the reported repos list).
 			continue
 		}
 		target := repoSet[key]
-		tag, commit, err := ResolveCurrentCommit(ctx, apiFetcher, target.owner, target.repo)
+		tag, commit, tagResolution, err := ResolveCurrentCommit(ctx, apiFetcher, target.owner, target.repo)
 		resolution := RepoResolution{Owner: target.owner, Repo: target.repo, ResolvedAt: now().UTC().Format(time.RFC3339)}
 		switch {
 		case errors.Is(err, errRateLimited):
@@ -810,25 +980,51 @@ func BuildWorklist(ctx context.Context, citations []Citation, projects []string,
 			resolution.Status = repoResolved
 			resolution.CurrentTag = tag
 			resolution.CurrentCommit = commit
+			resolution.Resolution = tagResolution
 		}
 		state.Repos[key] = resolution
 		if progress != nil {
 			fmt.Fprintf(progress, "evidence repin: resolved %s/%s -> %s (%s)\n", target.owner, target.repo, resolution.CurrentCommit, resolution.Status)
 		}
 	}
+	// Anything left resolved-but-older-than-maxAge at this point is a repo
+	// this run could not refresh (rate-limited before reaching it, or
+	// already rate-limited when this run started): mark it stale so the
+	// worklist never presents it as current, without touching its
+	// ResolvedAt.
+	for key, resolution := range state.Repos {
+		if resolution.Status == repoResolved && !isFresh(resolution.ResolvedAt, now(), maxAge) {
+			resolution.Stale = true
+			state.Repos[key] = resolution
+		}
+	}
 
 	results := make([]ClassResult, 0, len(filtered))
 	for _, citation := range filtered {
 		citationKey := citation.key()
-		if existing, ok := state.Results[citationKey]; ok && existing.Class != ClassPending {
+		existing, hadExisting := state.Results[citationKey]
+		if hadExisting && existing.Class != ClassPending && isFresh(existing.ClassifiedAt, now(), maxAge) {
+			// Still fresh: resume without reclassifying or re-stamping.
 			results = append(results, existing)
 			continue
 		}
 		resolution := state.Repos[citation.repoKey()]
+		resolutionUsable := resolution.Status == repoResolved && isFresh(resolution.ResolvedAt, now(), maxAge)
 		var result ClassResult
-		if resolution.Status == repoResolved {
+		switch {
+		case resolutionUsable:
 			result = Classify(ctx, citation, resolution.CurrentCommit, cachedBlobFetcher)
-		} else {
+			result.ClassifiedAt = now().UTC().Format(time.RFC3339)
+			result.Resolution = resolution.Resolution
+		case hadExisting && existing.Class != ClassPending:
+			// The prior classification is stale, but this run cannot
+			// recompute it (its repo's resolution is itself stale and
+			// unrefreshed this run, typically due to an earlier rate
+			// limit). Keep it, with its original ClassifiedAt, but mark it
+			// Stale so it is never reported as current.
+			result = existing
+			result.Stale = true
+		default:
 			result = ClassResult{
 				RulePack: citation.RulePack, RuleID: citation.RuleID, Project: citation.Project, SourceID: citation.SourceID,
 				Owner: citation.Owner, Repo: citation.Repo, Path: citation.Path,
@@ -871,13 +1067,16 @@ func BuildWorklist(ctx context.Context, citations []Citation, projects []string,
 	}
 	sort.Strings(rulePacks)
 
+	summary := summarize(results)
+	summary.OldestResolvedAt = oldestResolvedAt(repos)
+
 	worklist := Worklist{
 		Schema: Schema, Authority: Authority, GeneratedAt: now().UTC().Format(time.RFC3339),
 		Scope:       WorklistScope{RulePacks: rulePacks, Projects: projects, Limit: limit},
 		Repos:       repos,
 		Citations:   results,
 		Rules:       ruleVerdicts(results),
-		Summary:     summarize(results),
+		Summary:     summary,
 		Limitations: worklistLimitations,
 	}
 	return worklist, nil
@@ -935,6 +1134,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, apiFetche
 	limit := flags.Int("limit", 0, "cap the number of citations considered (0 = no cap)")
 	statePath := flags.String("state", "", "resumable progress file (optional)")
 	outputPath := flags.String("output", "", "new worklist output path")
+	maxAge := flags.Duration("max-age", DefaultMaxAge, "freshness bound for a resumed repo resolution or citation classification; older entries are recomputed or marked stale, never resumed as current")
 	flags.Var(&rulePacks, "rules", "rule pack path (repeatable; default: the shipped CNCF and community packs)")
 	flags.Var(&projects, "project", "restrict to this project slug (repeatable; default: all)")
 	if err := flags.Parse(args[1:]); err != nil || flags.NArg() != 0 || *outputPath == "" {
@@ -970,7 +1170,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, apiFetche
 		return 2
 	}
 
-	worklist, err := BuildWorklist(ctx, citations, projects, *limit, state, apiFetcher, blobFetcher, now, stderr)
+	worklist, err := BuildWorklist(ctx, citations, projects, *limit, state, apiFetcher, blobFetcher, now, *maxAge, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "evidence repin: %v\n", err)
 		return 2
